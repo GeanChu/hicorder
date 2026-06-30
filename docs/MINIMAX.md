@@ -1,29 +1,45 @@
-# Transcrição — MiniMax e camada de provedor
+# Transcrição — MiniMax (confirmado)
 
-## Como está implementado (PR5)
-A transcrição é uma **camada plugável** e **configurável pela UI** (Configurações):
-- **Endpoint de transcrição** (URL completa) — campo editável.
-- **Modelo** (campo `model`) — campo editável.
-- **Chave da API** — guardada no **keychain do SO** (crate `keyring`), nunca em texto puro nem no SQLite.
-- **Idioma** — por transcrição, padrão `pt`.
+## Resumo
+MiniMax STT é **OpenAI-compatível**. O provedor `OpenAiCompatible` (`transcription/mod.rs`) funciona direto. Defaults de fábrica já apontam pra MiniMax.
 
-Provedor concreto: `OpenAiCompatible` (`transcription/mod.rs`) — faz `POST {endpoint}` multipart com `file` + `model` + `language` + `response_format=json`, header `Authorization: Bearer <chave>`, e lê `{"text": "..."}` da resposta. Cobre OpenAI/Groq Whisper e qualquer endpoint compatível.
+| Item | Valor |
+|------|-------|
+| Endpoint (global) | `https://api.minimax.io/v1/audio/transcriptions` |
+| Endpoint (China) | `https://api.minimaxi.com/v1/audio/transcriptions` |
+| Modelo | `MiniMax-ASR` (ou omitir = auto) |
+| Auth | `Authorization: Bearer sk-cp-...` (Subscription Key do Token Plan) |
+| Formatos de áudio | mp3, mp4, m4a, wav, mpga, **webm** (⚠️ **não** aceita `.ogg`/opus puro) |
+| Resposta | `json` (default, tem `text`), `verbose_json` (com `segments`), `text`, `srt`, `vtt` |
+| Idioma | ISO code (`pt`, `en`, `zh`); opcional |
+| Quota | deduz do Token Plan (5h rolling + semanal) |
 
-## MiniMax — chave de assinatura (sk-cp)
-A chave é a **Subscription Key da MiniMax (prefixo `sk-cp`)**, do plano de tokens (token-plan), **não** uma chave pay-as-you-go. Ela é enviada como **Bearer token** no header `Authorization` — exatamente o que o provedor já faz. Então, do ponto de vista do código, a chave `sk-cp` é tratada como qualquer Bearer token: o usuário cola em Configurações → vai pro keychain → enviada nas requisições.
+## Como o app usa
+- Grava e encoda em **Opus dentro de `.webm`** (`recording.webm`) — leve e aceito pelo endpoint (é o que navegador/Open WebUI mandam).
+- `transcribe` envia multipart `file` + `model` + `language` + `response_format=json`, header `Authorization: Bearer <sk-cp>`; lê `text` do JSON.
+- A chave (sk-cp) fica no **keychain** do SO; endpoint/modelo são editáveis em Configurações.
 
-## A confirmar (bloqueia o teste real com MiniMax)
-Não consegui ler as docs da MiniMax neste ambiente (WebFetch/WebSearch quebrados aqui). Falta confirmar e preencher em Configurações:
-1. **URL do endpoint de speech-to-text da MiniMax** (a doc enviada é `token-plan/quickstart`, sobre a assinatura, não o ASR).
-2. **Nome do modelo** de transcrição.
-3. **Formato do request**: a MiniMax aceita multipart `file` igual à OpenAI? Ou usa upload de arquivo → `file_id` → job assíncrono com polling? Se for assíncrono, precisa de um provedor novo (não cabe no `OpenAiCompatible`).
-4. **GroupId**: a `sk-cp` é escopada por conta/assinatura, então talvez dispense `GroupId`. Confirmar. Se precisar, dá pra embutir como query na URL do endpoint.
-5. **Confirmar que a MiniMax tem ASR.** Se não tiver, fallback: OpenAI ou Groq Whisper (basta apontar o endpoint/modelo em Configurações).
+## ⚠️ Região (pegadinha do sk-cp)
+A sk-cp tem região embutida. Chave **global** só funciona em `api.minimax.io`; chave **China** só em `api.minimaxi.com`. Endpoint errado = **401**. Se tomar 401, trocar o endpoint em Configurações para `api.minimaxi.com`.
 
-## Como configurar/testar
-Configurações → preencher Endpoint, Modelo e Chave → Salvar. Aba Transcrição → escolher gravação + idioma → Transcrever.
-- Default de fábrica aponta pra OpenAI (`/v1/audio/transcriptions`, `whisper-1`) só pra ter um caminho que funciona; troque pelos valores da MiniMax quando confirmados.
+Checar a região da chave:
+```powershell
+curl.exe https://api.minimax.io/v1/models -H "Authorization: Bearer sk-cp-..."
+# 401 → tentar https://api.minimaxi.com/v1/models
+```
+
+## Teste rápido (valida a chave sem o app)
+```powershell
+curl.exe -X POST "https://api.minimax.io/v1/audio/transcriptions" `
+  -H "Authorization: Bearer sk-cp-SUA_CHAVE" `
+  -F "file=@C:\caminho\chamada.mp3" `
+  -F "model=MiniMax-ASR" -F "language=pt"
+# { "text": "..." } = OK
+```
+
+## Configurar no app
+Configurações → Endpoint = `https://api.minimax.io/v1/audio/transcriptions` (default), Modelo = `MiniMax-ASR` (default), Chave = sua `sk-cp` → Salvar. Aba Transcrição → escolher gravação + idioma (pt) → Transcrever.
 
 ## Segurança
 - Chave no keychain; nunca logar áudio nem chave.
-- Avisar o usuário (UI) que a transcrição envia o áudio para o provedor configurado.
+- Avisar o usuário (UI) que a transcrição envia o áudio para a MiniMax.

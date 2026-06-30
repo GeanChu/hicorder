@@ -8,7 +8,8 @@ use std::process::Command;
 
 use anyhow::{anyhow, bail, Result};
 
-/// Mistura `mic` (+ `system` se houver) numa faixa Opus mono ~32 kbps, 16 kHz, `.ogg`.
+/// Mistura `mic` (+ `system` se houver) numa faixa Opus mono ~32 kbps, 16 kHz.
+/// O container vem da extensão de `out` (usamos `.webm`, aceito pela MiniMax).
 pub fn mix_to_opus(mic: &str, system: Option<&str>, out: &Path) -> Result<()> {
     let ffmpeg = ffmpeg_path();
     let mut cmd = Command::new(&ffmpeg);

@@ -38,7 +38,8 @@ pub fn stop_recording(app: AppHandle, recorder: State<Recorder>) -> Result<Recor
     let dir = Path::new(&res.mic_path)
         .parent()
         .ok_or_else(|| "caminho da gravação inválido".to_string())?;
-    let out = dir.join("recording.ogg");
+    // webm/opus: leve e aceito pelo endpoint OpenAI-compat da MiniMax (.ogg não é aceito).
+    let out = dir.join("recording.webm");
 
     encode::mix_to_opus(&res.mic_path, res.system_path.as_deref(), &out).map_err(|e| e.to_string())?;
 

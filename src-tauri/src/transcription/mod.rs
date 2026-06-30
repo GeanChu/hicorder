@@ -19,9 +19,10 @@ pub struct TranscriptionConfig {
 
 impl Default for TranscriptionConfig {
     fn default() -> Self {
+        // MiniMax (global). Para a China, trocar em Configurações para api.minimaxi.com.
         Self {
-            endpoint_url: "https://api.openai.com/v1/audio/transcriptions".to_string(),
-            model: "whisper-1".to_string(),
+            endpoint_url: "https://api.minimax.io/v1/audio/transcriptions".to_string(),
+            model: "MiniMax-ASR".to_string(),
         }
     }
 }

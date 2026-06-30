@@ -27,6 +27,7 @@ recordings/
 *.ogg
 *.wav
 *.mp4
+*.webm
 app.db
 app.db-*
 
