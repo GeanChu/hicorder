@@ -25,15 +25,28 @@ Cada PR é uma unidade lógica, testável e mergeável. Marque os checkboxes ao 
 
 ---
 
-## PR2 — Captura de áudio core (Windows + Linux)
-**Objetivo**: gravar mic + áudio do sistema e salvar WAV bruto.
-- [ ] Portar `audio/capture`, `audio/devices` do meetily (MIT) para Win/Linux.
-- [ ] Enumeração de dispositivos exposta à UI.
-- [ ] `level_monitor` → eventos Tauri para o medidor.
-- [ ] `incremental_saver` grava WAV em disco.
-- [ ] Comando `start_recording` / `stop_recording`.
+## PR2 — Captura de áudio core
+> Nota: meetily NÃO implementa loopback Win/Linux (só macOS); o resto bail!. Então
+> construímos o loopback nós mesmos. Dividido em 2a/2b/2c.
 
-**Aceite**: numa chamada real (Zoom/Meet) no Windows e no Linux, o WAV contém **as duas vozes** (mic + sistema).
+### PR2a — Microfone (cross-platform) ✅
+- [x] Captura do microfone via `cpal` (0.15.3) → WAV (`hound`).
+- [x] Enumeração de dispositivos de entrada (`list_input_devices`).
+- [x] Nível (pico) por polling (`recording_level`); medidor na UI.
+- [x] `Recorder` (sessão start/stop) + comandos `start_recording`/`stop_recording`/`is_recording`.
+- [x] Tela Gravar funcional (botão, timer, medidor) + lista básica em Gravações.
+- [x] `cargo build` limpo; frontend builda. Grava em `app_data/recordings/<id>/mic.wav`.
+
+**Aceite 2a**: `npm run tauri dev`, gravar, parar → existe `mic.wav` audível.
+
+### PR2b — Áudio do sistema no Windows (loopback)
+- [ ] WASAPI loopback via crate `wasapi` (0.23) → segunda faixa `system.wav`.
+- [ ] Rodar mic + sistema em paralelo na mesma sessão.
+- [ ] **Aceite**: numa chamada real (Zoom/Meet), `system.wav` tem a voz dos outros.
+
+### PR2c — Áudio do sistema no Linux (monitor source)
+- [ ] Capturar o `.monitor` do sink padrão via `cpal` (aparece como device de entrada).
+- [ ] **Aceite**: idem em Linux.
 
 ---
 

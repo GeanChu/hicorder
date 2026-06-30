@@ -1,8 +1,24 @@
-//! Captura de áudio: microfone + áudio do sistema (loopback).
+//! Captura de áudio: microfone (PR2a) e, futuramente, áudio do sistema.
 //!
-//! Implementação nos PR2 (Windows/Linux) e PR3 (macOS / ScreenCaptureKit).
-//! Portar de meetily (MIT): `frontend/src-tauri/src/audio/`
-//!   - capture/ (WASAPI / CoreAudio / PulseAudio)
-//!   - devices/ (enumeração)
-//!   - level_monitor.rs, incremental_saver.rs, recording_manager.rs
-//!   - ffmpeg_mixer.rs (adaptar saída para Opus)
+//! macOS implementa loopback só no PR3 (ScreenCaptureKit). Windows (WASAPI
+//! loopback) e Linux (monitor source) entram no PR2b/PR2c. Referência: meetily
+//! (MIT) — porém o loopback Win/Linux dele não é implementado, então construímos
+//! o nosso.
+
+mod mic;
+pub mod recorder;
+mod wav;
+
+use std::path::PathBuf;
+
+pub use mic::list_input_devices;
+
+/// Uma faixa de áudio gravada em disco (WAV bruto no PR2).
+/// `sample_rate`/`channels` são consumidos no PR4 (encode).
+#[derive(Clone)]
+#[allow(dead_code)]
+pub struct RecordedTrack {
+    pub path: PathBuf,
+    pub sample_rate: u32,
+    pub channels: u16,
+}

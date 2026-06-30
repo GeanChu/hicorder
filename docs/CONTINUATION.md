@@ -3,9 +3,22 @@
 Documento para a próxima sessão saber exatamente onde paramos e como seguir.
 
 ## Onde paramos
-**PR0 e PR1 concluídos.** Repo com docs + app Tauri scaffoldado e compilando. Próximo: **PR2 (captura de áudio)**.
+**PR0, PR1, PR2a concluídos.** App Tauri com captura de **microfone** funcionando (compila; testar rodando). Próximo: **PR2b (áudio do sistema no Windows, WASAPI loopback)**.
 
-Commits: `git log`. Branch `main` contém PR0+PR1 (PR1 mergeado de `pr1-scaffold`).
+Commits: `git log`. Branch `main` contém PR0+PR1+PR2a.
+
+### Descoberta importante (PR2)
+meetily **não** implementa loopback de áudio do sistema em Windows/Linux — só macOS (CoreAudio); os outros caminhos fazem `bail!("not yet implemented")` (ver `capture/system.rs` do clone em scratchpad). Logo, o loopback Win/Linux é nosso. Plano: crate `wasapi` (0.23) no Windows; `.monitor` source via `cpal` no Linux; ScreenCaptureKit no macOS (PR3).
+
+### Como testar o PR2a
+`npm run tauri dev` → aba Gravar → Gravar/Parar. Arquivo em
+`%APPDATA%\com.hicapital.callrecorder\recordings\<id>\mic.wav` (Win).
+Conferir que o WAV tem áudio do microfone.
+
+### Módulos criados (src-tauri/src/audio)
+- `wav.rs` (WavSink, hound) · `mic.rs` (captura cpal numa thread, stream `!Send` fica na thread) · `recorder.rs` (sessão start/stop + nível) · `mod.rs` (RecordedTrack).
+- Comandos em `commands/mod.rs`; estado `Recorder` via `.manage()` no `lib.rs`.
+- Nível: polling (`recording_level`) — simples; trocar por eventos se quiser.
 
 ## Estado do ambiente (máquina atual, Windows) — atualizado
 - git 2.54 ✅ | node v23.10.0 ✅ | npm 10.9.2 ✅
@@ -22,14 +35,19 @@ npm run tauri dev    # compila Rust + abre a janela do app
 ```
 (Primeira compilação Rust ~4 min; depois é incremental.)
 
-## Próximo passo imediato (PR2 — captura de áudio Windows + Linux)
-1. Portar de meetily (MIT) o módulo `frontend/src-tauri/src/audio/` para `src-tauri/src/audio/`:
-   - `capture/` (WASAPI loopback no Win, PulseAudio/PipeWire monitor no Linux), `devices/`.
-   - `level_monitor.rs`, `incremental_saver.rs`, `recording_manager.rs`.
-2. Adicionar deps no `Cargo.toml`: `cpal`, `windows`/`windows-rs` (loopback Win), etc. — fixar versões; checar data/alertas antes (regra do projeto).
-3. Comandos Tauri `start_recording`/`stop_recording`; eventos de nível para a UI.
-4. Salvar WAV bruto. Validar numa chamada real que o WAV tem mic + áudio do sistema.
-5. Commit por etapa; atualizar este arquivo e o ROADMAP.
+## Próximo passo imediato (PR2b — áudio do sistema no Windows)
+1. Adicionar dep só-Windows no `Cargo.toml`:
+   ```toml
+   [target.'cfg(windows)'.dependencies]
+   wasapi = "0.23.0"
+   ```
+   (Conferir a API real lendo o exemplo de loopback em `~/.cargo/registry/src/.../wasapi-0.23.0/examples/`.)
+2. Criar `src-tauri/src/audio/system.rs`:
+   - `#[cfg(windows)]` captura loopback do device de render padrão → `Vec<f32>` → WAV `system.wav`, no mesmo padrão de thread do `mic.rs`.
+   - `#[cfg(target_os="linux")]` / `#[cfg(target_os="macos")]` stubs (PR2c/PR3).
+3. No `recorder.rs`: spawnar também a captura de sistema; guardar `system_handle`; em `stop()` retornar `system_path`.
+4. Atenção: mic e sistema podem ter sample rates diferentes — manter faixas separadas; o mix vem no PR4 (ffmpeg).
+5. Validar numa chamada real que `system.wav` tem a voz dos outros. Commit; atualizar este arquivo e o ROADMAP.
 
 ## Reuso do meetily (MIT)
 Repo: https://github.com/Zackriya-Solutions/meetily — pasta `frontend/src-tauri/src/audio/`.

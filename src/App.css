@@ -73,6 +73,80 @@ body {
   color: #6b6b6b;
 }
 
+.record {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.rec-btn {
+  padding: 16px 32px;
+  font-size: 18px;
+  font-weight: 600;
+  color: #ffffff;
+  background-color: #e0392b;
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+.rec-btn:hover {
+  background-color: #c53024;
+}
+
+.rec-btn.stop {
+  background-color: #444;
+}
+
+.meters {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  width: 100%;
+}
+
+.timer {
+  font-variant-numeric: tabular-nums;
+  font-size: 22px;
+  font-weight: 600;
+}
+
+.level-bar {
+  flex: 1;
+  height: 14px;
+  background-color: #e3e3e3;
+  border-radius: 7px;
+  overflow: hidden;
+}
+
+.level-fill {
+  height: 100%;
+  background-color: #2ecc71;
+  transition: width 0.08s linear;
+}
+
+.error {
+  color: #e0392b;
+}
+
+.rec-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.rec-list li {
+  padding: 10px 0;
+  border-bottom: 1px solid #e3e3e3;
+}
+
+.rec-list .path {
+  color: #6b6b6b;
+  font-size: 13px;
+  word-break: break-all;
+}
+
 @media (prefers-color-scheme: dark) {
   :root {
     color: #f6f6f6;
