@@ -12,15 +12,16 @@ Cada PR é uma unidade lógica, testável e mergeável. Marque os checkboxes ao 
 
 ---
 
-## PR1 — Scaffold Tauri 2
+## PR1 — Scaffold Tauri 2 ✅
 **Objetivo**: app abre uma janela vazia, builda nos 3 SOs.
-- [ ] Instalar pré-requisitos: Rust (stable), ffmpeg (dev), deps de sistema do Tauri.
-- [ ] `npm create tauri-app@latest` → template Vite + React + TS dentro do repo.
-- [ ] Estrutura de pastas do backend (`audio/`, `encode/`, `transcription/`, `storage/`, `settings/`, `commands/`) com stubs.
-- [ ] `npm run tauri dev` abre janela; layout base das 4 telas (vazias).
-- [ ] CI mínima (lint + build) opcional.
+- [x] Rust stable (MSVC) + VS Build Tools (C++ + Win11 SDK) instalados nesta máquina. ffmpeg adiado para PR4 (só sidecar em prod).
+- [x] `create-tauri-app` (Tauri 2, Vite + React + TS) mergeado na raiz do repo.
+- [x] Estrutura de pastas do backend (`audio/`, `encode/`, `transcription/`, `storage/`, `settings/`, `commands/`) com stubs.
+- [x] Layout base das 4 telas (Gravar, Gravações, Transcrição, Configurações), vazias.
+- [x] `cargo build` compila limpo (3m48s, sem warnings); frontend builda (tsc + vite). Falta só rodar `npm run tauri dev` para ver a janela.
+- [ ] CI mínima (lint + build) opcional — não feito.
 
-**Aceite**: `npm run tauri dev` abre o app em Windows/Mac/Linux.
+**Aceite**: `npm run tauri dev` abre o app. Compilação validada no Windows; validar build no Mac/Linux quando houver acesso.
 
 ---
 

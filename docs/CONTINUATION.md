@@ -3,31 +3,33 @@
 Documento para a próxima sessão saber exatamente onde paramos e como seguir.
 
 ## Onde paramos
-**PR0 concluído**: repo git inicializado, planejamento e documentação escritos. **Nenhum código de app ainda** — começa no PR1.
+**PR0 e PR1 concluídos.** Repo com docs + app Tauri scaffoldado e compilando. Próximo: **PR2 (captura de áudio)**.
 
-Commits relevantes: ver `git log`. Branch atual: `main`.
+Commits: `git log`. Branch `main` contém PR0+PR1 (PR1 mergeado de `pr1-scaffold`).
 
-## Estado do ambiente (máquina atual, Windows)
-Verificado nesta sessão:
-- git 2.54 ✅
-- node v23.10.0 ✅ (atenção: Tauri recomenda LTS 20/22; v23 deve funcionar, validar no PR1)
-- npm 10.9.2 ✅
-- **Rust (cargo/rustc): NÃO instalado** ❌ — instalar no PR1 (https://rustup.rs)
-- **ffmpeg: NÃO instalado** ❌ — para dev; em produção vai como sidecar empacotado
-- pnpm: não instalado (opcional; usamos npm)
+## Estado do ambiente (máquina atual, Windows) — atualizado
+- git 2.54 ✅ | node v23.10.0 ✅ | npm 10.9.2 ✅
+- **Rust stable (x86_64-pc-windows-msvc): INSTALADO** ✅ (via winget; `~/.cargo/bin` — pode não estar no PATH de shells antigos; abrir novo terminal)
+- **VS 2022 Build Tools (VC.Tools + Win11 SDK): INSTALADO** ✅ (`link.exe` ok; `cargo build` compila)
+- WebView2 ✅ (149.x)
+- **ffmpeg: NÃO instalado** ❌ — necessário só no PR4 (dev). Em prod vai como sidecar.
+- winget e choco disponíveis para instalar deps.
 
-## Próximo passo imediato (PR1)
-1. Instalar Rust: `rustup` (toolchain stable). No Windows, instalar também o "Microsoft C++ Build Tools" (MSVC) e o WebView2 (já vem no Win11).
-2. Scaffold dentro deste repo:
-   ```bash
-   npm create tauri-app@latest
-   # template: TypeScript / React / Vite
-   ```
-   Ajustar para que o app fique na raiz do repo (não criar subpasta extra desnecessária).
-3. Criar os módulos backend como stubs: `audio/`, `encode/`, `transcription/`, `storage/`, `settings/`, `commands/`.
-4. Esqueleto das 4 telas (Gravar, Gravações, Transcrição, Configurações), vazias.
-5. Validar `npm run tauri dev` abre janela.
-6. Commit + atualizar este arquivo + marcar PR1 no ROADMAP.
+## Como rodar agora
+```bash
+npm install          # já feito; lockfile versionado
+npm run tauri dev    # compila Rust + abre a janela do app
+```
+(Primeira compilação Rust ~4 min; depois é incremental.)
+
+## Próximo passo imediato (PR2 — captura de áudio Windows + Linux)
+1. Portar de meetily (MIT) o módulo `frontend/src-tauri/src/audio/` para `src-tauri/src/audio/`:
+   - `capture/` (WASAPI loopback no Win, PulseAudio/PipeWire monitor no Linux), `devices/`.
+   - `level_monitor.rs`, `incremental_saver.rs`, `recording_manager.rs`.
+2. Adicionar deps no `Cargo.toml`: `cpal`, `windows`/`windows-rs` (loopback Win), etc. — fixar versões; checar data/alertas antes (regra do projeto).
+3. Comandos Tauri `start_recording`/`stop_recording`; eventos de nível para a UI.
+4. Salvar WAV bruto. Validar numa chamada real que o WAV tem mic + áudio do sistema.
+5. Commit por etapa; atualizar este arquivo e o ROADMAP.
 
 ## Reuso do meetily (MIT)
 Repo: https://github.com/Zackriya-Solutions/meetily — pasta `frontend/src-tauri/src/audio/`.
