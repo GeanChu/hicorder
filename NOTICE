@@ -1,0 +1,12 @@
+Call Recorder
+Copyright (c) 2026 hi.capital
+
+This product reuses and adapts code from the following open-source project:
+
+meetily — https://github.com/Zackriya-Solutions/meetily
+Licensed under the MIT License.
+Copyright (c) Zackriya Solutions.
+
+Specifically, the cross-platform audio capture pipeline (microphone + system
+loopback) under frontend/src-tauri/src/audio/ is used as a reference and
+adapted. The original MIT license terms are retained for the adapted portions.

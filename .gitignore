@@ -1,0 +1,48 @@
+# Node
+node_modules/
+dist/
+dist-ssr/
+*.local
+.npm/
+
+# Tauri / Rust
+src-tauri/target/
+target/
+**/*.rs.bk
+Cargo.lock.orig
+
+# ffmpeg sidecar binaries (baixados no build)
+src-tauri/binaries/
+
+# Secrets / config local
+.env
+.env.*
+!.env.example
+*.pem
+credentials.json
+service-account.json
+
+# Gravações e dados locais do app (nunca versionar áudio/transcrições)
+recordings/
+*.ogg
+*.wav
+*.mp4
+app.db
+app.db-*
+
+# Tooling artifacts
+.dgclaw/
+.claude/settings.local.json
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.log
+
+# Build artifacts
+*.msi
+*.dmg
+*.AppImage
+*.deb
