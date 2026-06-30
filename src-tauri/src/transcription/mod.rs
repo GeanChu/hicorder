@@ -19,10 +19,10 @@ pub struct TranscriptionConfig {
 
 impl Default for TranscriptionConfig {
     fn default() -> Self {
-        // MiniMax (global). Para a China, trocar em Configurações para api.minimaxi.com.
+        // Groq Whisper (OpenAI-compatível, free tier). MiniMax NÃO tem STT.
         Self {
-            endpoint_url: "https://api.minimax.io/v1/audio/transcriptions".to_string(),
-            model: "MiniMax-ASR".to_string(),
+            endpoint_url: "https://api.groq.com/openai/v1/audio/transcriptions".to_string(),
+            model: "whisper-large-v3-turbo".to_string(),
         }
     }
 }

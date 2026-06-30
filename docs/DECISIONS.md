@@ -10,9 +10,9 @@
 **Por quê**: macOS não tem loopback nativo nas versões antigas. ScreenCaptureKit é a API oficial, não exige instalar driver virtual (BlackHole), evitando fricção para time não técnico. Driver virtual foi descartado por exigir instalação/configuração manual.
 **Custo**: pede permissão de gravação de tela; macOS <13 fica sem áudio do sistema.
 
-## ADR-003 — Transcrição plugável, MiniMax por padrão
-**Decisão**: trait `Transcriber` + provedor `OpenAiCompatible`; endpoint/modelo configuráveis na UI; default aponta pra MiniMax.
-**Confirmado**: MiniMax STT é **OpenAI-compatível** — `POST https://api.minimax.io/v1/audio/transcriptions`, model `MiniMax-ASR`, auth `Bearer sk-cp` (Subscription Key do Token Plan). O mesmo provedor serve OpenAI/Groq Whisper trocando endpoint/modelo. Idioma por chamada (padrão pt). Atenção à **região** da sk-cp (global vs China = 401). Ver [MINIMAX.md](MINIMAX.md).
+## ADR-003 — Transcrição plugável, Groq por padrão
+**Decisão**: trait `Transcriber` + provedor `OpenAiCompatible`; endpoint/modelo/chave configuráveis na UI; default = **Groq Whisper**.
+**Por quê**: descoberto (sondando endpoints) que **MiniMax NÃO tem STT** — só chat (MiniMax-M3) e TSS. Logo o default aponta pra Groq Whisper (OpenAI-compat, free tier, ótimo pt-BR). O mesmo provedor serve OpenAI/qualquer endpoint compatível. A abstração plugável foi o que salvou: trocar provedor é só config, sem refatorar. Idioma por chamada (padrão pt). MiniMax-M3 fica reservado p/ a feature futura de resumo. Ver [MINIMAX.md](MINIMAX.md).
 
 ## ADR-004 — Sem assinatura de código na v1
 **Decisão**: distribuir instaladores não assinados na v1, com instruções de liberação.

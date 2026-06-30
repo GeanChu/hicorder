@@ -1,45 +1,33 @@
-# Transcrição — MiniMax (confirmado)
+# Transcrição — provedores
 
-## Resumo
-MiniMax STT é **OpenAI-compatível**. O provedor `OpenAiCompatible` (`transcription/mod.rs`) funciona direto. Defaults de fábrica já apontam pra MiniMax.
+## Conclusão sobre a MiniMax
+**MiniMax NÃO tem speech-to-text.** Verificado sondando os endpoints (`curl` sem auth, 2026-06-30):
 
-| Item | Valor |
-|------|-------|
-| Endpoint (global) | `https://api.minimax.io/v1/audio/transcriptions` |
-| Endpoint (China) | `https://api.minimaxi.com/v1/audio/transcriptions` |
-| Modelo | `MiniMax-ASR` (ou omitir = auto) |
-| Auth | `Authorization: Bearer sk-cp-...` (Subscription Key do Token Plan) |
-| Formatos de áudio | mp3, mp4, m4a, wav, mpga, **webm** (⚠️ **não** aceita `.ogg`/opus puro) |
-| Resposta | `json` (default, tem `text`), `verbose_json` (com `segments`), `text`, `srt`, `vtt` |
-| Idioma | ISO code (`pt`, `en`, `zh`); opcional |
-| Quota | deduz do Token Plan (5h rolling + semanal) |
+| Endpoint | Resultado |
+|---|---|
+| `POST /v1/chat/completions` | 401 (existe — LLM MiniMax-M3) |
+| `POST /v1/t2a_v2` (TTS) | 200 (existe — text→audio) |
+| `POST /v1/audio/transcriptions` + 14 variações de ASR | **todas 404** |
 
-## Como o app usa
-- Grava e encoda em **Opus dentro de `.webm`** (`recording.webm`) — leve e aceito pelo endpoint (é o que navegador/Open WebUI mandam).
-- `transcribe` envia multipart `file` + `model` + `language` + `response_format=json`, header `Authorization: Bearer <sk-cp>`; lê `text` do JSON.
-- A chave (sk-cp) fica no **keychain** do SO; endpoint/modelo são editáveis em Configurações.
+A MiniMax oferece **chat (MiniMax-M3)** e **TTS**, mas não áudio→texto. O "OpenAI-Compatible Protocol" da doc da MiniMax é o **chat** (`/v1/chat/completions` com `MiniMax-M3`), não transcrição. A doc que sugeria `/v1/audio/transcriptions` estava errada. A chave `sk-cp` é válida, mas não serve para transcrever.
 
-## ⚠️ Região (pegadinha do sk-cp)
-A sk-cp tem região embutida. Chave **global** só funciona em `api.minimax.io`; chave **China** só em `api.minimaxi.com`. Endpoint errado = **401**. Se tomar 401, trocar o endpoint em Configurações para `api.minimaxi.com`.
+> **MiniMax-M3 fica reservado para a feature futura de RESUMO da reunião** (rodar o LLM sobre a transcrição), via `/v1/chat/completions` + `MiniMax-M3` + Bearer sk-cp. Aí a sk-cp é útil.
 
-Checar a região da chave:
-```powershell
-curl.exe https://api.minimax.io/v1/models -H "Authorization: Bearer sk-cp-..."
-# 401 → tentar https://api.minimaxi.com/v1/models
-```
+## Provedor de STT usado (default: Groq)
+O provedor `OpenAiCompatible` (`transcription/mod.rs`) é agnóstico — endpoint/modelo/chave configuráveis em Configurações. Default de fábrica:
 
-## Teste rápido (valida a chave sem o app)
-```powershell
-curl.exe -X POST "https://api.minimax.io/v1/audio/transcriptions" `
-  -H "Authorization: Bearer sk-cp-SUA_CHAVE" `
-  -F "file=@C:\caminho\chamada.mp3" `
-  -F "model=MiniMax-ASR" -F "language=pt"
-# { "text": "..." } = OK
-```
+| Provedor | Endpoint | Modelo | Chave |
+|---|---|---|---|
+| **Groq Whisper** (default, grátis) | `https://api.groq.com/openai/v1/audio/transcriptions` | `whisper-large-v3-turbo` (ou `whisper-large-v3` p/ +precisão) | grátis em console.groq.com |
+| OpenAI Whisper (pago) | `https://api.openai.com/v1/audio/transcriptions` | `whisper-1` | platform.openai.com |
+
+Groq aceita `webm` (e mp3/m4a/wav/ogg/flac/mp4/mpeg/mpga). Resposta `{"text": ...}` com `response_format=json` — o provedor lê `text`. Auth `Authorization: Bearer <chave>`.
 
 ## Configurar no app
-Configurações → Endpoint = `https://api.minimax.io/v1/audio/transcriptions` (default), Modelo = `MiniMax-ASR` (default), Chave = sua `sk-cp` → Salvar. Aba Transcrição → escolher gravação + idioma (pt) → Transcrever.
+Configurações → Endpoint = (Groq, já é o default), Modelo = `whisper-large-v3-turbo`, Chave = sua chave Groq → Salvar. Aba Transcrição → escolher gravação + idioma (pt) → Transcrever → Copiar.
+
+> Se você JÁ salvou config antiga (MiniMax) antes: sobrescreva os campos Endpoint/Modelo/Chave em Configurações com os valores do Groq e Salve. O default só vale para instalações novas.
 
 ## Segurança
-- Chave no keychain; nunca logar áudio nem chave.
-- Avisar o usuário (UI) que a transcrição envia o áudio para a MiniMax.
+- Chave no keychain do SO; nunca logar áudio nem chave.
+- A transcrição envia o áudio para o provedor configurado (avisar o usuário na UI).
