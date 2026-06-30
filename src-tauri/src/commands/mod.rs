@@ -25,7 +25,7 @@ pub fn stop_recording(recorder: State<Recorder>) -> Result<RecordingResult, Stri
 
 #[tauri::command]
 pub fn recording_level(recorder: State<Recorder>) -> f32 {
-    recorder.mic_level()
+    recorder.level()
 }
 
 #[tauri::command]

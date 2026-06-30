@@ -3,9 +3,21 @@
 Documento para a próxima sessão saber exatamente onde paramos e como seguir.
 
 ## Onde paramos
-**PR0, PR1, PR2a concluídos.** App Tauri com captura de **microfone** funcionando (compila; testar rodando). Próximo: **PR2b (áudio do sistema no Windows, WASAPI loopback)**.
+**PR0, PR1, PR2a, PR2b concluídos** (PR2b = código compilando; falta teste em chamada real). App grava **microfone + áudio do sistema (Windows)**. Próximo: **PR2c (Linux monitor source)** ou pular para **PR4 (encode Opus + storage)**.
 
-Commits: `git log`. Branch `main` contém PR0+PR1+PR2a.
+Commits: `git log`. Branch `main` contém até PR2a; PR2b na branch `pr2b-system-audio-windows` (mergear).
+
+### ⚠️ Dropbox + build artifacts
+O repo está dentro do Dropbox. Isso trava o build (os error 32, arquivo em uso) porque o Dropbox sincroniza/bloqueia `target/`. Já marcamos `src-tauri/target` e `node_modules` como ignorados pelo Dropbox (stream NTFS `com.dropbox.ignored=1`). Em **outra máquina**, refazer:
+```powershell
+Set-Content -Path "src-tauri\target" -Stream com.dropbox.ignored -Value 1
+Set-Content -Path "node_modules" -Stream com.dropbox.ignored -Value 1
+```
+Ideal a longo prazo: mover o projeto para fora do Dropbox.
+
+### Como testar o PR2b (Windows)
+`npm run tauri dev` → tocar um áudio/vídeo (ou entrar numa call) → Gravar/Parar.
+Em `...\recordings\<id>\` devem existir `mic.wav` (sua voz) e `system.wav` (o que saiu na caixa). Se `system.wav` falhar, a app mantém só o `mic.wav`.
 
 ### Descoberta importante (PR2)
 meetily **não** implementa loopback de áudio do sistema em Windows/Linux — só macOS (CoreAudio); os outros caminhos fazem `bail!("not yet implemented")` (ver `capture/system.rs` do clone em scratchpad). Logo, o loopback Win/Linux é nosso. Plano: crate `wasapi` (0.23) no Windows; `.monitor` source via `cpal` no Linux; ScreenCaptureKit no macOS (PR3).
@@ -35,19 +47,12 @@ npm run tauri dev    # compila Rust + abre a janela do app
 ```
 (Primeira compilação Rust ~4 min; depois é incremental.)
 
-## Próximo passo imediato (PR2b — áudio do sistema no Windows)
-1. Adicionar dep só-Windows no `Cargo.toml`:
-   ```toml
-   [target.'cfg(windows)'.dependencies]
-   wasapi = "0.23.0"
-   ```
-   (Conferir a API real lendo o exemplo de loopback em `~/.cargo/registry/src/.../wasapi-0.23.0/examples/`.)
-2. Criar `src-tauri/src/audio/system.rs`:
-   - `#[cfg(windows)]` captura loopback do device de render padrão → `Vec<f32>` → WAV `system.wav`, no mesmo padrão de thread do `mic.rs`.
-   - `#[cfg(target_os="linux")]` / `#[cfg(target_os="macos")]` stubs (PR2c/PR3).
-3. No `recorder.rs`: spawnar também a captura de sistema; guardar `system_handle`; em `stop()` retornar `system_path`.
-4. Atenção: mic e sistema podem ter sample rates diferentes — manter faixas separadas; o mix vem no PR4 (ffmpeg).
-5. Validar numa chamada real que `system.wav` tem a voz dos outros. Commit; atualizar este arquivo e o ROADMAP.
+## Próximo passo imediato — escolher
+**Opção A — PR2c (áudio do sistema no Linux)**: em `audio/system.rs`, no bloco `#[cfg(target_os="linux")]`, abrir o `.monitor` do sink padrão via `cpal` (aparece como device de entrada cujo nome contém "monitor"). Mesmo padrão de thread do `mic.rs`. Sem teste em Linux nesta máquina (Windows) — fazer em ambiente Linux.
+
+**Opção B — PR4 (encode + storage)** [recomendado se o foco é Windows/Mac]: ffmpeg sidecar; mix `mic.wav` + `system.wav` (`amix`) → **Opus `.ogg`** mono ~32 kbps; SQLite (`recordings`); persistir a lista (hoje só vive em memória no front). Instalar ffmpeg (dev): `choco install ffmpeg` ou `winget install Gyan.FFmpeg`.
+
+Atenção: mic e sistema têm sample rates diferentes (mic = nativo do device; system = 48 kHz). O `amix` do ffmpeg resample no PR4.
 
 ## Reuso do meetily (MIT)
 Repo: https://github.com/Zackriya-Solutions/meetily — pasta `frontend/src-tauri/src/audio/`.

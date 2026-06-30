@@ -39,10 +39,11 @@ Cada PR é uma unidade lógica, testável e mergeável. Marque os checkboxes ao 
 
 **Aceite 2a**: `npm run tauri dev`, gravar, parar → existe `mic.wav` audível.
 
-### PR2b — Áudio do sistema no Windows (loopback)
-- [ ] WASAPI loopback via crate `wasapi` (0.23) → segunda faixa `system.wav`.
-- [ ] Rodar mic + sistema em paralelo na mesma sessão.
-- [ ] **Aceite**: numa chamada real (Zoom/Meet), `system.wav` tem a voz dos outros.
+### PR2b — Áudio do sistema no Windows (loopback) ✅ (código; falta teste em chamada real)
+- [x] WASAPI loopback via crate `wasapi` (0.23) → segunda faixa `system.wav` (`audio/system.rs`).
+- [x] Mic + sistema em paralelo na mesma sessão; `system_path` no resultado; medidor usa o maior pico.
+- [x] Falha do loopback degrada para só-mic (não perde a gravação). Compila limpo.
+- [ ] **Aceite (você)**: tocar áudio / fazer uma chamada, gravar, conferir que `system.wav` tem a voz dos outros.
 
 ### PR2c — Áudio do sistema no Linux (monitor source)
 - [ ] Capturar o `.monitor` do sink padrão via `cpal` (aparece como device de entrada).

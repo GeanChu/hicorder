@@ -7,6 +7,7 @@
 
 mod mic;
 pub mod recorder;
+mod system;
 mod wav;
 
 use std::path::PathBuf;

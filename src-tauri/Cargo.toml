@@ -26,3 +26,6 @@ anyhow = "1"
 cpal = "0.15.3"
 hound = "3.5.1"
 
+[target.'cfg(windows)'.dependencies]
+wasapi = "0.23.0"
+

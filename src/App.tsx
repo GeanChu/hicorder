@@ -7,6 +7,7 @@ type Tab = "gravar" | "gravacoes" | "transcricao" | "config";
 type Recording = {
   id: string;
   mic_path: string;
+  system_path: string | null;
   duration_s: number;
 };
 
@@ -118,7 +119,9 @@ function RecordScreen({ onFinished }: { onFinished: (r: Recording) => void }) {
         </div>
       )}
 
-      <p className="hint">PR2a grava só o microfone. Áudio do sistema (outros participantes) entra no PR2b.</p>
+      <p className="hint">
+        Grava microfone + áudio do sistema (Windows). No Linux/macOS o áudio do sistema chega depois.
+      </p>
       {error && <p className="error">{error}</p>}
     </section>
   );
@@ -135,7 +138,8 @@ function RecordingsScreen({ recordings }: { recordings: Recording[] }) {
           {recordings.map((r) => (
             <li key={r.id}>
               <strong>{r.id}</strong> — {r.duration_s.toFixed(1)}s
-              <div className="path">{r.mic_path}</div>
+              <div className="path">mic: {r.mic_path}</div>
+              {r.system_path && <div className="path">sistema: {r.system_path}</div>}
             </li>
           ))}
         </ul>
