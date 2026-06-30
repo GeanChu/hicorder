@@ -1,7 +1,7 @@
-//! Transcrição plugável. Trait `Transcriber` + provedor HTTP compatível com a
-//! API OpenAI (`/audio/transcriptions`, multipart), que cobre OpenAI/Groq Whisper
-//! e qualquer endpoint compatível. MiniMax: configurar a URL/modelo nas Configurações
-//! (ver docs/MINIMAX.md). A chave vem do keychain (nunca daqui).
+//! Transcrição plugável. Provedor `OpenAiCompatible` (multipart, Bearer) —
+//! cobre Groq/OpenAI Whisper e qualquer endpoint compatível. Default = Groq.
+//! Retorna segmentos com timestamp (via `verbose_json`) para intercalar faixas.
+//! A chave vem do keychain (nunca daqui). Ver docs/MINIMAX.md.
 
 use std::path::Path;
 
@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 /// Config não-secreta do provedor (persistida em SQLite). A chave fica no keychain.
 #[derive(Serialize, Deserialize, Clone)]
 pub struct TranscriptionConfig {
-    /// URL completa do endpoint de transcrição (inclui query se o provedor exigir).
+    /// URL completa do endpoint de transcrição.
     pub endpoint_url: String,
     /// Nome do modelo enviado no campo `model`.
     pub model: String,
@@ -27,12 +27,19 @@ impl Default for TranscriptionConfig {
     }
 }
 
+/// Um trecho transcrito com o instante de início (segundos).
+pub struct TranscriptSegment {
+    pub start: f64,
+    pub text: String,
+}
+
 pub trait Transcriber {
-    /// Transcreve o arquivo no idioma indicado (ex.: "pt"). Retorna o texto.
-    fn transcribe(&self, audio_path: &Path, language: &str) -> Result<String>;
+    /// Transcreve o arquivo no idioma indicado (ex.: "pt"), em segmentos.
+    fn transcribe(&self, audio_path: &Path, language: &str) -> Result<Vec<TranscriptSegment>>;
 }
 
 /// Provedor multipart compatível com a API OpenAI de transcrição.
+#[derive(Clone)]
 pub struct OpenAiCompatible {
     pub endpoint_url: String,
     pub model: String,
@@ -40,11 +47,11 @@ pub struct OpenAiCompatible {
 }
 
 impl Transcriber for OpenAiCompatible {
-    fn transcribe(&self, audio_path: &Path, language: &str) -> Result<String> {
+    fn transcribe(&self, audio_path: &Path, language: &str) -> Result<Vec<TranscriptSegment>> {
         let form = reqwest::blocking::multipart::Form::new()
             .text("model", self.model.clone())
             .text("language", language.to_string())
-            .text("response_format", "json")
+            .text("response_format", "verbose_json")
             .file("file", audio_path)
             .map_err(|e| anyhow!("falha ao anexar o áudio: {e}"))?;
 
@@ -63,10 +70,37 @@ impl Transcriber for OpenAiCompatible {
 
         let json: serde_json::Value = serde_json::from_str(&body)
             .map_err(|e| anyhow!("resposta não-JSON ({e}): {body}"))?;
+
+        // verbose_json: array "segments" com start/text.
+        if let Some(segs) = json.get("segments").and_then(|s| s.as_array()) {
+            let mut out = Vec::new();
+            for s in segs {
+                let start = s.get("start").and_then(|v| v.as_f64()).unwrap_or(0.0);
+                let text = s
+                    .get("text")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .trim()
+                    .to_string();
+                if !text.is_empty() {
+                    out.push(TranscriptSegment { start, text });
+                }
+            }
+            if !out.is_empty() {
+                return Ok(out);
+            }
+        }
+
+        // Fallback: só o campo `text` como um único segmento.
         let text = json
             .get("text")
             .and_then(|t| t.as_str())
-            .ok_or_else(|| anyhow!("resposta sem campo 'text': {body}"))?;
-        Ok(text.to_string())
+            .unwrap_or("")
+            .trim()
+            .to_string();
+        if text.is_empty() {
+            bail!("resposta sem texto: {body}");
+        }
+        Ok(vec![TranscriptSegment { start: 0.0, text }])
     }
 }

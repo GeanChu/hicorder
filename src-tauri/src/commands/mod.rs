@@ -1,5 +1,6 @@
 //! Comandos Tauri (IPC) expostos à UI.
 
+use std::cmp::Ordering;
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -34,31 +35,49 @@ pub fn start_recording(app: AppHandle, recorder: State<Recorder>) -> Result<Reco
 #[tauri::command]
 pub fn stop_recording(app: AppHandle, recorder: State<Recorder>) -> Result<RecordingRow, String> {
     let res = recorder.stop().map_err(|e| e.to_string())?;
-
     let dir = Path::new(&res.mic_path)
         .parent()
         .ok_or_else(|| "caminho da gravação inválido".to_string())?;
-    // webm/opus: leve e aceito pelo endpoint OpenAI-compat da MiniMax (.ogg não é aceito).
-    let out = dir.join("recording.webm");
 
-    encode::mix_to_opus(&res.mic_path, res.system_path.as_deref(), &out).map_err(|e| e.to_string())?;
+    // Faixas separadas (Opus/.webm): mic = "Você", sistema = "Participantes".
+    let mic_out = dir.join("mic.webm");
+    encode::mix_to_opus(&res.mic_path, None, &mic_out).map_err(|e| e.to_string())?;
 
-    // Encode OK: limpa os WAVs brutos (mantém só o .ogg leve).
+    let system_path = match &res.system_path {
+        Some(sys) => {
+            let so = dir.join("system.webm");
+            match encode::mix_to_opus(sys, None, &so) {
+                Ok(()) => Some(so.to_string_lossy().into_owned()),
+                Err(e) => {
+                    eprintln!("[encode] faixa do sistema falhou: {e}");
+                    None
+                }
+            }
+        }
+        None => None,
+    };
+
+    // Encode OK: remove os WAVs brutos.
     let _ = std::fs::remove_file(&res.mic_path);
     if let Some(sys) = &res.system_path {
         let _ = std::fs::remove_file(sys);
     }
 
-    let size_bytes = std::fs::metadata(&out).map(|m| m.len()).unwrap_or(0) as i64;
+    let mut size_bytes = std::fs::metadata(&mic_out).map(|m| m.len()).unwrap_or(0);
+    if let Some(sp) = &system_path {
+        size_bytes += std::fs::metadata(sp).map(|m| m.len()).unwrap_or(0);
+    }
+
     let row = RecordingRow {
         id: res.id,
-        path: out.to_string_lossy().into_owned(),
+        path: mic_out.to_string_lossy().into_owned(),
+        system_path,
         created_at: now_ms(),
         duration_s: res.duration_s,
-        size_bytes,
+        size_bytes: size_bytes as i64,
     };
 
-    let conn = storage::open(&db_path(&app).map_err(|e| e.to_string())?).map_err(|e| e.to_string())?;
+    let conn = open_db(&app)?;
     storage::insert(&conn, &row).map_err(|e| e.to_string())?;
     Ok(row)
 }
@@ -116,9 +135,9 @@ pub async fn transcribe(
     };
 
     // Leituras síncronas no SQLite, sem segurar a conexão durante o await.
-    let (path, provider) = {
+    let (mic_path, system_path, provider) = {
         let conn = open_db(&app)?;
-        let path = storage::recording_path(&conn, &recording_id)
+        let (mic, sys) = storage::recording_paths(&conn, &recording_id)
             .map_err(|e| e.to_string())?
             .ok_or_else(|| "gravação não encontrada".to_string())?;
         let cfg = load_config(&conn).map_err(|e| e.to_string())?;
@@ -126,7 +145,8 @@ pub async fn transcribe(
             .map_err(|e| e.to_string())?
             .ok_or_else(|| "configure a chave da API nas Configurações".to_string())?;
         (
-            path,
+            mic,
+            sys,
             OpenAiCompatible {
                 endpoint_url: cfg.endpoint_url,
                 model: cfg.model,
@@ -135,14 +155,59 @@ pub async fn transcribe(
         )
     };
 
-    // HTTP bloqueante numa thread de blocking (não trava a UI, não aninha runtime).
-    let lang_http = lang.clone();
-    let text = tauri::async_runtime::spawn_blocking(move || {
-        provider.transcribe(Path::new(&path), &lang_http)
+    // "Você" = microfone. HTTP bloqueante em thread de blocking (não trava a UI).
+    let p_mic = provider.clone();
+    let mic_for_http = mic_path.clone();
+    let lang_mic = lang.clone();
+    let mic_segs = tauri::async_runtime::spawn_blocking(move || {
+        p_mic.transcribe(Path::new(&mic_for_http), &lang_mic)
     })
     .await
     .map_err(|e| e.to_string())?
     .map_err(|e| e.to_string())?;
+
+    // "Participantes" = áudio do sistema (falha aqui não derruba a transcrição do mic).
+    let sys_segs = if let Some(sp) = system_path {
+        let p_sys = provider.clone();
+        let lang_sys = lang.clone();
+        match tauri::async_runtime::spawn_blocking(move || {
+            p_sys.transcribe(Path::new(&sp), &lang_sys)
+        })
+        .await
+        {
+            Ok(Ok(segs)) => segs,
+            Ok(Err(e)) => {
+                eprintln!("[transcribe] sistema falhou: {e}");
+                Vec::new()
+            }
+            Err(e) => {
+                eprintln!("[transcribe] sistema panic: {e}");
+                Vec::new()
+            }
+        }
+    } else {
+        Vec::new()
+    };
+
+    // Intercala por timestamp e rotula.
+    let mut tagged: Vec<(f64, &'static str, String)> = Vec::new();
+    for s in mic_segs {
+        tagged.push((s.start, "Você", s.text));
+    }
+    for s in sys_segs {
+        tagged.push((s.start, "Participantes", s.text));
+    }
+    tagged.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(Ordering::Equal));
+
+    let text = tagged
+        .iter()
+        .map(|(start, label, txt)| format!("[{}] {}: {}", fmt_timestamp(*start), label, txt))
+        .collect::<Vec<_>>()
+        .join("\n");
+
+    if text.is_empty() {
+        return Err("transcrição vazia".to_string());
+    }
 
     let row = TranscriptRow {
         recording_id,
@@ -204,4 +269,9 @@ fn now_ms() -> i64 {
 
 fn new_id() -> String {
     format!("rec-{}", now_ms())
+}
+
+fn fmt_timestamp(secs: f64) -> String {
+    let s = secs.max(0.0) as u64;
+    format!("{:02}:{:02}", s / 60, s % 60)
 }

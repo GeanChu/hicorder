@@ -7,6 +7,7 @@ type Tab = "gravar" | "gravacoes" | "transcricao" | "config";
 type Recording = {
   id: string;
   path: string;
+  system_path: string | null;
   created_at: number;
   duration_s: number;
   size_bytes: number;
@@ -173,8 +174,8 @@ function RecordScreen({ onFinished }: { onFinished: () => void }) {
       )}
 
       <p className="hint">
-        Grava microfone + áudio do sistema (Windows) e salva como Opus (.ogg) leve. No Linux/macOS o
-        áudio do sistema chega depois.
+        Grava microfone + áudio do sistema (Windows) em faixas separadas (Opus, leve). A transcrição
+        rotula "Você" (mic) e "Participantes" (sistema). No Linux/macOS o áudio do sistema chega depois.
       </p>
       {error && <p className="error">{error}</p>}
     </section>

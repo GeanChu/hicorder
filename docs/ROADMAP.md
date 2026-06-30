@@ -87,12 +87,17 @@ Cada PR é uma unidade lógica, testável e mergeável. Marque os checkboxes ao 
 
 ---
 
-## PR6 — Apagar + Configurações
-**Objetivo**: gerenciamento completo do CRUD.
-- [ ] Apagar gravação (arquivo + linha no DB) e transcrição, com confirmação.
-- [ ] Tela de Configurações: idioma padrão, chave da API, toggle "gravar todos" (placeholder/desabilitado até fase 2).
+## PR6 — Transcrição rotulada por faixa (Você/Participantes) ✅ (código verificado por `cargo check`)
+**Objetivo**: diarização de 2 lados grátis, usando as faixas mic/system separadas.
+- [x] Parar de mixar: grava `mic.webm` (Você) + `system.webm` (Participantes) separados.
+- [x] `recordings.system_path` (migração defensiva ALTER TABLE); RecordingRow ganha system_path.
+- [x] Provedor retorna **segmentos com timestamp** (`verbose_json`); transcribe chama mic+system, intercala por tempo, rotula. Falha do system degrada pra só-mic.
+- [x] `cargo check` limpo (build do .exe bloqueado localmente pelo Kaspersky; ver CONTINUATION).
+- [ ] **Aceite (você)**: transcrever uma call → texto tipo `[mm:ss] Você: ...` / `[mm:ss] Participantes: ...`.
 
-**Aceite**: apagar remove arquivo e registros; configurações persistem.
+## PR6.5 — Apagar gravação (pendente)
+- [ ] `delete_recording(id)`: apaga arquivos (.webm) + linha em recordings + transcript, com confirmação na UI.
+- [ ] (Tela de Configurações já existe desde o PR5.) Toggle "gravar todos" = fase 2.
 
 ---
 

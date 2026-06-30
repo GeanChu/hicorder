@@ -3,12 +3,15 @@
 Documento para a próxima sessão saber exatamente onde paramos e como seguir.
 
 ## Onde paramos
-**PR0, PR1, PR2a, PR2b, PR4, PR5 concluídos** (código compilando; falta teste runtime). App grava mic + sistema (Windows) → Opus `.ogg` → SQLite, e **transcreve** via provedor HTTP configurável (chave no keychain, idioma selecionável). Próximo: **PR6 (apagar + tela de Configurações já existe parcialmente)** ou **PR7 (empacotar + ffmpeg sidecar)**.
+**PR0–PR5c + PR6 concluídos** (código verificado por `cargo check`; build do .exe/runtime pendente — ver Kaspersky abaixo). App grava mic + sistema (Windows) em **faixas separadas** → Opus `.webm` → SQLite; transcreve cada faixa e **intercala rotulando Você/Participantes**. Provedor HTTP configurável. Próximo: **PR6.5 (apagar gravação)** ou **PR7 (empacotar + sidecar + assinatura)**.
 
-Commits: `git log`. `main` contém até PR4; PR5 na branch `pr5-transcription` (mergear).
+Commits: `git log`. PR6 na branch `pr6-two-track-transcription` (mergear).
 
-### MiniMax (PR5/PR5b) — confirmado
-STT OpenAI-compatível. Defaults já apontam pra MiniMax: `https://api.minimax.io/v1/audio/transcriptions`, model `MiniMax-ASR`, Bearer `sk-cp`. Áudio agora é **Opus em `.webm`** (MiniMax não aceita `.ogg`). Atenção à **região** da sk-cp (global `api.minimax.io` vs China `api.minimaxi.com` = 401). Ver [MINIMAX.md](MINIMAX.md). Usuário só cola a sk-cp em Configurações e transcreve.
+### Transcrição — Groq (MiniMax NÃO tem STT)
+Confirmado sondando endpoints: MiniMax só tem chat (MiniMax-M3) + TTS, **sem speech-to-text**. Default = **Groq Whisper** (`https://api.groq.com/openai/v1/audio/transcriptions`, `whisper-large-v3-turbo`, free tier; chave `gsk_...` em console.groq.com). Provedor OpenAiCompatible, configurável em Configurações. MiniMax-M3 reservado p/ feature futura de RESUMO. Ver [MINIMAX.md](MINIMAX.md). OBS: se o usuário já salvou config MiniMax antiga, precisa sobrescrever os 3 campos em Configurações pelos do Groq (o default só vale p/ DB novo).
+
+### ⚠️ Kaspersky come os binários Rust (resolvido p/ compilar, atenção p/ distribuir)
+Kaspersky dá **falso positivo** em `cargo.exe`/`rustc.exe` (e pode pegar o `.exe` final). Sintoma: build crasha (exit 0x40010005) ou `cargo.exe` some do toolchain. Fix: no Kaspersky, **Aplicativo Confiável** + exclusões curinga p/ `C:\Users\gfdch\.rustup\*`, `.cargo\*`, `AppData\Local\callrec-target\*`. Toolchain quebrado → `rustup toolchain uninstall stable-x86_64-pc-windows-msvc` + `install` (component add/--force NÃO re-extrai — metadados dizem "up to date"). **Verificar código com `cargo check`** (não emite .exe → Kaspersky não ataca) em vez de `cargo build`; build real do app = `npm run tauri dev`. Pode sobrar um `cargo.exe` zumbi segurando o lock do target → `npm run tauri dev` trava em "Blocking waiting for file lock"; **reboot** limpa. **Distribuir:** o .exe sem assinatura pode ser flagrado nos PCs do time → assinar (PR7) ou exclusão/política no Kaspersky deles + reportar FP em opentip.kaspersky.com.
 
 ### ⚠️ Dropbox + build artifacts
 O repo está dentro do Dropbox. Isso trava o build (os error 32, arquivo em uso) porque o Dropbox sincroniza/bloqueia `target/`. Já marcamos `src-tauri/target` e `node_modules` como ignorados pelo Dropbox (stream NTFS `com.dropbox.ignored=1`). Em **outra máquina**, refazer:
