@@ -49,7 +49,21 @@ pub fn start_recording_core(app: &AppHandle) -> Result<RecordingInfo, String> {
     let dir = recordings_dir(app).map_err(|e| e.to_string())?;
     let info = app
         .state::<Recorder>()
-        .start(dir, new_id())
+        .start(dir, new_id(), None)
+        .map_err(|e| e.to_string())?;
+    let _ = app.emit("recording-changed", true);
+    Ok(info)
+}
+
+/// Inicia gravação vinculada a uma reunião (guarda o fim previsto p/ alerta/auto-stop).
+pub fn start_recording_for_meeting_core(
+    app: &AppHandle,
+    meeting_end_ms: i64,
+) -> Result<RecordingInfo, String> {
+    let dir = recordings_dir(app).map_err(|e| e.to_string())?;
+    let info = app
+        .state::<Recorder>()
+        .start(dir, new_id(), Some(meeting_end_ms))
         .map_err(|e| e.to_string())?;
     let _ = app.emit("recording-changed", true);
     Ok(info)
@@ -377,7 +391,7 @@ pub fn set_meeting_record(app: AppHandle, uid: String, enabled: bool) -> Result<
     storage::set_meeting_record(&conn, &uid, enabled).map_err(|e| e.to_string())
 }
 
-fn open_db(app: &AppHandle) -> Result<rusqlite::Connection, String> {
+pub(crate) fn open_db(app: &AppHandle) -> Result<rusqlite::Connection, String> {
     storage::open(&db_path(app).map_err(|e| e.to_string())?).map_err(|e| e.to_string())
 }
 

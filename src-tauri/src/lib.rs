@@ -2,6 +2,7 @@ mod audio;
 mod commands;
 mod encode;
 mod meetings;
+mod scheduler;
 mod settings;
 mod storage;
 mod summary;
@@ -19,6 +20,7 @@ pub fn run() {
         .manage(Recorder::new())
         .setup(|app| {
             tray::build_tray(app.handle())?;
+            scheduler::spawn(app.handle().clone());
 
             // Mantém o tray em sincronia com o estado de gravação.
             let handle = app.handle().clone();

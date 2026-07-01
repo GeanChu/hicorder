@@ -157,10 +157,11 @@ Repo público: github.com/GeanChu/call-recorder. Estratégia de assinatura grát
 - [x] plugin `tauri-plugin-notification` inicializado (usado no PR11c).
 - [ ] **Aceite (você)**: ícone no tray; iniciar/parar por ele; fechar janela = fica no tray; tooltip muda.
 
-### PR11c — Auto-gravar + alertas (a fazer)
-- [ ] Scheduler (thread): auto-**iniciar** na hora de reunião habilitada (app aberto). Parada **manual**.
-- [ ] Alerta (notificação) no horário de **fim** recomendando parar; **auto-stop em fim+1h** avisando.
-- [ ] Recorder guarda contexto da reunião (uid/fim) p/ o alerta e o auto-stop.
+### PR11c — Auto-gravar + alertas ✅ (código verificado por `cargo check`)
+- [x] `scheduler.rs`: thread que a cada 30s auto-**inicia** gravação de reunião habilitada em andamento (uma vez por reunião, via `triggered` set).
+- [x] Recorder guarda `meeting_end_ms`; `should_alert_end` (dispara 1x no fim) e `should_auto_stop` (fim+1h).
+- [x] Notificações (`tauri-plugin-notification`): "reunião começou", "reunião terminou — recomendado parar", "gravação encerrada (fim+1h)". Parada continua **manual**.
+- [ ] **Aceite (você)**: marcar uma reunião próxima em Agenda → app inicia sozinho na hora; notifica no fim; para sozinho em fim+1h. (Toast do Windows pode exigir app instalado; a lógica de start/stop roda de qualquer forma.)
 
 ---
 

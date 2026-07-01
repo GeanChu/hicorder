@@ -24,6 +24,10 @@ struct ActiveSession {
     mic_level: Arc<AtomicU32>,
     system_level: Arc<AtomicU32>,
     started: Instant,
+    /// Fim previsto da reunião (unix ms) quando a gravação é de uma reunião.
+    meeting_end_ms: Option<i64>,
+    /// Se o alerta de fim de reunião já foi disparado.
+    end_alerted: AtomicBool,
 }
 
 #[derive(Default)]
@@ -78,7 +82,12 @@ impl Recorder {
         }
     }
 
-    pub fn start(&self, recordings_dir: PathBuf, id: String) -> Result<RecordingInfo> {
+    pub fn start(
+        &self,
+        recordings_dir: PathBuf,
+        id: String,
+        meeting_end_ms: Option<i64>,
+    ) -> Result<RecordingInfo> {
         let mut guard = self.inner.lock().unwrap();
         if guard.is_some() {
             return Err(anyhow!("já existe uma gravação em andamento"));
@@ -103,8 +112,34 @@ impl Recorder {
             mic_level,
             system_level,
             started: Instant::now(),
+            meeting_end_ms,
+            end_alerted: AtomicBool::new(false),
         });
         Ok(RecordingInfo { id })
+    }
+
+    /// True (uma única vez) quando passou do fim previsto da reunião em andamento.
+    pub fn should_alert_end(&self, now_ms: i64) -> bool {
+        let guard = self.inner.lock().unwrap();
+        if let Some(s) = &*guard {
+            if let Some(end) = s.meeting_end_ms {
+                if now_ms >= end && !s.end_alerted.swap(true, Ordering::Relaxed) {
+                    return true;
+                }
+            }
+        }
+        false
+    }
+
+    /// True quando passou 1h do fim previsto da reunião em andamento (auto-stop).
+    pub fn should_auto_stop(&self, now_ms: i64) -> bool {
+        let guard = self.inner.lock().unwrap();
+        if let Some(s) = &*guard {
+            if let Some(end) = s.meeting_end_ms {
+                return now_ms >= end + 3_600_000;
+            }
+        }
+        false
     }
 
     pub fn stop(&self) -> Result<RecordingResult> {
