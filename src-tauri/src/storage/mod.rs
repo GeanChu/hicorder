@@ -148,3 +148,10 @@ pub fn set_setting(conn: &Connection, key: &str, value: &str) -> Result<()> {
     )?;
     Ok(())
 }
+
+/// Remove a gravação e sua transcrição do banco. (Arquivos são apagados no command.)
+pub fn delete_recording(conn: &Connection, id: &str) -> Result<()> {
+    conn.execute("DELETE FROM transcripts WHERE recording_id = ?1", params![id])?;
+    conn.execute("DELETE FROM recordings WHERE id = ?1", params![id])?;
+    Ok(())
+}

@@ -17,6 +17,7 @@ pub fn run() {
             commands::start_recording,
             commands::stop_recording,
             commands::list_recordings,
+            commands::delete_recording,
             commands::recording_level,
             commands::is_recording,
             commands::get_settings,

@@ -86,7 +86,9 @@ function App() {
 
       <main className="content">
         {tab === "gravar" && <RecordScreen onFinished={refreshRecordings} />}
-        {tab === "gravacoes" && <RecordingsScreen recordings={recordings} />}
+        {tab === "gravacoes" && (
+          <RecordingsScreen recordings={recordings} onChanged={refreshRecordings} />
+        )}
         {tab === "transcricao" && (
           <TranscriptionScreen
             recordings={recordings}
@@ -182,7 +184,23 @@ function RecordScreen({ onFinished }: { onFinished: () => void }) {
   );
 }
 
-function RecordingsScreen({ recordings }: { recordings: Recording[] }) {
+function RecordingsScreen({
+  recordings,
+  onChanged,
+}: {
+  recordings: Recording[];
+  onChanged: () => void;
+}) {
+  async function remove(id: string) {
+    if (!window.confirm("Apagar esta gravação e sua transcrição? Não dá pra desfazer.")) return;
+    try {
+      await invoke("delete_recording", { recordingId: id });
+      onChanged();
+    } catch (e) {
+      alert(String(e));
+    }
+  }
+
   return (
     <section className="panel">
       <h2>Gravações</h2>
@@ -192,9 +210,16 @@ function RecordingsScreen({ recordings }: { recordings: Recording[] }) {
         <ul className="rec-list">
           {recordings.map((r) => (
             <li key={r.id}>
-              <strong>{formatDate(r.created_at)}</strong> — {formatTime(Math.round(r.duration_s))} ·{" "}
-              {formatSize(r.size_bytes)}
-              <div className="path">{r.path}</div>
+              <div className="rec-row">
+                <div>
+                  <strong>{formatDate(r.created_at)}</strong> — {formatTime(Math.round(r.duration_s))} ·{" "}
+                  {formatSize(r.size_bytes)}
+                  <div className="path">{r.path}</div>
+                </div>
+                <button className="del-btn" onClick={() => remove(r.id)}>
+                  Apagar
+                </button>
+              </div>
             </li>
           ))}
         </ul>

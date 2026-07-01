@@ -147,6 +147,28 @@ body {
   word-break: break-all;
 }
 
+.rec-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.del-btn {
+  flex-shrink: 0;
+  padding: 6px 12px;
+  font-size: 13px;
+  color: #fff;
+  background: #e0392b;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.del-btn:hover {
+  background: #c53024;
+}
+
 .form-row {
   display: flex;
   flex-direction: column;

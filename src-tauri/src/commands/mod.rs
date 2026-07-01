@@ -226,6 +226,20 @@ pub fn get_transcript(app: AppHandle, recording_id: String) -> Result<Option<Tra
     storage::get_transcript(&conn, &recording_id).map_err(|e| e.to_string())
 }
 
+#[tauri::command]
+pub fn delete_recording(app: AppHandle, recording_id: String) -> Result<(), String> {
+    let conn = open_db(&app)?;
+    let paths = storage::recording_paths(&conn, &recording_id).map_err(|e| e.to_string())?;
+    storage::delete_recording(&conn, &recording_id).map_err(|e| e.to_string())?;
+    // Apaga a pasta da gravação (mic.webm + system.webm).
+    if let Some((mic, _sys)) = paths {
+        if let Some(dir) = Path::new(&mic).parent() {
+            let _ = std::fs::remove_dir_all(dir);
+        }
+    }
+    Ok(())
+}
+
 fn open_db(app: &AppHandle) -> Result<rusqlite::Connection, String> {
     storage::open(&db_path(app).map_err(|e| e.to_string())?).map_err(|e| e.to_string())
 }

@@ -95,9 +95,11 @@ Cada PR é uma unidade lógica, testável e mergeável. Marque os checkboxes ao 
 - [x] `cargo check` limpo (build do .exe bloqueado localmente pelo Kaspersky; ver CONTINUATION).
 - [ ] **Aceite (você)**: transcrever uma call → texto tipo `[mm:ss] Você: ...` / `[mm:ss] Participantes: ...`.
 
-## PR6.5 — Apagar gravação (pendente)
-- [ ] `delete_recording(id)`: apaga arquivos (.webm) + linha em recordings + transcript, com confirmação na UI.
-- [ ] (Tela de Configurações já existe desde o PR5.) Toggle "gravar todos" = fase 2.
+## PR6.5 — Apagar gravação ✅ (código verificado por `cargo check`)
+- [x] `delete_recording(id)`: apaga a pasta da gravação (mic.webm + system.webm) + linha em recordings + transcript.
+- [x] Botão **Apagar** por item na aba Gravações, com confirmação; lista atualiza.
+- [ ] **Aceite (você)**: apagar remove da lista e do disco.
+- (Tela de Configurações já existe desde o PR5.) Toggle "gravar todos" = fase 2.
 
 ---
 
