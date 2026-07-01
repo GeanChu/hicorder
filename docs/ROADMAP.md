@@ -137,8 +137,10 @@ Repo público: github.com/GeanChu/call-recorder. Estratégia de assinatura grát
 - [x] Tabela `summaries`; botão "Gerar resumo" na aba Transcrição (só habilita com chave configurada) + copiar; delete apaga o resumo junto.
 - [ ] **Aceite (você)**: com a sk-cp configurada em Resumo → transcrever → Gerar resumo → texto do M3.
 
-## PR10 — Banho de design
-- [ ] Sistema de design leve (tokens de cor/espaço/tipografia), refino de todas as telas + estados vazios, entendendo o fluxo Gravar→Gravações→Transcrição→Config. Sem framework pesado.
+## PR10 — Banho de design ✅ (frontend compila; verificado no preview)
+- [x] Design system em CSS variables (cores/espaço/tipografia/raios/sombra), light + dark mode.
+- [x] Sidebar com ícones SVG inline + brand; nav com estado ativo; cards nas gravações; botão de gravar em pílula com indicador; medidor com gradiente; forms e seções refinados; estados vazios com ícone.
+- [x] Sem framework (CSS puro). tsc verde; renderiza no preview vite (screenshot travou no ambiente, mas inspects confirmam estilos).
 
 ## PR11 — Calendário (era fase 2)
 - [ ] Provider a definir (Google / Outlook / ICS). Listar reuniões + checkbox por reunião p/ habilitar gravação; opção "gravar todos" default; auto-gravar quando a reunião começa.
