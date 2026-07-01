@@ -57,6 +57,10 @@ pub fn stop_recording(app: AppHandle, recorder: State<Recorder>) -> Result<Recor
         None => None,
     };
 
+    // Faixa mixada (os dois lados juntos) só para reprodução. Best-effort.
+    let mix_out = dir.join("recording.webm");
+    let _ = encode::mix_to_opus(&res.mic_path, res.system_path.as_deref(), &mix_out);
+
     // Encode OK: remove os WAVs brutos.
     let _ = std::fs::remove_file(&res.mic_path);
     if let Some(sys) = &res.system_path {
@@ -67,6 +71,7 @@ pub fn stop_recording(app: AppHandle, recorder: State<Recorder>) -> Result<Recor
     if let Some(sp) = &system_path {
         size_bytes += std::fs::metadata(sp).map(|m| m.len()).unwrap_or(0);
     }
+    size_bytes += std::fs::metadata(&mix_out).map(|m| m.len()).unwrap_or(0);
 
     let row = RecordingRow {
         id: res.id,

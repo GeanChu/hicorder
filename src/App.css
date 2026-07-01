@@ -169,6 +169,32 @@ body {
   background: #c53024;
 }
 
+.rec-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.play-btn {
+  padding: 6px 12px;
+  font-size: 13px;
+  color: #fff;
+  background: #396cd8;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.play-btn:hover {
+  background: #2f5bb7;
+}
+
+.player {
+  width: 100%;
+  margin-top: 10px;
+  height: 36px;
+}
+
 .form-row {
   display: flex;
   flex-direction: column;
