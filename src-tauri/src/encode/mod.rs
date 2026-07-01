@@ -1,7 +1,7 @@
 //! Mix + encode via ffmpeg. Mistura mic + áudio do sistema numa faixa Opus leve.
 //!
-//! Dev: usa o `ffmpeg` do PATH (ou o caminho em `CALLREC_FFMPEG`). Em produção,
-//! será o sidecar empacotado (PR7) — nada para o usuário instalar.
+//! O caminho do `ffmpeg` é resolvido por quem chama: em produção o binário vem
+//! empacotado como resource; em dev cai no PATH/`CALLREC_FFMPEG`.
 
 use std::path::Path;
 use std::process::Command;
@@ -10,9 +10,8 @@ use anyhow::{anyhow, bail, Result};
 
 /// Mistura `mic` (+ `system` se houver) numa faixa Opus mono ~32 kbps, 16 kHz.
 /// O container vem da extensão de `out` (usamos `.webm`, aceito pela MiniMax).
-pub fn mix_to_opus(mic: &str, system: Option<&str>, out: &Path) -> Result<()> {
-    let ffmpeg = ffmpeg_path();
-    let mut cmd = Command::new(&ffmpeg);
+pub fn mix_to_opus(ffmpeg: &str, mic: &str, system: Option<&str>, out: &Path) -> Result<()> {
+    let mut cmd = Command::new(ffmpeg);
     cmd.arg("-y").arg("-i").arg(mic);
 
     if let Some(sys) = system {
@@ -41,8 +40,4 @@ pub fn mix_to_opus(mic: &str, system: Option<&str>, out: &Path) -> Result<()> {
         bail!("ffmpeg falhou: {last}");
     }
     Ok(())
-}
-
-fn ffmpeg_path() -> String {
-    std::env::var("CALLREC_FFMPEG").unwrap_or_else(|_| "ffmpeg".to_string())
 }

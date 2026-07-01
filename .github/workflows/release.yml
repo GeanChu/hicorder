@@ -52,6 +52,32 @@ jobs:
       - name: Install frontend deps
         run: npm ci
 
+      # ffmpeg empacotado como resource (app self-contained).
+      - name: Fetch ffmpeg (Windows)
+        if: matrix.platform == 'windows-latest'
+        shell: pwsh
+        run: |
+          Invoke-WebRequest -Uri "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip" -OutFile ffmpeg.zip
+          Expand-Archive ffmpeg.zip -DestinationPath ffmpeg_tmp
+          $exe = Get-ChildItem ffmpeg_tmp -Recurse -Filter ffmpeg.exe | Select-Object -First 1
+          Copy-Item $exe.FullName src-tauri/resources/ffmpeg.exe
+
+      - name: Fetch ffmpeg (Linux)
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          curl -L https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz -o ffmpeg.tar.xz
+          mkdir ffmpeg_tmp && tar -xf ffmpeg.tar.xz -C ffmpeg_tmp --strip-components=1
+          cp ffmpeg_tmp/ffmpeg src-tauri/resources/ffmpeg
+          chmod +x src-tauri/resources/ffmpeg
+
+      - name: Fetch ffmpeg (macOS)
+        if: matrix.platform == 'macos-latest'
+        run: |
+          curl -L https://evermeet.cx/ffmpeg/getrelease/zip -o ffmpeg.zip
+          unzip -o ffmpeg.zip -d ffmpeg_tmp
+          cp ffmpeg_tmp/ffmpeg src-tauri/resources/ffmpeg
+          chmod +x src-tauri/resources/ffmpeg
+
       - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

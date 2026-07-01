@@ -75,14 +75,16 @@ pub fn stop_recording_core(app: &AppHandle) -> Result<RecordingRow, String> {
         .parent()
         .ok_or_else(|| "caminho da gravação inválido".to_string())?;
 
+    let ffmpeg = resolve_ffmpeg(app);
+
     // Faixas separadas (Opus/.webm): mic = "Você", sistema = "Participantes".
     let mic_out = dir.join("mic.webm");
-    encode::mix_to_opus(&res.mic_path, None, &mic_out).map_err(|e| e.to_string())?;
+    encode::mix_to_opus(&ffmpeg, &res.mic_path, None, &mic_out).map_err(|e| e.to_string())?;
 
     let system_path = match &res.system_path {
         Some(sys) => {
             let so = dir.join("system.webm");
-            match encode::mix_to_opus(sys, None, &so) {
+            match encode::mix_to_opus(&ffmpeg, sys, None, &so) {
                 Ok(()) => Some(so.to_string_lossy().into_owned()),
                 Err(e) => {
                     eprintln!("[encode] faixa do sistema falhou: {e}");
@@ -95,7 +97,7 @@ pub fn stop_recording_core(app: &AppHandle) -> Result<RecordingRow, String> {
 
     // Faixa mixada (os dois lados juntos) só para reprodução. Best-effort.
     let mix_out = dir.join("recording.webm");
-    let _ = encode::mix_to_opus(&res.mic_path, res.system_path.as_deref(), &mix_out);
+    let _ = encode::mix_to_opus(&ffmpeg, &res.mic_path, res.system_path.as_deref(), &mix_out);
 
     // Encode OK: remove os WAVs brutos.
     let _ = std::fs::remove_file(&res.mic_path);
@@ -448,6 +450,17 @@ fn db_path(app: &AppHandle) -> anyhow::Result<PathBuf> {
     let base = app.path().app_data_dir()?;
     std::fs::create_dir_all(&base)?;
     Ok(base.join("callrec.db"))
+}
+
+/// Caminho do ffmpeg: resource empacotado (prod) ou PATH/CALLREC_FFMPEG (dev).
+fn resolve_ffmpeg(app: &AppHandle) -> String {
+    let name = if cfg!(windows) { "ffmpeg.exe" } else { "ffmpeg" };
+    if let Ok(p) = app.path().resolve(name, tauri::path::BaseDirectory::Resource) {
+        if p.exists() {
+            return p.to_string_lossy().into_owned();
+        }
+    }
+    std::env::var("CALLREC_FFMPEG").unwrap_or_else(|_| "ffmpeg".to_string())
 }
 
 fn now_ms() -> i64 {

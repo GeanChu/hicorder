@@ -1,0 +1,2 @@
+O binário do ffmpeg é baixado aqui pela CI no build (não versionado).
+Em dev, deixe vazio: o app usa o ffmpeg do PATH (ou CALLREC_FFMPEG).
