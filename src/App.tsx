@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
+import { convertFileSrc, invoke } from "@tauri-apps/api/core";
 import "./App.css";
 
 type Tab = "gravar" | "gravacoes" | "transcricao" | "config";
@@ -191,14 +191,21 @@ function RecordingsScreen({
   recordings: Recording[];
   onChanged: () => void;
 }) {
+  const [playing, setPlaying] = useState<string | null>(null);
+
   async function remove(id: string) {
     if (!window.confirm("Apagar esta gravação e sua transcrição? Não dá pra desfazer.")) return;
     try {
       await invoke("delete_recording", { recordingId: id });
+      if (playing === id) setPlaying(null);
       onChanged();
     } catch (e) {
       alert(String(e));
     }
+  }
+
+  function mixSrc(micPath: string): string {
+    return convertFileSrc(micPath.replace(/mic\.webm$/, "recording.webm"));
   }
 
   return (
@@ -214,12 +221,22 @@ function RecordingsScreen({
                 <div>
                   <strong>{formatDate(r.created_at)}</strong> — {formatTime(Math.round(r.duration_s))} ·{" "}
                   {formatSize(r.size_bytes)}
-                  <div className="path">{r.path}</div>
                 </div>
-                <button className="del-btn" onClick={() => remove(r.id)}>
-                  Apagar
-                </button>
+                <div className="rec-actions">
+                  <button
+                    className="play-btn"
+                    onClick={() => setPlaying(playing === r.id ? null : r.id)}
+                  >
+                    {playing === r.id ? "Fechar" : "▶ Play"}
+                  </button>
+                  <button className="del-btn" onClick={() => remove(r.id)}>
+                    Apagar
+                  </button>
+                </div>
               </div>
+              {playing === r.id && (
+                <audio className="player" controls autoPlay src={mixSrc(r.path)} />
+              )}
             </li>
           ))}
         </ul>

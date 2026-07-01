@@ -123,6 +123,27 @@ Repo público: github.com/GeanChu/call-recorder. Estratégia de assinatura grát
 
 ---
 
+# Features pós-núcleo (pedidas após o núcleo)
+
+## PR8 — Botão Play ✅ (código verificado por `cargo check`)
+- [x] `stop_recording` também gera `recording.webm` mixado (só para reprodução), além das faixas separadas.
+- [x] Asset protocol habilitado (`tauri.conf` scope `$APPDATA/recordings/**`, feature `protocol-asset`); player in-app `<audio>` via `convertFileSrc`.
+- [x] Botão Play/Fechar por gravação na aba Gravações.
+- [ ] **Aceite (você)**: Play toca os dois lados. (Webm/opus toca no WebView2/Win; validar no Mac depois.)
+
+## PR9 — Resumo via MiniMax-M3 (opcional)
+- [ ] Botão "Gerar resumo" por gravação (usa a transcrição). Provider chat-completions OpenAI-compat → `https://api.minimax.io/v1/chat/completions`, model `MiniMax-M3`, Bearer **sk-cp**.
+- [ ] Configurações separadas e rotuladas: **Transcrição** (Groq) vs **Resumo** (MiniMax-M3) — endpoint/modelo/chave próprios; 2 chaves no keychain.
+- [ ] Tabela `summaries`; exibir + copiar.
+
+## PR10 — Banho de design
+- [ ] Sistema de design leve (tokens de cor/espaço/tipografia), refino de todas as telas + estados vazios, entendendo o fluxo Gravar→Gravações→Transcrição→Config. Sem framework pesado.
+
+## PR11 — Calendário (era fase 2)
+- [ ] Provider a definir (Google / Outlook / ICS). Listar reuniões + checkbox por reunião p/ habilitar gravação; opção "gravar todos" default; auto-gravar quando a reunião começa.
+
+---
+
 ## Backlog / Fase 2 — Agenda + auto-gravar
 **Objetivo**: gravar reuniões automaticamente.
 - [ ] Conectores de agenda (Google/Outlook/ICS-CalDAV).
