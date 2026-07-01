@@ -150,11 +150,17 @@ Repo público: github.com/GeanChu/call-recorder. Estratégia de assinatura grát
 - [x] Config: campo **URL do calendário (ICS)** + toggle **"Gravar todas"**. Aba **Agenda** lista as próximas reuniões com checkbox "Gravar" por reunião.
 - [ ] **Aceite (você)**: colar a URL ICS → Atualizar → ver reuniões → marcar quais gravar.
 
-### PR11b — Auto-gravar + tray + alertas (a fazer)
-- [ ] Ícone na bandeja/status indicando gravação.
-- [ ] Scheduler: auto-**iniciar** gravação na hora de reunião habilitada (app aberto). Parada é **manual**.
-- [ ] Alerta no horário de **fim** recomendando parar; **auto-stop em fim+1h** com aviso.
-- [ ] Notificações via `tauri-plugin-notification`.
+### PR11b — Tray + start/stop manual ✅ (código verificado por `cargo check`)
+- [x] Ícone na bandeja (`tray.rs`, feature `tray-icon`) com menu: iniciar/parar gravação, abrir, sair; tooltip indica "GRAVANDO".
+- [x] Fechar a janela **minimiza pro tray** (app segue rodando p/ auto-gravar); left-click no tray reabre.
+- [x] start/stop refatorados em `*_core` (chamáveis por command/tray/scheduler); evento `recording-changed` sincroniza UI (tray + telas).
+- [x] plugin `tauri-plugin-notification` inicializado (usado no PR11c).
+- [ ] **Aceite (você)**: ícone no tray; iniciar/parar por ele; fechar janela = fica no tray; tooltip muda.
+
+### PR11c — Auto-gravar + alertas (a fazer)
+- [ ] Scheduler (thread): auto-**iniciar** na hora de reunião habilitada (app aberto). Parada **manual**.
+- [ ] Alerta (notificação) no horário de **fim** recomendando parar; **auto-stop em fim+1h** avisando.
+- [ ] Recorder guarda contexto da reunião (uid/fim) p/ o alerta e o auto-stop.
 
 ---
 

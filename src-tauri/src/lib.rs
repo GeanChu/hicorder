@@ -6,14 +6,36 @@ mod settings;
 mod storage;
 mod summary;
 mod transcription;
+mod tray;
 
 use audio::recorder::Recorder;
+use tauri::{Listener, Manager, WindowEvent};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_notification::init())
         .manage(Recorder::new())
+        .setup(|app| {
+            tray::build_tray(app.handle())?;
+
+            // Mantém o tray em sincronia com o estado de gravação.
+            let handle = app.handle().clone();
+            app.listen("recording-changed", move |_| tray::update_tray(&handle));
+
+            // Fechar a janela minimiza pro tray (app segue rodando p/ auto-gravar).
+            if let Some(win) = app.get_webview_window("main") {
+                let w = win.clone();
+                win.on_window_event(move |event| {
+                    if let WindowEvent::CloseRequested { api, .. } = event {
+                        api.prevent_close();
+                        let _ = w.hide();
+                    }
+                });
+            }
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             commands::list_input_devices,
             commands::start_recording,

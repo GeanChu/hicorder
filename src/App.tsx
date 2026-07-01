@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { convertFileSrc, invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import "./App.css";
 
 type Tab = "gravar" | "agenda" | "gravacoes" | "transcricao" | "config";
@@ -142,6 +143,13 @@ function App() {
     refreshSettings();
   }, [refreshRecordings, refreshSettings]);
 
+  useEffect(() => {
+    const un = listen("recording-changed", () => refreshRecordings());
+    return () => {
+      un.then((f) => f());
+    };
+  }, [refreshRecordings]);
+
   return (
     <div className="app">
       <nav className="sidebar">
@@ -194,9 +202,39 @@ function RecordScreen({ onFinished }: { onFinished: () => void }) {
     return () => timers.current.forEach(clearInterval);
   }, []);
 
+  useEffect(() => {
+    const un = listen<boolean>("recording-changed", (e) => {
+      setRecording(e.payload);
+      if (e.payload) {
+        if (timers.current.length === 0) beginTimers();
+      } else {
+        clearTimers();
+        setLevel(0);
+      }
+    });
+    return () => {
+      un.then((f) => f());
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   function clearTimers() {
     timers.current.forEach(clearInterval);
     timers.current = [];
+  }
+
+  function beginTimers() {
+    clearTimers();
+    setElapsed(0);
+    const t1 = window.setInterval(() => setElapsed((e) => e + 1), 1000);
+    const t2 = window.setInterval(async () => {
+      try {
+        setLevel(await invoke<number>("recording_level"));
+      } catch {
+        /* ignore */
+      }
+    }, 100);
+    timers.current = [t1, t2];
   }
 
   async function start() {
@@ -204,16 +242,7 @@ function RecordScreen({ onFinished }: { onFinished: () => void }) {
     try {
       await invoke("start_recording");
       setRecording(true);
-      setElapsed(0);
-      const t1 = window.setInterval(() => setElapsed((e) => e + 1), 1000);
-      const t2 = window.setInterval(async () => {
-        try {
-          setLevel(await invoke<number>("recording_level"));
-        } catch {
-          /* ignore */
-        }
-      }, 100);
-      timers.current = [t1, t2];
+      beginTimers();
     } catch (e) {
       setError(String(e));
     }

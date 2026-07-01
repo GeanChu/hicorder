@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde::Serialize;
-use tauri::{AppHandle, Manager, State};
+use tauri::{AppHandle, Emitter, Manager, State};
 
 use crate::audio::recorder::{Recorder, RecordingInfo};
 use crate::storage::{self, MeetingRow, RecordingRow, SummaryRow, TranscriptRow};
@@ -34,15 +34,29 @@ pub fn list_input_devices() -> Result<Vec<String>, String> {
 }
 
 #[tauri::command]
-pub fn start_recording(app: AppHandle, recorder: State<Recorder>) -> Result<RecordingInfo, String> {
-    let dir = recordings_dir(&app).map_err(|e| e.to_string())?;
-    recorder.start(dir, new_id()).map_err(|e| e.to_string())
+pub fn start_recording(app: AppHandle) -> Result<RecordingInfo, String> {
+    start_recording_core(&app)
 }
 
 /// Para a gravação, mistura/encoda para Opus, persiste e retorna a linha.
 #[tauri::command]
-pub fn stop_recording(app: AppHandle, recorder: State<Recorder>) -> Result<RecordingRow, String> {
-    let res = recorder.stop().map_err(|e| e.to_string())?;
+pub fn stop_recording(app: AppHandle) -> Result<RecordingRow, String> {
+    stop_recording_core(&app)
+}
+
+/// Núcleo de iniciar — chamável pelo command, pelo tray e pelo scheduler.
+pub fn start_recording_core(app: &AppHandle) -> Result<RecordingInfo, String> {
+    let dir = recordings_dir(app).map_err(|e| e.to_string())?;
+    let info = app
+        .state::<Recorder>()
+        .start(dir, new_id())
+        .map_err(|e| e.to_string())?;
+    let _ = app.emit("recording-changed", true);
+    Ok(info)
+}
+
+pub fn stop_recording_core(app: &AppHandle) -> Result<RecordingRow, String> {
+    let res = app.state::<Recorder>().stop().map_err(|e| e.to_string())?;
     let dir = Path::new(&res.mic_path)
         .parent()
         .ok_or_else(|| "caminho da gravação inválido".to_string())?;
@@ -90,8 +104,9 @@ pub fn stop_recording(app: AppHandle, recorder: State<Recorder>) -> Result<Recor
         size_bytes: size_bytes as i64,
     };
 
-    let conn = open_db(&app)?;
+    let conn = open_db(app)?;
     storage::insert(&conn, &row).map_err(|e| e.to_string())?;
+    let _ = app.emit("recording-changed", false);
     Ok(row)
 }
 
