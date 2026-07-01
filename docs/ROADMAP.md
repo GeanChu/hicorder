@@ -111,8 +111,10 @@ Repo público: github.com/GeanChu/call-recorder. Estratégia de assinatura grát
 - [x] `.github/workflows/release.yml`: `tauri-action` builda instaladores (.msi/NSIS, .dmg universal, .deb/.AppImage) em tag `v*` → Release em rascunho. Build na nuvem = sem Kaspersky.
 - [ ] **Aceite**: dar push → CI verde nos 3 SOs; criar tag `v0.1.0` → instaladores no Release.
 
-### PR7b — ffmpeg sidecar (app self-contained)
-- [ ] Baixar ffmpeg por plataforma no build → `src-tauri/binaries/ffmpeg-<triple>`, `externalBin` no tauri.conf; encode chama o sidecar. Hoje o app exige ffmpeg no PATH.
+### PR7b — ffmpeg empacotado (app self-contained) ✅ (código; empacotamento valida no release)
+- [x] ffmpeg como **resource** do Tauri (`tauri.conf` `resources: ["resources/*"]`); `encode::mix_to_opus` recebe o caminho; `resolve_ffmpeg` usa o resource (prod) com fallback PATH/`CALLREC_FFMPEG` (dev).
+- [x] `release.yml` baixa o ffmpeg estático por plataforma (gyan/johnvansickle/evermeet) → `src-tauri/resources/` antes do bundle. Binário gitignorado; `.gitkeep` mantém a pasta.
+- [ ] **Aceite**: cortar tag `v0.1.0` → instaladores com ffmpeg embutido → instalar num PC sem ffmpeg e gravar/transcrever funciona.
 
 ### PR7c — Assinatura (SignPath Foundation, grátis p/ OSS)
 - [ ] Aplicar em signpath.io/foundation (projeto OSS aprovado) → configurar step de assinatura no release.yml.
