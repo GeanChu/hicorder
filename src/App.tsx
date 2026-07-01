@@ -52,6 +52,50 @@ const LANGUAGES: { code: string; label: string }[] = [
   { code: "it", label: "Italiano" },
 ];
 
+function icon(name: string) {
+  const c = { width: 18, height: 18, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 2 };
+  switch (name) {
+    case "mic":
+    case "gravar":
+      return (
+        <svg {...c}>
+          <rect x="9" y="2" width="6" height="12" rx="3" />
+          <path d="M5 10a7 7 0 0 0 14 0" />
+          <line x1="12" y1="19" x2="12" y2="22" />
+        </svg>
+      );
+    case "gravacoes":
+      return (
+        <svg {...c}>
+          <line x1="8" y1="6" x2="21" y2="6" />
+          <line x1="8" y1="12" x2="21" y2="12" />
+          <line x1="8" y1="18" x2="21" y2="18" />
+          <circle cx="3.5" cy="6" r="1" />
+          <circle cx="3.5" cy="12" r="1" />
+          <circle cx="3.5" cy="18" r="1" />
+        </svg>
+      );
+    case "transcricao":
+      return (
+        <svg {...c}>
+          <path d="M14 3v4a1 1 0 0 0 1 1h4" />
+          <path d="M17 21H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7l5 5v11a2 2 0 0 1-2 2z" />
+          <line x1="9" y1="13" x2="15" y2="13" />
+          <line x1="9" y1="17" x2="13" y2="17" />
+        </svg>
+      );
+    case "config":
+      return (
+        <svg {...c}>
+          <circle cx="12" cy="12" r="3" />
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+        </svg>
+      );
+    default:
+      return null;
+  }
+}
+
 function App() {
   const [tab, setTab] = useState<Tab>("gravar");
   const [recordings, setRecordings] = useState<Recording[]>([]);
@@ -81,13 +125,17 @@ function App() {
   return (
     <div className="app">
       <nav className="sidebar">
-        <h1 className="brand">Call Recorder</h1>
+        <div className="brand">
+          <span className="brand-dot">{icon("mic")}</span>
+          Call Recorder
+        </div>
         {TABS.map((t) => (
           <button
             key={t.id}
             className={tab === t.id ? "nav-item active" : "nav-item"}
             onClick={() => setTab(t.id)}
           >
+            {icon(t.id)}
             {t.label}
           </button>
         ))}
@@ -173,6 +221,7 @@ function RecordScreen({ onFinished }: { onFinished: () => void }) {
         onClick={recording ? stop : start}
         disabled={busy}
       >
+        <span className="rec-dot" />
         {busy ? "Processando..." : recording ? "Parar" : "Gravar"}
       </button>
 
@@ -222,15 +271,20 @@ function RecordingsScreen({
     <section className="panel">
       <h2>Gravações</h2>
       {recordings.length === 0 ? (
-        <p className="hint">Nenhuma gravação ainda. Grave na aba Gravar.</p>
+        <div className="empty">
+          {icon("gravacoes")}
+          <p>Nenhuma gravação ainda. Grave na aba Gravar.</p>
+        </div>
       ) : (
         <ul className="rec-list">
           {recordings.map((r) => (
             <li key={r.id}>
               <div className="rec-row">
-                <div>
-                  <strong>{formatDate(r.created_at)}</strong> — {formatTime(Math.round(r.duration_s))} ·{" "}
-                  {formatSize(r.size_bytes)}
+                <div className="rec-meta">
+                  {formatDate(r.created_at)}
+                  <small>
+                    {formatTime(Math.round(r.duration_s))} · {formatSize(r.size_bytes)}
+                  </small>
                 </div>
                 <div className="rec-actions">
                   <button
@@ -344,7 +398,10 @@ function TranscriptionScreen({
     <section className="panel">
       <h2>Transcrição</h2>
       {recordings.length === 0 ? (
-        <p className="hint">Grave algo primeiro na aba Gravar.</p>
+        <div className="empty">
+          {icon("transcricao")}
+          <p>Grave algo primeiro na aba Gravar.</p>
+        </div>
       ) : (
         <>
           <div className="form-row">
