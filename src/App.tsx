@@ -198,18 +198,25 @@ function RecordScreen({ onFinished }: { onFinished: () => void }) {
   const timers = useRef<number[]>([]);
 
   useEffect(() => {
-    invoke<boolean>("is_recording").then(setRecording).catch(() => {});
+    invoke<boolean>("is_recording")
+      .then((r) => {
+        setRecording(r);
+        if (r) beginPolling();
+      })
+      .catch(() => {});
     return () => timers.current.forEach(clearInterval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
     const un = listen<boolean>("recording-changed", (e) => {
       setRecording(e.payload);
       if (e.payload) {
-        if (timers.current.length === 0) beginTimers();
+        if (timers.current.length === 0) beginPolling();
       } else {
         clearTimers();
         setLevel(0);
+        setElapsed(0);
       }
     });
     return () => {
@@ -223,18 +230,25 @@ function RecordScreen({ onFinished }: { onFinished: () => void }) {
     timers.current = [];
   }
 
-  function beginTimers() {
+  function beginPolling() {
     clearTimers();
-    setElapsed(0);
-    const t1 = window.setInterval(() => setElapsed((e) => e + 1), 1000);
-    const t2 = window.setInterval(async () => {
+    const t = window.setInterval(async () => {
       try {
-        setLevel(await invoke<number>("recording_level"));
+        const s = await invoke<{ recording: boolean; elapsed_s: number; level: number }>(
+          "recording_status",
+        );
+        setRecording(s.recording);
+        setElapsed(Math.floor(s.elapsed_s));
+        setLevel(s.level);
+        if (!s.recording) {
+          clearTimers();
+          setLevel(0);
+        }
       } catch {
         /* ignore */
       }
-    }, 100);
-    timers.current = [t1, t2];
+    }, 200);
+    timers.current = [t];
   }
 
   async function start() {
@@ -242,7 +256,7 @@ function RecordScreen({ onFinished }: { onFinished: () => void }) {
     try {
       await invoke("start_recording");
       setRecording(true);
-      beginTimers();
+      beginPolling();
     } catch (e) {
       setError(String(e));
     }

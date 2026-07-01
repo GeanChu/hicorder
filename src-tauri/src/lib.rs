@@ -43,6 +43,7 @@ pub fn run() {
             commands::list_recordings,
             commands::delete_recording,
             commands::recording_level,
+            commands::recording_status,
             commands::is_recording,
             commands::get_settings,
             commands::save_settings,

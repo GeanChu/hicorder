@@ -65,6 +65,19 @@ impl Recorder {
         }
     }
 
+    /// Estado atual: (gravando, segundos decorridos, nível 0.0..=1.0).
+    /// O tempo vem do backend, então sobrevive a trocas de aba na UI.
+    pub fn status(&self) -> (bool, f64, f32) {
+        match &*self.inner.lock().unwrap() {
+            Some(s) => {
+                let mic = f32::from_bits(s.mic_level.load(Ordering::Relaxed));
+                let sys = f32::from_bits(s.system_level.load(Ordering::Relaxed));
+                (true, s.started.elapsed().as_secs_f64(), mic.max(sys))
+            }
+            None => (false, 0.0, 0.0),
+        }
+    }
+
     pub fn start(&self, recordings_dir: PathBuf, id: String) -> Result<RecordingInfo> {
         let mut guard = self.inner.lock().unwrap();
         if guard.is_some() {

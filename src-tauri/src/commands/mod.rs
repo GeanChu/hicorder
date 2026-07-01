@@ -402,6 +402,23 @@ pub fn recording_level(recorder: State<Recorder>) -> f32 {
     recorder.level()
 }
 
+#[derive(Serialize, Clone)]
+pub struct RecordingStatus {
+    pub recording: bool,
+    pub elapsed_s: f64,
+    pub level: f32,
+}
+
+#[tauri::command]
+pub fn recording_status(recorder: State<Recorder>) -> RecordingStatus {
+    let (recording, elapsed_s, level) = recorder.status();
+    RecordingStatus {
+        recording,
+        elapsed_s,
+        level,
+    }
+}
+
 #[tauri::command]
 pub fn is_recording(recorder: State<Recorder>) -> bool {
     recorder.is_recording()
