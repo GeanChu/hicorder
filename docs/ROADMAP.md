@@ -104,12 +104,22 @@ Cada PR é uma unidade lógica, testável e mergeável. Marque os checkboxes ao 
 ---
 
 ## PR7 — Empacotamento e distribuição
-**Objetivo**: instaladores fáceis (não assinados na v1).
-- [ ] Build de instaladores: `.msi`/NSIS, `.dmg`, `.AppImage`/`.deb`.
-- [ ] Instruções de liberação (Gatekeeper/SmartScreen) no README.
-- [ ] (Opcional) `tauri-plugin-updater` + canal de releases.
+Repo público: github.com/GeanChu/call-recorder. Estratégia de assinatura grátis: **SignPath Foundation** (OSS) + reportar FP ao Kaspersky.
 
-**Aceite**: instalar e rodar do zero em cada SO seguindo só o README.
+### PR7a — CI/Release (GitHub Actions) ✅ (código; falta rodar na nuvem)
+- [x] `.github/workflows/ci.yml`: builda no push (ubuntu/macos/windows) — **1ª compilação no Mac/Linux**, acha bugs de plataforma.
+- [x] `.github/workflows/release.yml`: `tauri-action` builda instaladores (.msi/NSIS, .dmg universal, .deb/.AppImage) em tag `v*` → Release em rascunho. Build na nuvem = sem Kaspersky.
+- [ ] **Aceite**: dar push → CI verde nos 3 SOs; criar tag `v0.1.0` → instaladores no Release.
+
+### PR7b — ffmpeg sidecar (app self-contained)
+- [ ] Baixar ffmpeg por plataforma no build → `src-tauri/binaries/ffmpeg-<triple>`, `externalBin` no tauri.conf; encode chama o sidecar. Hoje o app exige ffmpeg no PATH.
+
+### PR7c — Assinatura (SignPath Foundation, grátis p/ OSS)
+- [ ] Aplicar em signpath.io/foundation (projeto OSS aprovado) → configurar step de assinatura no release.yml.
+- [ ] Alternativa/complemento: reportar o instalador ao Kaspersky (opentip.kaspersky.com) + política de exclusão no Kaspersky do time.
+- [ ] Instruções de liberação (Gatekeeper/SmartScreen) no README.
+
+**Aceite final**: time instala e roda do zero, sem aviso de AV/segurança.
 
 ---
 
