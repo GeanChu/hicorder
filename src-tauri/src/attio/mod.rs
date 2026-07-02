@@ -25,6 +25,7 @@ pub struct AttioMeeting {
 fn client() -> reqwest::blocking::Client {
     reqwest::blocking::Client::builder()
         .use_native_tls()
+        .no_proxy()
         .timeout(std::time::Duration::from_secs(30))
         .build()
         .unwrap_or_else(|_| reqwest::blocking::Client::new())
@@ -35,7 +36,7 @@ fn get_json(key: &str, url: reqwest::Url) -> Result<serde_json::Value> {
         .get(url)
         .bearer_auth(key)
         .send()
-        .map_err(|e| anyhow!("Attio: falha na requisição: {e}"))?;
+        .map_err(|e| anyhow!("Attio: falha na requisição: {e:?}"))?;
     parse(resp)
 }
 
@@ -45,7 +46,7 @@ fn post_json(key: &str, url: &str, body: &serde_json::Value) -> Result<serde_jso
         .bearer_auth(key)
         .json(body)
         .send()
-        .map_err(|e| anyhow!("Attio: falha na requisição: {e}"))?;
+        .map_err(|e| anyhow!("Attio: falha na requisição: {e:?}"))?;
     parse(resp)
 }
 
