@@ -1,3 +1,4 @@
+mod attio;
 mod audio;
 mod commands;
 mod encode;
@@ -58,6 +59,9 @@ pub fn run() {
             commands::refresh_meetings,
             commands::list_meetings,
             commands::set_meeting_record,
+            commands::set_attio_key,
+            commands::attio_find_meetings,
+            commands::attio_upload,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

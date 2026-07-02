@@ -39,6 +39,14 @@ type Settings = {
   has_summary_key: boolean;
   ics_url: string;
   record_all: boolean;
+  has_attio_key: boolean;
+};
+
+type AttioMeeting = {
+  meeting_id: string;
+  title: string;
+  start: string | null;
+  end: string | null;
 };
 
 type Summary = {
@@ -181,6 +189,7 @@ function App() {
             defaultLanguage={settings?.default_language ?? "pt"}
             hasApiKey={settings?.has_api_key ?? false}
             hasSummaryKey={settings?.has_summary_key ?? false}
+            hasAttioKey={settings?.has_attio_key ?? false}
           />
         )}
         {tab === "config" && <ConfigScreen settings={settings} onSaved={refreshSettings} />}
@@ -449,11 +458,13 @@ function TranscriptionScreen({
   defaultLanguage,
   hasApiKey,
   hasSummaryKey,
+  hasAttioKey,
 }: {
   recordings: Recording[];
   defaultLanguage: string;
   hasApiKey: boolean;
   hasSummaryKey: boolean;
+  hasAttioKey: boolean;
 }) {
   const [selectedId, setSelectedId] = useState("");
   const [language, setLanguage] = useState(defaultLanguage);
@@ -599,9 +610,204 @@ function TranscriptionScreen({
               {summary && <textarea className="transcript" readOnly value={summary} />}
             </div>
           )}
+
+          {text && (
+            <AttioUpload
+              recording={recordings.find((r) => r.id === selectedId) ?? null}
+              hasSummary={!!summary}
+              hasAttioKey={hasAttioKey}
+            />
+          )}
         </>
       )}
     </section>
+  );
+}
+
+function AttioUpload({
+  recording,
+  hasSummary,
+  hasAttioKey,
+}: {
+  recording: Recording | null;
+  hasSummary: boolean;
+  hasAttioKey: boolean;
+}) {
+  const [kind, setKind] = useState<"transcript" | "summary" | null>(null);
+  const [emails, setEmails] = useState("");
+  const [title, setTitle] = useState("");
+  const [candidates, setCandidates] = useState<AttioMeeting[] | null>(null);
+  const [selected, setSelected] = useState<string | null>(null); // meeting_id or "new"
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [result, setResult] = useState<string | null>(null);
+
+  function parseEmails(): string[] {
+    return emails
+      .split(/[\s,;]+/)
+      .map((e) => e.trim())
+      .filter((e) => e.includes("@"))
+      .slice(0, 5);
+  }
+
+  function reset() {
+    setCandidates(null);
+    setSelected(null);
+    setResult(null);
+    setError(null);
+  }
+
+  async function search() {
+    setError(null);
+    setResult(null);
+    const list = parseEmails();
+    if (list.length === 0) {
+      setError("Informe ao menos 1 email de participante.");
+      return;
+    }
+    setBusy(true);
+    try {
+      const found = await invoke<AttioMeeting[]>("attio_find_meetings", { emails: list });
+      setCandidates(found);
+      setSelected(found.length > 0 ? found[0].meeting_id : "new");
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function upload() {
+    if (!recording || !kind || !selected) return;
+    setError(null);
+    setResult(null);
+    setBusy(true);
+    try {
+      const start = new Date(recording.created_at);
+      const end = new Date(recording.created_at + recording.duration_s * 1000);
+      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      const r = await invoke<{ meeting_id: string; notes_created: number; missing_people: string[] }>(
+        "attio_upload",
+        {
+          recordingId: recording.id,
+          kind,
+          meetingId: selected === "new" ? null : selected,
+          title: title || `Reunião ${formatDate(recording.created_at)}`,
+          startIso: start.toISOString(),
+          endIso: end.toISOString(),
+          timezone: tz,
+          emails: parseEmails(),
+        },
+      );
+      let msg = `${r.notes_created} nota(s) criada(s) na meeting ${r.meeting_id}.`;
+      if (r.missing_people.length > 0) msg += ` Sem pessoa no Attio: ${r.missing_people.join(", ")}.`;
+      setResult(msg);
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="summary-block">
+      <h3>Subir ao Attio</h3>
+      {!hasAttioKey && <p className="hint">Configure a chave do Attio em Configurações.</p>}
+
+      <div className="actions">
+        <button
+          className={kind === "transcript" ? "" : "secondary"}
+          onClick={() => {
+            setKind("transcript");
+            reset();
+          }}
+          disabled={!hasAttioKey}
+        >
+          Subir transcrição
+        </button>
+        <button
+          className={kind === "summary" ? "" : "secondary"}
+          onClick={() => {
+            setKind("summary");
+            reset();
+          }}
+          disabled={!hasAttioKey || !hasSummary}
+        >
+          Subir resumo
+        </button>
+      </div>
+
+      {kind && (
+        <>
+          <p className="hint">
+            Subindo o {kind === "summary" ? "resumo" : "a transcrição"}. Informe os participantes
+            (até 5 emails) para achar a reunião no Attio.
+          </p>
+          <div className="form-row">
+            <label>Participantes (emails, separados por vírgula)</label>
+            <input
+              value={emails}
+              onChange={(e) => setEmails(e.target.value)}
+              placeholder="ana@empresa.com, bob@cliente.com"
+            />
+          </div>
+          <div className="actions">
+            <button onClick={search} disabled={busy}>
+              {busy ? "Buscando..." : "Buscar reunião no Attio"}
+            </button>
+          </div>
+
+          {candidates && (
+            <div className="attio-candidates">
+              <p className="hint">Confira e escolha a reunião antes de subir:</p>
+              {candidates.map((m) => (
+                <label key={m.meeting_id} className="chk">
+                  <input
+                    type="radio"
+                    name="attio-meeting"
+                    checked={selected === m.meeting_id}
+                    onChange={() => setSelected(m.meeting_id)}
+                  />
+                  <span>
+                    <strong>{m.title}</strong>
+                    {m.start && <> — {new Date(m.start).toLocaleString("pt-BR")}</>}
+                  </span>
+                </label>
+              ))}
+              <label className="chk">
+                <input
+                  type="radio"
+                  name="attio-meeting"
+                  checked={selected === "new"}
+                  onChange={() => setSelected("new")}
+                />
+                <span>➕ Criar nova reunião</span>
+              </label>
+
+              {selected === "new" && (
+                <div className="form-row">
+                  <label>Nome da nova reunião</label>
+                  <input
+                    value={title}
+                    onChange={(e) => setTitle(e.target.value)}
+                    placeholder={`Reunião ${recording ? formatDate(recording.created_at) : ""}`}
+                  />
+                </div>
+              )}
+
+              <div className="actions">
+                <button onClick={upload} disabled={busy || !selected}>
+                  {busy ? "Subindo..." : "Confirmar e subir nota"}
+                </button>
+              </div>
+            </div>
+          )}
+        </>
+      )}
+
+      {error && <p className="error">{error}</p>}
+      {result && <p className="ok">{result}</p>}
+    </div>
   );
 }
 
@@ -619,6 +825,7 @@ function ConfigScreen({
   const [summaryEndpointUrl, setSummaryEndpointUrl] = useState("");
   const [summaryModel, setSummaryModel] = useState("");
   const [summaryKey, setSummaryKey] = useState("");
+  const [attioKey, setAttioKey] = useState("");
   const [icsUrl, setIcsUrl] = useState("");
   const [recordAll, setRecordAll] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
@@ -656,6 +863,10 @@ function ConfigScreen({
       if (summaryKey.trim()) {
         await invoke("set_summary_key", { key: summaryKey });
         setSummaryKey("");
+      }
+      if (attioKey.trim()) {
+        await invoke("set_attio_key", { key: attioKey });
+        setAttioKey("");
       }
       setMsg("Configurações salvas.");
       onSaved();
@@ -755,6 +966,18 @@ function ConfigScreen({
         />
         Gravar todas as reuniões por padrão
       </label>
+
+      <h3 className="cfg-section">Attio (CRM)</h3>
+      <p className="hint">Sobe transcrição/resumo como nota na meeting do Attio. Chave em Attio → Settings → Developers → API tokens.</p>
+      <div className="form-row">
+        <label>Chave da API (Attio)</label>
+        <input
+          type="password"
+          value={attioKey}
+          onChange={(e) => setAttioKey(e.target.value)}
+          placeholder={settings?.has_attio_key ? "•••••• (configurada)" : "cole a chave do Attio"}
+        />
+      </div>
 
       <div className="actions">
         <button onClick={save}>Salvar</button>
