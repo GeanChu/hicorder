@@ -7,6 +7,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager, State};
 
+use crate::attio::{self, AttioMeeting};
 use crate::audio::recorder::{Recorder, RecordingInfo};
 use crate::storage::{self, MeetingRow, RecordingRow, SummaryRow, TranscriptRow};
 use crate::summary::{self, SummaryConfig};
@@ -26,6 +27,15 @@ pub struct AppSettings {
     // Calendário (ICS).
     pub ics_url: String,
     pub record_all: bool,
+    // Attio (CRM).
+    pub has_attio_key: bool,
+}
+
+#[derive(Serialize, Clone)]
+pub struct AttioUploadResult {
+    pub meeting_id: String,
+    pub notes_created: usize,
+    pub missing_people: Vec<String>,
 }
 
 #[tauri::command]
@@ -157,6 +167,7 @@ pub fn get_settings(app: AppHandle) -> Result<AppSettings, String> {
         has_summary_key: settings::has_summary_key(),
         ics_url,
         record_all,
+        has_attio_key: settings::has_attio_key(),
     })
 }
 
@@ -192,6 +203,87 @@ pub fn set_api_key(key: String) -> Result<(), String> {
 #[tauri::command]
 pub fn set_summary_key(key: String) -> Result<(), String> {
     settings::set_summary_key(&key).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn set_attio_key(key: String) -> Result<(), String> {
+    settings::set_attio_key(&key).map_err(|e| e.to_string())
+}
+
+/// Lista meetings do Attio com ao menos um dos emails como participante.
+#[tauri::command]
+pub async fn attio_find_meetings(emails: Vec<String>) -> Result<Vec<AttioMeeting>, String> {
+    let key = settings::get_attio_key()
+        .map_err(|e| e.to_string())?
+        .ok_or_else(|| "configure a chave do Attio nas Configurações".to_string())?;
+    tauri::async_runtime::spawn_blocking(move || attio::list_meetings(&key, &emails))
+        .await
+        .map_err(|e| e.to_string())?
+        .map_err(|e| e.to_string())
+}
+
+/// Sobe a transcrição ou o resumo como nota em cada participante, linkando a meeting.
+/// Se `meeting_id` for None, faz find-or-create com título/horário/emails.
+#[tauri::command]
+pub async fn attio_upload(
+    app: AppHandle,
+    recording_id: String,
+    kind: String,
+    meeting_id: Option<String>,
+    title: String,
+    start_iso: String,
+    end_iso: String,
+    timezone: String,
+    emails: Vec<String>,
+) -> Result<AttioUploadResult, String> {
+    let content = {
+        let conn = open_db(&app)?;
+        if kind == "summary" {
+            storage::get_summary(&conn, &recording_id)
+                .map_err(|e| e.to_string())?
+                .map(|s| s.text)
+                .ok_or_else(|| "gere o resumo antes de subir".to_string())?
+        } else {
+            storage::get_transcript(&conn, &recording_id)
+                .map_err(|e| e.to_string())?
+                .map(|t| t.text)
+                .ok_or_else(|| "transcreva antes de subir".to_string())?
+        }
+    };
+    let key = settings::get_attio_key()
+        .map_err(|e| e.to_string())?
+        .ok_or_else(|| "configure a chave do Attio nas Configurações".to_string())?;
+    let kind_label = if kind == "summary" { "Resumo" } else { "Transcrição" };
+    let note_title = format!("{title} — {kind_label} (Call Recorder)");
+
+    tauri::async_runtime::spawn_blocking(move || -> Result<AttioUploadResult, String> {
+        let mid = match meeting_id {
+            Some(m) => m,
+            None => attio::find_or_create_meeting(
+                &key, &title, &start_iso, &end_iso, &timezone, &emails,
+            )
+            .map_err(|e| e.to_string())?,
+        };
+        let mut notes_created = 0usize;
+        let mut missing = Vec::new();
+        for e in &emails {
+            match attio::find_person_by_email(&key, e).map_err(|er| er.to_string())? {
+                Some(pid) => {
+                    attio::create_note(&key, "people", &pid, &mid, &note_title, &content)
+                        .map_err(|er| er.to_string())?;
+                    notes_created += 1;
+                }
+                None => missing.push(e.clone()),
+            }
+        }
+        Ok(AttioUploadResult {
+            meeting_id: mid,
+            notes_created,
+            missing_people: missing,
+        })
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 #[tauri::command]

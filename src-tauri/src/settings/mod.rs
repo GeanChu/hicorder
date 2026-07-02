@@ -9,6 +9,7 @@ use keyring::Entry;
 const SERVICE: &str = "com.hicapital.callrecorder";
 const TRANSCRIPTION_KEY: &str = "transcription_api_key";
 const SUMMARY_KEY: &str = "summary_api_key";
+const ATTIO_KEY: &str = "attio_api_key";
 
 fn entry(user: &str) -> Result<Entry> {
     Entry::new(SERVICE, user).map_err(|e| anyhow!("keychain: {e}"))
@@ -46,4 +47,15 @@ pub fn get_summary_key() -> Result<Option<String>> {
 }
 pub fn has_summary_key() -> bool {
     matches!(get_summary_key(), Ok(Some(_)))
+}
+
+// Attio (CRM).
+pub fn set_attio_key(key: &str) -> Result<()> {
+    set_key(ATTIO_KEY, key)
+}
+pub fn get_attio_key() -> Result<Option<String>> {
+    get_key(ATTIO_KEY)
+}
+pub fn has_attio_key() -> bool {
+    matches!(get_attio_key(), Ok(Some(_)))
 }

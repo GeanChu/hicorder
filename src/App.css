@@ -445,6 +445,14 @@ button {
   cursor: pointer;
 }
 
+.attio-candidates {
+  margin-top: 10px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
 /* ---- Empty state ---- */
 .empty {
   display: flex;

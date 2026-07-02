@@ -167,6 +167,14 @@ Repo público: github.com/GeanChu/call-recorder. Estratégia de assinatura grát
 
 ---
 
+## PR12 — Upload ao Attio (CRM) ✅ (código verificado por `cargo check`)
+- [x] `attio/mod.rs`: cliente HTTP — `list_meetings` (GET /v2/meetings?participants=), `find_or_create_meeting` (POST /v2/meetings), `find_person_by_email` (POST /v2/objects/people/records/query), `create_note` (POST /v2/notes com `meeting_id`).
+- [x] Chave do Attio no keychain; comandos `attio_find_meetings` + `attio_upload` (async+spawn_blocking).
+- [x] UI (aba Transcrição): "Subir transcrição/resumo" → até 5 emails → **buscar reuniões no Attio** → escolher candidata ou **criar nova** → **conferir** → "Confirmar e subir nota". Nota em **cada participante**, linkando a meeting.
+- [ ] **Aceite (você)**: com a chave do Attio, subir → nota em cada pessoa, linkada à meeting. Ajustar shapes se o Attio reclamar (erros incluem o corpo da resposta).
+
+---
+
 ## Backlog / Fase 2 — Agenda + auto-gravar
 **Objetivo**: gravar reuniões automaticamente.
 - [ ] Conectores de agenda (Google/Outlook/ICS-CalDAV).
