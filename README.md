@@ -20,9 +20,39 @@ Gravador de reuniões para times. Grava o áudio do **microfone** e do **sistema
 - **Teste de chave** por provedor nas Configurações, mensagens de erro em linguagem simples e **log persistente** para troubleshooting.
 - Apagar gravações, copiar transcrição/resumo.
 
-## Instalação
+## Download e instalação
 
-Baixe o instalador do seu sistema em [Releases](https://github.com/GeanChu/hicorder/releases): `.msi`/`.exe` (Windows), `.dmg` (macOS), `.AppImage`/`.deb` (Linux).
+Baixe sempre a versão mais recente na página de **[Releases](https://github.com/GeanChu/hicorder/releases/latest)** e escolha o arquivo do seu sistema.
+
+### Windows
+[**Baixar para Windows**](https://github.com/GeanChu/hicorder/releases/latest) — arquivo `Hicorder_x.y.z_x64-setup.exe` (instalador) ou `Hicorder_x.y.z_x64_en-US.msi`.
+
+1. Execute o instalador e siga o assistente.
+2. Se o **SmartScreen** avisar ("Windows protegeu seu PC"): clique em **Mais informações** → **Executar assim mesmo**.
+3. Se o antivírus bloquear, veja [Aviso do antivírus](#aviso-do-antivírus--smartscreen) abaixo.
+
+### macOS (Intel e Apple Silicon)
+[**Baixar para macOS**](https://github.com/GeanChu/hicorder/releases/latest) — arquivo `Hicorder_x.y.z_universal.dmg` (universal).
+
+1. Abra o `.dmg` e arraste o **Hicorder** para a pasta Aplicativos.
+2. Na primeira vez (app ainda não notarizado): clique com o **botão direito** no Hicorder → **Abrir** → **Abrir**. Ou vá em **Ajustes do Sistema → Privacidade e Segurança → Abrir mesmo assim**.
+3. Autorize a permissão de **microfone** quando pedida.
+
+### Linux
+[**Baixar para Linux**](https://github.com/GeanChu/hicorder/releases/latest) — `AppImage` (portátil), `.deb` (Debian/Ubuntu) ou `.rpm` (Fedora/RHEL).
+
+```bash
+# AppImage (portátil, não instala nada)
+chmod +x Hicorder_*_amd64.AppImage && ./Hicorder_*_amd64.AppImage
+
+# Debian / Ubuntu
+sudo apt install ./Hicorder_*_amd64.deb
+
+# Fedora / RHEL
+sudo dnf install ./Hicorder-*.x86_64.rpm
+```
+
+> Áudio do sistema (a voz dos outros participantes) é capturado por enquanto **só no Windows**. No macOS e Linux a versão atual grava apenas o **microfone** — as demais funções (agenda, transcrição, resumo, CRM) funcionam normalmente.
 
 ### Aviso do antivírus / SmartScreen
 
