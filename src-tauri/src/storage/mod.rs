@@ -42,6 +42,10 @@ pub struct MeetingRow {
     pub starts_at: i64,
     pub ends_at: i64,
     pub record_enabled: bool,
+    /// Emails separados por '\n' no banco; entregues como lista à UI.
+    pub participants: Vec<String>,
+    pub location: Option<String>,
+    pub link: Option<String>,
 }
 
 pub fn open(db_path: &Path) -> Result<Connection> {
@@ -89,10 +93,17 @@ pub fn open(db_path: &Path) -> Result<Connection> {
             title          TEXT NOT NULL,
             starts_at      INTEGER NOT NULL,
             ends_at        INTEGER NOT NULL,
-            record_enabled INTEGER NOT NULL DEFAULT 0
+            record_enabled INTEGER NOT NULL DEFAULT 0,
+            participants   TEXT,
+            location       TEXT,
+            link           TEXT
         )",
         [],
     )?;
+    // Migração de bancos antigos (erro = coluna já existe → ignora).
+    let _ = conn.execute("ALTER TABLE meetings ADD COLUMN participants TEXT", []);
+    let _ = conn.execute("ALTER TABLE meetings ADD COLUMN location TEXT", []);
+    let _ = conn.execute("ALTER TABLE meetings ADD COLUMN link TEXT", []);
     Ok(conn)
 }
 
@@ -225,29 +236,51 @@ pub fn upsert_meeting(
     starts_at: i64,
     ends_at: i64,
     default_enabled: bool,
+    participants: &[String],
+    location: Option<&str>,
+    link: Option<&str>,
 ) -> Result<()> {
     conn.execute(
-        "INSERT INTO meetings (uid, title, starts_at, ends_at, record_enabled)
-         VALUES (?1, ?2, ?3, ?4, ?5)
+        "INSERT INTO meetings (uid, title, starts_at, ends_at, record_enabled, participants, location, link)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
          ON CONFLICT(uid) DO UPDATE SET
-            title = excluded.title, starts_at = excluded.starts_at, ends_at = excluded.ends_at",
-        params![uid, title, starts_at, ends_at, default_enabled as i64],
+            title = excluded.title, starts_at = excluded.starts_at, ends_at = excluded.ends_at,
+            participants = excluded.participants, location = excluded.location, link = excluded.link",
+        params![
+            uid,
+            title,
+            starts_at,
+            ends_at,
+            default_enabled as i64,
+            participants.join("\n"),
+            location,
+            link
+        ],
     )?;
     Ok(())
 }
 
 pub fn list_meetings(conn: &Connection, from_ms: i64) -> Result<Vec<MeetingRow>> {
     let mut stmt = conn.prepare(
-        "SELECT uid, title, starts_at, ends_at, record_enabled
+        "SELECT uid, title, starts_at, ends_at, record_enabled, participants, location, link
          FROM meetings WHERE ends_at >= ?1 ORDER BY starts_at ASC",
     )?;
     let rows = stmt.query_map([from_ms], |r| {
+        let participants: Option<String> = r.get(5)?;
         Ok(MeetingRow {
             uid: r.get(0)?,
             title: r.get(1)?,
             starts_at: r.get(2)?,
             ends_at: r.get(3)?,
             record_enabled: r.get::<_, i64>(4)? != 0,
+            participants: participants
+                .unwrap_or_default()
+                .lines()
+                .filter(|l| !l.is_empty())
+                .map(String::from)
+                .collect(),
+            location: r.get(6)?,
+            link: r.get(7)?,
         })
     })?;
     let mut out = Vec::new();

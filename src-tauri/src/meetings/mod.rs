@@ -21,6 +21,11 @@ pub struct Meeting {
     pub starts_at: i64,
     /// Fim em unix ms (UTC).
     pub ends_at: i64,
+    /// Emails dos participantes (ATTENDEE mailto:).
+    pub participants: Vec<String>,
+    pub location: Option<String>,
+    /// Link da call: propriedade URL, ou primeira URL em LOCATION/DESCRIPTION.
+    pub link: Option<String>,
 }
 
 pub fn fetch_and_parse(ics_url: &str) -> Result<Vec<Meeting>> {
@@ -45,22 +50,41 @@ pub fn parse_ics(body: &str) -> Result<Vec<Meeting>> {
             let mut title = None;
             let mut start = None;
             let mut end = None;
+            let mut participants = Vec::new();
+            let mut location = None;
+            let mut url = None;
+            let mut description = None;
             for p in &ev.properties {
                 match p.name.as_str() {
                     "UID" => uid = p.value.clone(),
                     "SUMMARY" => title = p.value.clone(),
                     "DTSTART" => start = parse_dt(p),
                     "DTEND" => end = parse_dt(p),
+                    "ATTENDEE" => {
+                        if let Some(email) = attendee_email(p) {
+                            participants.push(email);
+                        }
+                    }
+                    "LOCATION" => location = p.value.clone().filter(|v| !v.trim().is_empty()),
+                    "URL" => url = p.value.clone().filter(|v| !v.trim().is_empty()),
+                    "DESCRIPTION" => description = p.value.clone(),
                     _ => {}
                 }
             }
             if let (Some(uid), Some(starts_at)) = (uid, start) {
                 let ends_at = end.unwrap_or(starts_at + 3_600_000); // default 1h
+                // Link da call: URL explícita > URL dentro de LOCATION > da DESCRIPTION.
+                let link = url
+                    .or_else(|| location.as_deref().and_then(first_url))
+                    .or_else(|| description.as_deref().and_then(first_url));
                 out.push(Meeting {
                     uid,
                     title: title.unwrap_or_else(|| "(sem título)".to_string()),
                     starts_at,
                     ends_at,
+                    participants,
+                    location,
+                    link,
                 });
             }
         }
@@ -98,6 +122,29 @@ fn parse_dt(p: &Property) -> Option<i64> {
 
     // Floating (sem fuso): aproxima como UTC.
     Some(naive.and_utc().timestamp_millis())
+}
+
+/// Extrai o email de um ATTENDEE ("mailto:x@y.com", case-insensitive).
+fn attendee_email(p: &Property) -> Option<String> {
+    let v = p.value.as_ref()?;
+    let lower = v.to_lowercase();
+    let email = lower.strip_prefix("mailto:").unwrap_or(&lower).trim().to_string();
+    if email.contains('@') {
+        Some(email)
+    } else {
+        None
+    }
+}
+
+/// Primeira URL http(s) dentro de um texto (ICS escapa vírgulas com `\`).
+fn first_url(text: &str) -> Option<String> {
+    let unescaped = text.replace("\\,", ",").replace("\\n", " ");
+    let start = unescaped.find("https://").or_else(|| unescaped.find("http://"))?;
+    let rest = &unescaped[start..];
+    let end = rest
+        .find(|c: char| c.is_whitespace() || c == '<' || c == '>' || c == '"')
+        .unwrap_or(rest.len());
+    Some(rest[..end].trim_end_matches(['.', ',', ';', ')']).to_string())
 }
 
 fn tzid_param(p: &Property) -> Option<String> {

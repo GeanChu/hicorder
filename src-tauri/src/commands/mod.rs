@@ -81,6 +81,12 @@ pub fn start_recording_for_meeting_core(
     Ok(info)
 }
 
+/// Inicia gravação de uma reunião a partir do toast de alerta.
+#[tauri::command]
+pub fn start_meeting_recording(app: AppHandle, end_ms: i64) -> Result<RecordingInfo, String> {
+    start_recording_for_meeting_core(&app, end_ms)
+}
+
 pub fn stop_recording_core(app: &AppHandle) -> Result<RecordingRow, String> {
     let res = app.state::<Recorder>().stop().map_err(|e| e.to_string())?;
     let dir = Path::new(&res.mic_path)
@@ -571,8 +577,18 @@ pub async fn refresh_meetings(app: AppHandle) -> Result<Vec<MeetingRow>, String>
 
     let conn = open_db(&app)?;
     for m in &parsed {
-        storage::upsert_meeting(&conn, &m.uid, &m.title, m.starts_at, m.ends_at, record_all)
-            .map_err(|e| e.to_string())?;
+        storage::upsert_meeting(
+            &conn,
+            &m.uid,
+            &m.title,
+            m.starts_at,
+            m.ends_at,
+            record_all,
+            &m.participants,
+            m.location.as_deref(),
+            m.link.as_deref(),
+        )
+        .map_err(|e| e.to_string())?;
     }
     let cutoff = now_ms() - 3_600_000; // mantém até 1h após o fim
     storage::prune_meetings(&conn, cutoff).map_err(|e| e.to_string())?;

@@ -453,6 +453,176 @@ button {
   padding-left: 4px;
 }
 
+/* ---- Home: barra de gravação fixa + agenda ---- */
+.record-bar {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 10px 0 14px;
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 14px;
+}
+
+.record-bar .meters {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+}
+
+.agenda-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.agenda-head h2 {
+  margin: 0;
+}
+
+.agenda-head button.secondary {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: var(--radius-sm);
+  padding: 6px 14px;
+  cursor: pointer;
+}
+
+.banner {
+  padding: 10px 14px;
+  border-radius: var(--radius-sm);
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 13px;
+  border: 1px solid color-mix(in srgb, var(--accent) 25%, transparent);
+}
+
+.meeting-extra {
+  display: block;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.meeting-extra a {
+  color: var(--accent);
+}
+
+/* ---- Transcrição em chat ---- */
+.chat {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  max-height: 420px;
+  overflow-y: auto;
+}
+
+.chat-msg {
+  display: flex;
+}
+
+.chat-msg.me {
+  justify-content: flex-end;
+}
+
+.chat-msg.them {
+  justify-content: flex-start;
+}
+
+.chat-bubble {
+  max-width: 72%;
+  padding: 8px 12px;
+  border-radius: 14px;
+  font-size: 14px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.chat-msg.me .chat-bubble {
+  background: var(--accent);
+  color: #fff;
+  border-bottom-right-radius: 4px;
+}
+
+.chat-msg.them .chat-bubble {
+  background: var(--surface-2);
+  color: var(--text);
+  border-bottom-left-radius: 4px;
+}
+
+.chat-meta {
+  display: block;
+  font-size: 11px;
+  opacity: 0.75;
+  margin-bottom: 2px;
+}
+
+/* ---- Toast de reunião (janela própria) ---- */
+.meeting-toast {
+  height: 100vh;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 14px 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.meeting-toast-body {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.meeting-toast-body img {
+  border-radius: 8px;
+}
+
+.meeting-toast-body p {
+  margin: 2px 0 0;
+  font-size: 13px;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 300px;
+}
+
+.meeting-toast-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.meeting-toast-actions button {
+  border: none;
+  border-radius: var(--radius-sm);
+  padding: 7px 14px;
+  cursor: pointer;
+  background: var(--accent);
+  color: #fff;
+  font-size: 13px;
+}
+
+.meeting-toast-actions button.secondary {
+  background: var(--surface-2);
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+
 .attio-parts {
   color: var(--muted, #888);
   font-size: 12px;

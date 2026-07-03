@@ -27,6 +27,15 @@ pub fn run() {
             tray::build_tray(app.handle())?;
             scheduler::spawn(app.handle().clone());
 
+            // Atualiza a agenda no boot, se o ICS já estiver configurado.
+            let handle = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                if let Ok(list) = commands::refresh_meetings(handle.clone()).await {
+                    use tauri::Emitter;
+                    let _ = handle.emit("meetings-refreshed", list);
+                }
+            });
+
             // Mantém o tray em sincronia com o estado de gravação.
             let handle = app.handle().clone();
             app.listen("recording-changed", move |_| tray::update_tray(&handle));
@@ -47,6 +56,7 @@ pub fn run() {
             commands::list_input_devices,
             commands::start_recording,
             commands::stop_recording,
+            commands::start_meeting_recording,
             commands::list_recordings,
             commands::delete_recording,
             commands::recording_level,

@@ -3,7 +3,7 @@ import { convertFileSrc, invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import "./App.css";
 
-type Tab = "gravar" | "agenda" | "gravacoes" | "transcricao" | "config";
+type Tab = "agenda" | "gravacoes" | "transcricao" | "config";
 
 type Meeting = {
   uid: string;
@@ -11,6 +11,9 @@ type Meeting = {
   starts_at: number;
   ends_at: number;
   record_enabled: boolean;
+  participants: string[];
+  location: string | null;
+  link: string | null;
 };
 
 type Recording = {
@@ -58,8 +61,7 @@ type Summary = {
 };
 
 const TABS: { id: Tab; label: string }[] = [
-  { id: "gravar", label: "Gravar" },
-  { id: "agenda", label: "Agenda" },
+  { id: "agenda", label: "Home" },
   { id: "gravacoes", label: "Gravações" },
   { id: "transcricao", label: "Transcrição" },
   { id: "config", label: "Configurações" },
@@ -242,9 +244,12 @@ function icon(name: string) {
 }
 
 function App() {
-  const [tab, setTab] = useState<Tab>("gravar");
+  const [tab, setTab] = useState<Tab>("agenda");
   const [recordings, setRecordings] = useState<Recording[]>([]);
   const [settings, setSettings] = useState<Settings | null>(null);
+
+  // Janela-toast de reunião começando (aberta pelo scheduler com ?alert=1).
+  const isAlert = new URLSearchParams(window.location.search).get("alert") === "1";
 
   const refreshRecordings = useCallback(async () => {
     try {
@@ -274,6 +279,8 @@ function App() {
     };
   }, [refreshRecordings]);
 
+  if (isAlert) return <MeetingAlert />;
+
   return (
     <div className="app">
       <nav className="sidebar">
@@ -294,8 +301,13 @@ function App() {
       </nav>
 
       <main className="content">
-        {tab === "gravar" && <RecordScreen onFinished={refreshRecordings} />}
-        {tab === "agenda" && <AgendaScreen hasIcs={!!settings?.ics_url} />}
+        {tab === "agenda" && (
+          <HomeScreen
+            hasIcs={!!settings?.ics_url}
+            recordAll={settings?.record_all ?? false}
+            onFinished={refreshRecordings}
+          />
+        )}
         {tab === "gravacoes" && (
           <RecordingsScreen recordings={recordings} onChanged={refreshRecordings} />
         )}
@@ -315,7 +327,106 @@ function App() {
   );
 }
 
-function RecordScreen({ onFinished }: { onFinished: () => void }) {
+/// Transcrição em formato de chat: "Você" à direita, "Participantes" à esquerda.
+function ChatTranscript({ text }: { text: string }) {
+  const re = /^\[(\d{2}:\d{2}(?::\d{2})?)\]\s*(Você|Participantes):\s*(.*)$/;
+  const lines = text.split("\n");
+  const parsed = lines.map((l) => {
+    const m = l.match(re);
+    return m ? { time: m[1], who: m[2], text: m[3] } : null;
+  });
+
+  // Transcrição fora do formato esperado: mantém o texto puro.
+  if (!parsed.some(Boolean)) {
+    return <textarea className="transcript" readOnly value={text} />;
+  }
+
+  return (
+    <div className="chat">
+      {parsed.map((p, i) =>
+        p ? (
+          <div key={i} className={p.who === "Você" ? "chat-msg me" : "chat-msg them"}>
+            <div className="chat-bubble">
+              <span className="chat-meta">
+                {p.who} · {p.time}
+              </span>
+              {p.text}
+            </div>
+          </div>
+        ) : (
+          lines[i].trim() && (
+            <div key={i} className="chat-msg them">
+              <div className="chat-bubble">{lines[i]}</div>
+            </div>
+          )
+        ),
+      )}
+    </div>
+  );
+}
+
+/// Janela-toast: reunião começando, com botão de iniciar gravação.
+function MeetingAlert() {
+  const params = new URLSearchParams(window.location.search);
+  const title = params.get("title") ?? "Reunião";
+  const endMs = Number(params.get("end") ?? 0);
+  const [busy, setBusy] = useState(false);
+
+  async function close() {
+    const { getCurrentWindow } = await import("@tauri-apps/api/window");
+    await getCurrentWindow().close();
+  }
+
+  async function record() {
+    setBusy(true);
+    try {
+      await invoke("start_meeting_recording", { endMs });
+      await close();
+    } catch {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="meeting-toast">
+      <div className="meeting-toast-body">
+        <img src="/icon.png" alt="" width={32} height={32} />
+        <div>
+          <strong>Reunião começando</strong>
+          <p>{title}</p>
+        </div>
+      </div>
+      <div className="meeting-toast-actions">
+        <button onClick={record} disabled={busy}>
+          {busy ? "Iniciando..." : "Iniciar gravação"}
+        </button>
+        <button className="secondary" onClick={close}>
+          Dispensar
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/// Home: barra de gravação fixa no topo + agenda.
+function HomeScreen({
+  hasIcs,
+  recordAll,
+  onFinished,
+}: {
+  hasIcs: boolean;
+  recordAll: boolean;
+  onFinished: () => void;
+}) {
+  return (
+    <section className="panel">
+      <RecordBar onFinished={onFinished} />
+      <AgendaList hasIcs={hasIcs} recordAll={recordAll} />
+    </section>
+  );
+}
+
+function RecordBar({ onFinished }: { onFinished: () => void }) {
   const [recording, setRecording] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const [level, setLevel] = useState(0);
@@ -404,8 +515,7 @@ function RecordScreen({ onFinished }: { onFinished: () => void }) {
   }
 
   return (
-    <section className="panel record">
-      <h2>Gravar</h2>
+    <div className="record-bar">
       <button
         className={recording ? "rec-btn stop" : "rec-btn"}
         onClick={recording ? stop : start}
@@ -423,24 +533,33 @@ function RecordScreen({ onFinished }: { onFinished: () => void }) {
           </div>
         </div>
       )}
-
-      <p className="hint">
-        Grava microfone + áudio do sistema (Windows) em faixas separadas (Opus, leve). A transcrição
-        rotula "Você" (mic) e "Participantes" (sistema). No Linux/macOS o áudio do sistema chega depois.
-      </p>
       {error && <p className="error">{error}</p>}
-    </section>
+    </div>
   );
 }
 
-function AgendaScreen({ hasIcs }: { hasIcs: boolean }) {
+function AgendaList({ hasIcs, recordAll }: { hasIcs: boolean; recordAll: boolean }) {
   const [meetings, setMeetings] = useState<Meeting[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const autoRefreshed = useRef(false);
 
   useEffect(() => {
     invoke<Meeting[]>("list_meetings").then(setMeetings).catch(() => {});
+    // Agenda atualizada no boot pelo backend chega por evento.
+    const un = listen<Meeting[]>("meetings-refreshed", (e) => setMeetings(e.payload));
+    return () => {
+      un.then((f) => f());
+    };
   }, []);
+
+  // Ao abrir a Home com ICS configurado, tenta atualizar sozinho (1x).
+  useEffect(() => {
+    if (hasIcs && !autoRefreshed.current) {
+      autoRefreshed.current = true;
+      invoke<Meeting[]>("refresh_meetings").then(setMeetings).catch(() => {});
+    }
+  }, [hasIcs]);
 
   async function refresh() {
     setError(null);
@@ -464,13 +583,19 @@ function AgendaScreen({ hasIcs }: { hasIcs: boolean }) {
   }
 
   return (
-    <section className="panel">
-      <h2>Agenda</h2>
-      <div className="actions">
-        <button onClick={refresh} disabled={busy}>
+    <>
+      <div className="agenda-head">
+        <h2>Agenda</h2>
+        <button className="secondary" onClick={refresh} disabled={busy}>
           {busy ? "Atualizando..." : "Atualizar"}
         </button>
       </div>
+      {recordAll && (
+        <p className="banner">
+          Gravar todas as reuniões está habilitado em Configurações — todas as reuniões serão
+          gravadas automaticamente.
+        </p>
+      )}
       {!hasIcs && <p className="hint">Configure a URL do calendário (ICS) em Configurações.</p>}
       {error && <p className="error">{error}</p>}
       {meetings.length === 0 ? (
@@ -486,11 +611,25 @@ function AgendaScreen({ hasIcs }: { hasIcs: boolean }) {
                 <div className="rec-meta">
                   {m.title}
                   <small>{formatMeetingTime(m.starts_at, m.ends_at)}</small>
+                  {m.participants.length > 0 && (
+                    <small className="meeting-extra">{m.participants.join(", ")}</small>
+                  )}
+                  {m.location && !isUrl(m.location) && (
+                    <small className="meeting-extra">Local: {m.location}</small>
+                  )}
+                  {m.link && (
+                    <small className="meeting-extra">
+                      <a href={m.link} target="_blank" rel="noreferrer">
+                        Link da call
+                      </a>
+                    </small>
+                  )}
                 </div>
-                <label className="chk">
+                <label className="chk" title={recordAll ? "Gravar todas está habilitado" : ""}>
                   <input
                     type="checkbox"
-                    checked={m.record_enabled}
+                    checked={recordAll || m.record_enabled}
+                    disabled={recordAll}
                     onChange={(e) => toggle(m.uid, e.target.checked)}
                   />
                   Gravar
@@ -500,8 +639,12 @@ function AgendaScreen({ hasIcs }: { hasIcs: boolean }) {
           ))}
         </ul>
       )}
-    </section>
+    </>
   );
+}
+
+function isUrl(s: string): boolean {
+  return s.startsWith("http://") || s.startsWith("https://");
 }
 
 function RecordingsScreen({
@@ -534,7 +677,7 @@ function RecordingsScreen({
       {recordings.length === 0 ? (
         <div className="empty">
           {icon("gravacoes")}
-          <p>Nenhuma gravação ainda. Grave na aba Gravar.</p>
+          <p>Nenhuma gravação ainda. Grave pelo botão na Home.</p>
         </div>
       ) : (
         <ul className="rec-list">
@@ -707,7 +850,7 @@ function TranscriptionScreen({
           </div>
 
           {error && <p className="error">{error}</p>}
-          {text && <textarea className="transcript" readOnly value={text} />}
+          {text && <ChatTranscript text={text} />}
 
           {text && (
             <div className="summary-block">
