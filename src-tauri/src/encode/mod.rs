@@ -41,3 +41,45 @@ pub fn mix_to_opus(ffmpeg: &str, mic: &str, system: Option<&str>, out: &Path) ->
     }
     Ok(())
 }
+
+/// Transcodifica `src` (webm/opus) para `out`. O codec vem da extensão de `out`
+/// (wav = PCM, mp3 = libmp3lame, ogg = libvorbis). Usado no "Exportar áudio".
+pub fn transcode(ffmpeg: &str, src: &Path, out: &Path) -> Result<()> {
+    let ext = out
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("")
+        .to_lowercase();
+
+    let mut cmd = Command::new(ffmpeg);
+    cmd.arg("-y").arg("-i").arg(src);
+    match ext.as_str() {
+        "mp3" => {
+            cmd.arg("-c:a").arg("libmp3lame").arg("-q:a").arg("2");
+        }
+        "ogg" => {
+            cmd.arg("-c:a").arg("libvorbis").arg("-q:a").arg("5");
+        }
+        "wav" => {
+            cmd.arg("-c:a").arg("pcm_s16le");
+        }
+        other => bail!("formato não suportado: {other}"),
+    }
+    cmd.arg(out);
+
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        cmd.creation_flags(0x0800_0000); // CREATE_NO_WINDOW
+    }
+
+    let output = cmd
+        .output()
+        .map_err(|e| anyhow!("falha ao executar ffmpeg ('{ffmpeg}'): {e}"))?;
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        let last = stderr.lines().last().unwrap_or("erro desconhecido");
+        bail!("ffmpeg falhou: {last}");
+    }
+    Ok(())
+}

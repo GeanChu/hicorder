@@ -2,9 +2,10 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { convertFileSrc, invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { openUrl } from "@tauri-apps/plugin-opener";
+import { save } from "@tauri-apps/plugin-dialog";
 import "./App.css";
 
-type Tab = "agenda" | "gravacoes" | "transcricao" | "config";
+type Tab = "agenda" | "gravacoes" | "config";
 
 type Meeting = {
   uid: string;
@@ -67,7 +68,6 @@ type Summary = {
 const TABS: { id: Tab; label: string }[] = [
   { id: "agenda", label: "Home" },
   { id: "gravacoes", label: "Gravações" },
-  { id: "transcricao", label: "Transcrição" },
 ];
 
 const LANGUAGES: { code: string; label: string }[] = [
@@ -328,16 +328,14 @@ function App() {
           />
         )}
         {tab === "gravacoes" && (
-          <RecordingsScreen recordings={recordings} onChanged={refreshRecordings} />
-        )}
-        {tab === "transcricao" && (
-          <TranscriptionScreen
+          <GravacoesScreen
             recordings={recordings}
             defaultLanguage={settings?.default_language ?? "pt"}
             hasApiKey={settings?.has_api_key ?? false}
             hasSummaryKey={settings?.has_summary_key ?? false}
             hasAttioKey={settings?.has_attio_key ?? false}
             attioUserEmail={settings?.attio_user_email ?? ""}
+            onChanged={refreshRecordings}
           />
         )}
         {tab === "config" && <ConfigScreen settings={settings} onSaved={refreshSettings} />}
@@ -676,119 +674,14 @@ function isUrl(s: string): boolean {
   return s.startsWith("http://") || s.startsWith("https://");
 }
 
-function RecordingsScreen({
-  recordings,
-  onChanged,
-}: {
-  recordings: Recording[];
-  onChanged: () => void;
-}) {
-  const [playing, setPlaying] = useState<string | null>(null);
-  const [menuId, setMenuId] = useState<string | null>(null);
-
-  // Fecha o menu kebab ao clicar fora.
-  useEffect(() => {
-    if (!menuId) return;
-    const close = () => setMenuId(null);
-    window.addEventListener("click", close);
-    return () => window.removeEventListener("click", close);
-  }, [menuId]);
-
-  async function remove(id: string) {
-    setMenuId(null);
-    if (!window.confirm("Apagar esta gravação e sua transcrição? Não dá pra desfazer.")) return;
-    try {
-      await invoke("delete_recording", { recordingId: id });
-      if (playing === id) setPlaying(null);
-      onChanged();
-    } catch (e) {
-      alert(String(e));
-    }
-  }
-
-  async function rename(r: Recording) {
-    setMenuId(null);
-    const title = window.prompt("Novo nome da gravação:", r.title);
-    if (title === null || !title.trim()) return;
-    try {
-      await invoke("rename_recording", { recordingId: r.id, title: title.trim() });
-      onChanged();
-    } catch (e) {
-      alert(String(e));
-    }
-  }
-
-  function mixSrc(micPath: string): string {
-    return convertFileSrc(micPath.replace(/mic\.webm$/, "recording.webm"));
-  }
-
-  return (
-    <section className="panel">
-      <h2>Gravações</h2>
-      {recordings.length === 0 ? (
-        <div className="empty">
-          {icon("gravacoes")}
-          <p>Nenhuma gravação ainda. Grave pelo botão na Home.</p>
-        </div>
-      ) : (
-        <ul className="rec-list">
-          {recordings.map((r) => (
-            <li key={r.id}>
-              <div className="rec-row">
-                <div className="rec-meta">
-                  {r.title}
-                  <small>
-                    {formatDate(r.created_at)} · {formatTime(Math.round(r.duration_s))} ·{" "}
-                    {formatSize(r.size_bytes)}
-                  </small>
-                </div>
-                <div className="rec-actions">
-                  <button
-                    className="play-btn"
-                    onClick={() => setPlaying(playing === r.id ? null : r.id)}
-                  >
-                    {playing === r.id ? "Fechar" : "▶ Play"}
-                  </button>
-                  <div className="kebab-wrap">
-                    <button
-                      className="kebab-btn"
-                      aria-label="Mais ações"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setMenuId(menuId === r.id ? null : r.id);
-                      }}
-                    >
-                      ⋮
-                    </button>
-                    {menuId === r.id && (
-                      <div className="kebab-menu" onClick={(e) => e.stopPropagation()}>
-                        <button onClick={() => rename(r)}>Renomear</button>
-                        <button className="danger" onClick={() => remove(r.id)}>
-                          Apagar
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-              {playing === r.id && (
-                <audio className="player" controls autoPlay src={mixSrc(r.path)} />
-              )}
-            </li>
-          ))}
-        </ul>
-      )}
-    </section>
-  );
-}
-
-function TranscriptionScreen({
+function GravacoesScreen({
   recordings,
   defaultLanguage,
   hasApiKey,
   hasSummaryKey,
   hasAttioKey,
   attioUserEmail,
+  onChanged,
 }: {
   recordings: Recording[];
   defaultLanguage: string;
@@ -796,6 +689,7 @@ function TranscriptionScreen({
   hasSummaryKey: boolean;
   hasAttioKey: boolean;
   attioUserEmail: string;
+  onChanged: () => void;
 }) {
   const [selectedId, setSelectedId] = useState("");
   const [language, setLanguage] = useState(defaultLanguage);
@@ -807,10 +701,71 @@ function TranscriptionScreen({
   const [sumBusy, setSumBusy] = useState(false);
   const [sumError, setSumError] = useState<string | null>(null);
   const [sumCopied, setSumCopied] = useState(false);
+  const [playing, setPlaying] = useState(false);
+  const [exportFmt, setExportFmt] = useState("mp3");
+  const [exporting, setExporting] = useState(false);
+  const [actionMsg, setActionMsg] = useState<string | null>(null);
+
+  const selected = recordings.find((r) => r.id === selectedId) ?? null;
 
   useEffect(() => {
     if (!selectedId && recordings.length > 0) setSelectedId(recordings[0].id);
   }, [recordings, selectedId]);
+
+  useEffect(() => {
+    setPlaying(false);
+    setActionMsg(null);
+  }, [selectedId]);
+
+  function mixSrc(micPath: string): string {
+    return convertFileSrc(micPath.replace(/mic\.webm$/, "recording.webm"));
+  }
+
+  async function renameSel() {
+    if (!selected) return;
+    const title = window.prompt("Novo nome da gravação:", selected.title);
+    if (title === null || !title.trim()) return;
+    try {
+      await invoke("rename_recording", { recordingId: selected.id, title: title.trim() });
+      onChanged();
+    } catch (e) {
+      setError(String(e));
+    }
+  }
+
+  async function removeSel() {
+    if (!selected) return;
+    if (!window.confirm("Apagar esta gravação e sua transcrição? Não dá pra desfazer.")) return;
+    try {
+      await invoke("delete_recording", { recordingId: selected.id });
+      const rest = recordings.filter((r) => r.id !== selected.id);
+      setSelectedId(rest[0]?.id ?? "");
+      onChanged();
+    } catch (e) {
+      setError(String(e));
+    }
+  }
+
+  async function exportAudio() {
+    if (!selected) return;
+    setError(null);
+    setActionMsg(null);
+    const safe = selected.title.replace(/[\\/:*?"<>|]/g, "_").slice(0, 80) || "gravacao";
+    const dest = await save({
+      defaultPath: `${safe}.${exportFmt}`,
+      filters: [{ name: exportFmt.toUpperCase(), extensions: [exportFmt] }],
+    });
+    if (!dest) return;
+    setExporting(true);
+    try {
+      await invoke("export_audio", { recordingId: selected.id, destPath: dest });
+      setActionMsg("Áudio exportado.");
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setExporting(false);
+    }
+  }
 
   useEffect(() => {
     setText("");
@@ -873,11 +828,11 @@ function TranscriptionScreen({
 
   return (
     <section className="panel">
-      <h2>Transcrição</h2>
+      <h2>Gravações</h2>
       {recordings.length === 0 ? (
         <div className="empty">
-          {icon("transcricao")}
-          <p>Grave algo primeiro na aba Gravar.</p>
+          {icon("gravacoes")}
+          <p>Nenhuma gravação ainda. Grave pelo botão na Home.</p>
         </div>
       ) : (
         <>
@@ -886,11 +841,40 @@ function TranscriptionScreen({
             <select value={selectedId} onChange={(e) => setSelectedId(e.target.value)}>
               {recordings.map((r) => (
                 <option key={r.id} value={r.id}>
-                  {formatDate(r.created_at)} — {formatTime(Math.round(r.duration_s))}
+                  {r.title} — {formatDate(r.created_at)} · {formatTime(Math.round(r.duration_s))} ·{" "}
+                  {formatSize(r.size_bytes)}
                 </option>
               ))}
             </select>
           </div>
+
+          {selected && (
+            <div className="rec-toolbar">
+              <button className="play-btn" onClick={() => setPlaying((p) => !p)}>
+                {playing ? "Fechar player" : "▶ Play"}
+              </button>
+              <button className="secondary" onClick={renameSel}>
+                Renomear
+              </button>
+              <span className="export-group">
+                <select value={exportFmt} onChange={(e) => setExportFmt(e.target.value)}>
+                  <option value="mp3">MP3</option>
+                  <option value="wav">WAV</option>
+                  <option value="ogg">OGG</option>
+                </select>
+                <button className="secondary" onClick={exportAudio} disabled={exporting}>
+                  {exporting ? "Exportando..." : "Exportar áudio"}
+                </button>
+              </span>
+              <button className="del-btn" onClick={removeSel}>
+                Apagar
+              </button>
+            </div>
+          )}
+          {playing && selected && (
+            <audio className="player" controls autoPlay src={mixSrc(selected.path)} />
+          )}
+          {actionMsg && <p className="ok">{actionMsg}</p>}
 
           <div className="form-row">
             <label>Idioma</label>

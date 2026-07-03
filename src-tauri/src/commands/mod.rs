@@ -159,6 +159,36 @@ pub fn stop_recording_core(app: &AppHandle) -> Result<RecordingRow, String> {
     Ok(row)
 }
 
+/// Exporta o áudio da gravação para `dest_path` (formato pela extensão).
+#[tauri::command]
+pub async fn export_audio(
+    app: AppHandle,
+    recording_id: String,
+    dest_path: String,
+) -> Result<(), String> {
+    let src = {
+        let conn = open_db(&app)?;
+        let (mic, _sys) = storage::recording_paths(&conn, &recording_id)
+            .map_err(|e| e.to_string())?
+            .ok_or_else(|| "gravação não encontrada".to_string())?;
+        // Prefere a faixa mixada (os dois lados); cai no mic se não existir.
+        let mixed = Path::new(&mic).with_file_name("recording.webm");
+        if mixed.exists() {
+            mixed
+        } else {
+            PathBuf::from(mic)
+        }
+    };
+    let ffmpeg = resolve_ffmpeg(&app);
+    let app2 = app.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        encode::transcode(&ffmpeg, &src, Path::new(&dest_path))
+    })
+    .await
+    .map_err(|e| e.to_string())?
+    .map_err(|e| fail(&app2, "export", e.to_string()))
+}
+
 /// Renomeia uma gravação.
 #[tauri::command]
 pub fn rename_recording(app: AppHandle, recording_id: String, title: String) -> Result<(), String> {

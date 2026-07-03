@@ -21,6 +21,7 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_dialog::init())
         .manage(Recorder::new())
         .setup(|app| {
             migrate::run(app.handle());
@@ -65,6 +66,7 @@ pub fn run() {
             commands::list_recordings,
             commands::delete_recording,
             commands::rename_recording,
+            commands::export_audio,
             commands::recording_level,
             commands::recording_status,
             commands::is_recording,

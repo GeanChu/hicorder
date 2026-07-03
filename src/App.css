@@ -334,6 +334,29 @@ body {
   color: var(--danger);
 }
 
+.rec-toolbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 4px 0 12px;
+}
+
+.export-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.export-group select {
+  padding: 7px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 13px;
+}
+
 .player {
   width: 100%;
   margin-top: 12px;
