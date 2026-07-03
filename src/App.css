@@ -340,7 +340,7 @@ body {
 
 .rec-toolbar {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   flex-wrap: wrap;
   gap: 8px;
   margin: 4px 0 12px;
