@@ -636,6 +636,30 @@ button {
   font-size: 12px;
 }
 
+/* Reunião acontecendo agora: destaque. */
+.rec-list li.meeting-now {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  box-shadow: 0 0 0 1px var(--accent) inset;
+}
+
+.meeting-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.now-badge {
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #fff;
+  background: var(--danger);
+  padding: 2px 7px;
+  border-radius: 999px;
+}
+
 .meeting-extra a {
   color: var(--accent);
 }

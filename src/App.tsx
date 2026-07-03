@@ -603,16 +603,33 @@ function AgendaList({
   const [meetings, setMeetings] = useState<Meeting[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [now, setNow] = useState(Date.now());
+  const [recording, setRecording] = useState(false);
   const autoRefreshed = useRef(false);
 
   useEffect(() => {
     invoke<Meeting[]>("list_meetings").then(setMeetings).catch(() => {});
+    invoke<boolean>("is_recording").then(setRecording).catch(() => {});
     // Agenda atualizada no boot pelo backend chega por evento.
     const un = listen<Meeting[]>("meetings-refreshed", (e) => setMeetings(e.payload));
+    const unRec = listen<boolean>("recording-changed", (e) => setRecording(e.payload));
+    // Reavalia "acontecendo agora" periodicamente.
+    const t = window.setInterval(() => setNow(Date.now()), 20000);
     return () => {
       un.then((f) => f());
+      unRec.then((f) => f());
+      window.clearInterval(t);
     };
   }, []);
+
+  async function startNow(m: Meeting) {
+    setError(null);
+    try {
+      await invoke("start_meeting_recording", { endMs: m.ends_at, title: m.title });
+    } catch (e) {
+      setError(String(e));
+    }
+  }
 
   // Ao abrir a Home com ICS configurado e auto-sync ligado, atualiza 1x.
   useEffect(() => {
@@ -666,38 +683,53 @@ function AgendaList({
         </div>
       ) : (
         <ul className="rec-list">
-          {meetings.map((m) => (
-            <li key={m.uid}>
-              <div className="rec-row">
-                <div className="rec-meta">
-                  {m.title}
-                  <small>{formatMeetingTime(m.starts_at, m.ends_at)}</small>
-                  {m.participants.length > 0 && (
-                    <small className="meeting-extra">{m.participants.join(", ")}</small>
-                  )}
-                  {m.location && !isUrl(m.location) && (
-                    <small className="meeting-extra">Local: {m.location}</small>
-                  )}
-                </div>
-                <div className="meeting-actions">
-                  {m.link && (
-                    <button className="call-btn" onClick={() => openUrl(m.link!)}>
-                      Entrar na call
+          {meetings.map((m) => {
+            const happening = now >= m.starts_at && now < m.ends_at;
+            return (
+              <li key={m.uid} className={happening ? "meeting-now" : ""}>
+                <div className="rec-row">
+                  <div className="rec-meta">
+                    <span className="meeting-title">
+                      {m.title}
+                      {happening && <span className="now-badge">Agora</span>}
+                    </span>
+                    <small>{formatMeetingTime(m.starts_at, m.ends_at)}</small>
+                    {m.participants.length > 0 && (
+                      <small className="meeting-extra">{m.participants.join(", ")}</small>
+                    )}
+                    {m.location && !isUrl(m.location) && (
+                      <small className="meeting-extra">Local: {m.location}</small>
+                    )}
+                  </div>
+                  <div className="meeting-actions">
+                    {m.link && (
+                      <button className="call-btn" onClick={() => openUrl(m.link!)}>
+                        Entrar na call
+                      </button>
+                    )}
+                    <button
+                      className="icon-btn"
+                      onClick={() => startNow(m)}
+                      disabled={recording}
+                      title={recording ? "Já existe uma gravação em andamento" : ""}
+                    >
+                      {icon("play")}
+                      Iniciar Gravação
                     </button>
-                  )}
-                  <label className="chk" title={recordAll ? "Gravar todas está habilitado" : ""}>
-                    <input
-                      type="checkbox"
-                      checked={recordAll || m.record_enabled}
-                      disabled={recordAll}
-                      onChange={(e) => toggle(m.uid, e.target.checked)}
-                    />
-                    Gravar
-                  </label>
+                    <label className="chk" title={recordAll ? "Gravar todas está habilitado" : ""}>
+                      <input
+                        type="checkbox"
+                        checked={recordAll || m.record_enabled}
+                        disabled={recordAll}
+                        onChange={(e) => toggle(m.uid, e.target.checked)}
+                      />
+                      Agendar Gravação
+                    </label>
+                  </div>
                 </div>
-              </div>
-            </li>
-          ))}
+              </li>
+            );
+          })}
         </ul>
       )}
     </>
