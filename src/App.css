@@ -342,6 +342,43 @@ body {
   margin: 4px 0 12px;
 }
 
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 13px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent);
+  background: var(--accent-soft);
+  border: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.icon-btn svg {
+  width: 15px;
+  height: 15px;
+}
+
+.icon-btn:hover {
+  background: var(--play-hover);
+}
+
+.icon-btn:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.icon-btn.danger {
+  color: var(--danger);
+  background: var(--danger-soft);
+}
+
+.icon-btn.danger:hover {
+  background: var(--danger-soft-hover);
+}
+
 .export-group {
   display: inline-flex;
   align-items: center;

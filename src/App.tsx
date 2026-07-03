@@ -241,6 +241,40 @@ function icon(name: string) {
           <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
         </svg>
       );
+    case "play":
+      return (
+        <svg {...c} fill="currentColor" stroke="none">
+          <path d="M8 5v14l11-7z" />
+        </svg>
+      );
+    case "stop":
+      return (
+        <svg {...c} fill="currentColor" stroke="none">
+          <rect x="6" y="6" width="12" height="12" rx="2" />
+        </svg>
+      );
+    case "rename":
+      return (
+        <svg {...c}>
+          <path d="M12 20h9" />
+          <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z" />
+        </svg>
+      );
+    case "delete":
+      return (
+        <svg {...c}>
+          <line x1="18" y1="6" x2="6" y2="18" />
+          <line x1="6" y1="6" x2="18" y2="18" />
+        </svg>
+      );
+    case "export":
+      return (
+        <svg {...c}>
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+          <polyline points="7 9 12 4 17 9" />
+          <line x1="12" y1="4" x2="12" y2="16" />
+        </svg>
+      );
     default:
       return null;
   }
@@ -850,10 +884,12 @@ function GravacoesScreen({
 
           {selected && (
             <div className="rec-toolbar">
-              <button className="play-btn" onClick={() => setPlaying((p) => !p)}>
-                {playing ? "Fechar player" : "▶ Play"}
+              <button className="icon-btn" onClick={() => setPlaying((p) => !p)}>
+                {icon(playing ? "stop" : "play")}
+                {playing ? "Fechar player" : "Play"}
               </button>
-              <button className="secondary" onClick={renameSel}>
+              <button className="icon-btn" onClick={renameSel}>
+                {icon("rename")}
                 Renomear
               </button>
               <span className="export-group">
@@ -862,11 +898,13 @@ function GravacoesScreen({
                   <option value="wav">WAV</option>
                   <option value="ogg">OGG</option>
                 </select>
-                <button className="secondary" onClick={exportAudio} disabled={exporting}>
+                <button className="icon-btn" onClick={exportAudio} disabled={exporting}>
+                  {icon("export")}
                   {exporting ? "Exportando..." : "Exportar áudio"}
                 </button>
               </span>
-              <button className="del-btn" onClick={removeSel}>
+              <button className="icon-btn danger" onClick={removeSel}>
+                {icon("delete")}
                 Apagar
               </button>
             </div>
