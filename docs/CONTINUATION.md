@@ -2,19 +2,24 @@
 
 Documento para a próxima sessão saber exatamente onde paramos e como seguir.
 
-## Estado atual (2026-07-03, v0.2.0 "Hicorder")
+## Estado atual (2026-07-03, v0.2.3 "Hicorder", publicado)
 
-**Funcional e testado pelo usuário (Windows):** gravação mic + sistema (WASAPI loopback) em faixas separadas → Opus `.webm` → SQLite; player embutido; transcrição em 2 faixas intercaladas ("Você"/"Participantes") com provedor selecionável (default Groq Whisper); resumo com provedor selecionável (default MiniMax-M3); agenda ICS com auto-start no horário, alerta no fim e auto-stop em fim+1h; tray com bolinha vermelha; upload ao Attio (busca reunião por horário → sugere participantes → nota por pessoa); teste de chave por provedor; mensagens de erro amigáveis + log persistente.
+**Funcional e testado pelo usuário (Windows, incl. instalador em máquina limpa):** gravação mic + sistema (WASAPI loopback) em faixas separadas → Opus `.webm` → SQLite; player embutido; exportar áudio (MP3/WAV/OGG via ffmpeg); transcrição em 2 faixas intercaladas em formato **chat** ("Você" à direita / "Participantes" à esquerda) com provedor selecionável (default Groq Whisper); resumo com provedor selecionável (default MiniMax-M3, com remoção do `<think>`); agenda ICS (participantes/local/link, botão "Entrar na call", destaque da reunião atual, "Iniciar Gravação" por reunião, "Agendar Gravação") com auto-start, alerta e auto-stop; **autoinicialização com o SO** (ligada por padrão, toggle em Config); tray; upload ao Attio; tema claro/escuro; teste de chave por provedor; **log persistente cobrindo todas as fontes de erro**.
 
-**Nesta sessão:** rename completo para **Hicorder** (identifier `com.hicapital.hicorder`, migração não destrutiva de dados/keychain em `migrate.rs` e `settings/`), logo novo (waveform, `tauri icon`), metadados de bundle p/ AV, revisão de toda a documentação, preparação SignPath ([SIGNING.md](SIGNING.md), SECURITY.md).
+**Repo** renomeado para `GeanChu/hicorder` (público). Releases via CI (draft → publicar com `gh release edit --draft=false --latest`). Ver [[release-state]] na memória.
+
+### Correções de build instalado (achadas em máquina limpa, v0.2.2/0.2.3)
+- ffmpeg empacotado não era achado (glob `resources/*` põe em `resources/ffmpeg[.exe]`, não na raiz) → `resolve_ffmpeg` tenta os dois caminhos + PATH.
+- macOS/Linux: `ensure_executable()` dá `chmod 0755` no ffmpeg empacotado (Tauri pode dropar o `+x`).
+- "database is locked": `storage::open` liga WAL + `busy_timeout(10s)`.
+- Log passou a cobrir gravação/agenda/player/UI (helpers `logged()` + comando `log_client`).
 
 ## Pendências (em ordem sugerida)
 
-1. **SignPath Foundation** — usuário precisa submeter a aplicação (passos em [SIGNING.md](SIGNING.md)). Depois: integrar o passo de assinatura no `release.yml`.
-2. **Renomear o repo GitHub** para `hicorder` (Settings → rename; redirects automáticos) e atualizar `homepage` no `tauri.conf.json` + links nos docs.
-3. **Release v0.2.0** — tag `v0.2.0` → workflow `release` gera instaladores (draft). Testar instalador Windows com migração (dados do Call Recorder devem aparecer no Hicorder).
-4. **PR2c — Linux system audio** (monitor source via cpal) e **PR3 — macOS ScreenCaptureKit**.
-5. Reportar falso positivo do executável ao Kaspersky (opentip.kaspersky.com) e Microsoft quando houver release assinado ou final.
+1. **SignPath Foundation** — usuário precisa submeter a aplicação manualmente (form é embed cross-origin + reCAPTCHA, resiste a automação; valores prontos + README já tem a atribuição). Depois: integrar o passo de assinatura no `release.yml` ([SIGNING.md](SIGNING.md)).
+2. **PR2c — Linux system audio** (monitor source via cpal) e **PR3 — macOS ScreenCaptureKit** (hoje Mac/Linux gravam só o mic).
+3. Reportar falso positivo do instalador ao Kaspersky (opentip.kaspersky.com) e Microsoft — melhor depois de assinar (o hash muda ao assinar).
+4. **Notarização macOS** (Gatekeeper barra app/ffmpeg não notarizados na 1ª execução) — exige Apple Developer pago.
 
 ## Gotchas de ambiente (máquina do usuário, Windows)
 

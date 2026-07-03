@@ -182,6 +182,16 @@ Repo público: github.com/GeanChu/hicorder. Estratégia de assinatura grátis: *
 - [x] **Rename para Hicorder** (v0.2.0): identifier `com.hicapital.hicorder`, migração não destrutiva de dados + keychain, logo novo (waveform) e icon set completo, metadados de bundle (AV), docs revisados.
 - [x] Preparação SignPath Foundation: [SIGNING.md](SIGNING.md), SECURITY.md.
 
+## PR14 — Home, exportar, autostart e releases ✅ (esta sessão)
+- [x] **Home** = agenda como tela principal (botão gravar fixo no topo); Configurações vira engrenagem no rodapé da sidebar; aba Transcrição funde-se em **Gravações** (play/renomear/apagar + exportar).
+- [x] Agenda: participantes/local/**link** (botão "Entrar na call"), destaque da reunião **atual**, botão **Iniciar Gravação** por reunião, checkbox "Agendar Gravação", refresh periódico do ICS no scheduler.
+- [x] Gravações com **título** (nome da reunião ou "Gravação manual") + renomear; **exportar áudio** MP3/WAV/OGG (`tauri-plugin-dialog` + ffmpeg; ogg via libopus).
+- [x] **Tema** claro/escuro/automático; transcrição em **chat**; resumo remove `<think>` de modelos reasoning.
+- [x] **Autoinicialização** com o SO (`tauri-plugin-autostart`, ligada por padrão, `--minimized` p/ tray) + toggle.
+- [x] Toast de reunião criado na **main thread** (0x80070057); notificações/permissão no macOS via `run_on_main_thread`.
+- [x] **Releases**: instaladores v0.2.0→v0.2.3 nos 3 SOs (CI verifica libopus/libmp3lame); README com download por SO + atribuição SignPath.
+- [x] Fixes de build instalado: ffmpeg `resources/` + `+x` no unix; SQLite WAL + busy_timeout; **log** cobrindo gravação/agenda/player/UI (`logged()` + `log_client`).
+
 ---
 
 ## Backlog / Fase 2 — Agenda + auto-gravar

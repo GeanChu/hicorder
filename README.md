@@ -12,13 +12,15 @@ Gravador de reuniões para times. Grava o áudio do **microfone** e do **sistema
 
 - **Gravar reuniões** (mic + áudio do sistema) com um botão, medidor de nível e player embutido.
 - **Áudio leve**: Opus ~32 kbps em `.webm` (~7–15 MB/hora).
-- **Transcrever via IA** com provedor selecionável (Groq Whisper por padrão; OpenAI, Fireworks ou endpoint próprio), idioma por transcrição (padrão pt-BR). As duas faixas são intercaladas com rótulos "Você" / "Participantes".
+- **Transcrever via IA** com provedor selecionável (Groq Whisper por padrão; OpenAI, Fireworks ou endpoint próprio), idioma por transcrição (padrão pt-BR). As faixas viram um **chat**: "Você" à direita, "Participantes" à esquerda.
 - **Resumo da reunião** (opcional) com provedor selecionável (OpenAI, Claude, Gemini, MiniMax ou endpoint próprio).
-- **Agenda (ICS)**: lista as próximas reuniões, checkbox por reunião ou "gravar todas"; gravação **inicia sozinha** no horário, alerta no fim previsto e para sozinha 1h depois do fim.
-- **Ícone na bandeja** com start/stop e bolinha vermelha enquanto grava; fechar a janela minimiza para a bandeja.
+- **Exportar áudio** em MP3, WAV ou OGG.
+- **Agenda (ICS)** na tela principal: próximas reuniões com participantes, local e **link da call**; destaque da reunião que está acontecendo; **Iniciar Gravação** por reunião ou **Agendar Gravação** (auto-start no horário, alerta no fim, auto-stop em fim+1h) ou "gravar todas".
+- **Autoinicialização** com o sistema (ligada por padrão; abre minimizada na bandeja para gravar sozinha) e **ícone na bandeja** com start/stop e bolinha vermelha.
 - **Attio (CRM)**: encontra a reunião pelo horário da gravação, sugere os participantes e sobe a transcrição/resumo como nota em cada pessoa, vinculada à meeting.
-- **Teste de chave** por provedor nas Configurações, mensagens de erro em linguagem simples e **log persistente** para troubleshooting.
-- Apagar gravações, copiar transcrição/resumo.
+- **Tema** claro, escuro ou automático (segue o sistema).
+- **Teste de chave** por provedor, mensagens de erro em linguagem simples e **log persistente** (Configurações → Ver logs) para troubleshooting.
+- Renomear, apagar e copiar transcrição/resumo.
 
 ## Download e instalação
 
