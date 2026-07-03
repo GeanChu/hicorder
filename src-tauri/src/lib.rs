@@ -97,6 +97,7 @@ pub fn run() {
             commands::test_attio_api,
             commands::get_logs,
             commands::clear_logs,
+            commands::log_client,
             commands::get_autostart,
             commands::set_autostart,
             commands::attio_find_meetings,

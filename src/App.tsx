@@ -5,6 +5,11 @@ import { openUrl } from "@tauri-apps/plugin-opener";
 import { save } from "@tauri-apps/plugin-dialog";
 import "./App.css";
 
+// Registra um erro do frontend no log persistente (callrec.log).
+function logClient(category: string, message: unknown) {
+  invoke("log_client", { category, message: String(message) }).catch(() => {});
+}
+
 type Tab = "agenda" | "gravacoes" | "config";
 
 type Meeting = {
@@ -703,7 +708,10 @@ function AgendaList({
                   </div>
                   <div className="meeting-actions">
                     {m.link && (
-                      <button className="call-btn" onClick={() => openUrl(m.link!)}>
+                      <button
+                        className="call-btn"
+                        onClick={() => openUrl(m.link!).catch((e) => logClient("call-link", e))}
+                      >
                         Entrar na call
                       </button>
                     )}
@@ -942,7 +950,16 @@ function GravacoesScreen({
             </div>
           )}
           {playing && selected && (
-            <audio className="player" controls autoPlay src={mixSrc(selected.path)} />
+            <audio
+              className="player"
+              controls
+              autoPlay
+              src={mixSrc(selected.path)}
+              onError={() => {
+                setError("Não foi possível reproduzir esta gravação.");
+                logClient("player", `falha ao reproduzir ${selected.path}`);
+              }}
+            />
           )}
           {actionMsg && <p className="ok">{actionMsg}</p>}
 

@@ -196,14 +196,15 @@ pub fn rename_recording(app: AppHandle, recording_id: String, title: String) -> 
     if t.is_empty() {
         return Err("o nome não pode ser vazio".to_string());
     }
-    let conn = open_db(&app)?;
-    storage::rename_recording(&conn, &recording_id, t).map_err(|e| e.to_string())
+    let r = open_db(&app)
+        .and_then(|conn| storage::rename_recording(&conn, &recording_id, t).map_err(|e| e.to_string()));
+    logged(&app, "gravacao", r)
 }
 
 #[tauri::command]
 pub fn list_recordings(app: AppHandle) -> Result<Vec<RecordingRow>, String> {
-    let conn = open_db(&app)?;
-    storage::list(&conn).map_err(|e| e.to_string())
+    let r = open_db(&app).and_then(|conn| storage::list(&conn).map_err(|e| e.to_string()));
+    logged(&app, "gravacao", r)
 }
 
 #[tauri::command]
@@ -403,6 +404,15 @@ pub fn set_autostart(app: AppHandle, enabled: bool) -> Result<(), String> {
     let al = app.autolaunch();
     let r = if enabled { al.enable() } else { al.disable() };
     r.map_err(|e| e.to_string())
+}
+
+/// Registra no log um erro reportado pela UI (ex.: falha do player, catch
+/// de uma ação no frontend). Assim o callrec.log cobre também erros que só
+/// acontecem no lado do webview.
+#[tauri::command]
+pub fn log_client(app: AppHandle, category: String, message: String) {
+    let cat = if category.trim().is_empty() { "ui" } else { category.trim() };
+    logs::log(&app, "ERRO", cat, &message);
 }
 
 /// Devolve o conteúdo do log persistente (para troubleshooting).
@@ -614,22 +624,26 @@ pub async fn transcribe(
 
 #[tauri::command]
 pub fn get_transcript(app: AppHandle, recording_id: String) -> Result<Option<TranscriptRow>, String> {
-    let conn = open_db(&app)?;
-    storage::get_transcript(&conn, &recording_id).map_err(|e| e.to_string())
+    let r = open_db(&app)
+        .and_then(|conn| storage::get_transcript(&conn, &recording_id).map_err(|e| e.to_string()));
+    logged(&app, "transcricao", r)
 }
 
 #[tauri::command]
 pub fn delete_recording(app: AppHandle, recording_id: String) -> Result<(), String> {
-    let conn = open_db(&app)?;
-    let paths = storage::recording_paths(&conn, &recording_id).map_err(|e| e.to_string())?;
-    storage::delete_recording(&conn, &recording_id).map_err(|e| e.to_string())?;
-    // Apaga a pasta da gravação (mic.webm + system.webm).
-    if let Some((mic, _sys)) = paths {
-        if let Some(dir) = Path::new(&mic).parent() {
-            let _ = std::fs::remove_dir_all(dir);
+    let r = (|| {
+        let conn = open_db(&app)?;
+        let paths = storage::recording_paths(&conn, &recording_id).map_err(|e| e.to_string())?;
+        storage::delete_recording(&conn, &recording_id).map_err(|e| e.to_string())?;
+        // Apaga a pasta da gravação (mic.webm + system.webm).
+        if let Some((mic, _sys)) = paths {
+            if let Some(dir) = Path::new(&mic).parent() {
+                let _ = std::fs::remove_dir_all(dir);
+            }
         }
-    }
-    Ok(())
+        Ok(())
+    })();
+    logged(&app, "gravacao", r)
 }
 
 #[tauri::command]
@@ -665,8 +679,9 @@ pub async fn generate_summary(app: AppHandle, recording_id: String) -> Result<Su
 
 #[tauri::command]
 pub fn get_summary(app: AppHandle, recording_id: String) -> Result<Option<SummaryRow>, String> {
-    let conn = open_db(&app)?;
-    storage::get_summary(&conn, &recording_id).map_err(|e| e.to_string())
+    let r = open_db(&app)
+        .and_then(|conn| storage::get_summary(&conn, &recording_id).map_err(|e| e.to_string()));
+    logged(&app, "resumo", r)
 }
 
 #[tauri::command]
