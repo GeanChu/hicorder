@@ -463,28 +463,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "callrec"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "chrono",
- "chrono-tz",
- "cpal",
- "hound",
- "ical",
- "keyring",
- "reqwest",
- "rusqlite",
- "serde",
- "serde_json",
- "tauri",
- "tauri-build",
- "tauri-plugin-notification",
- "tauri-plugin-opener",
- "wasapi",
-]
-
-[[package]]
 name = "camino"
 version = "1.2.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1765,6 +1743,28 @@ name = "hex"
 version = "0.4.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7f24254aa9a54b5c858eaee2f5bccdb46aaf0e486a595ed5fd8f86ba55232a70"
+
+[[package]]
+name = "hicorder"
+version = "0.2.0"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "chrono-tz",
+ "cpal",
+ "hound",
+ "ical",
+ "keyring",
+ "reqwest",
+ "rusqlite",
+ "serde",
+ "serde_json",
+ "tauri",
+ "tauri-build",
+ "tauri-plugin-notification",
+ "tauri-plugin-opener",
+ "wasapi",
+]
 
 [[package]]
 name = "hkdf"

@@ -359,7 +359,7 @@ pub async fn attio_upload(
         .map_err(|e| e.to_string())?
         .ok_or_else(|| "configure a chave do Attio nas Configurações".to_string())?;
     let kind_label = if kind == "summary" { "Resumo" } else { "Transcrição" };
-    let note_title = format!("{title} — {kind_label} (Call Recorder)");
+    let note_title = format!("{title} — {kind_label} (Hicorder)");
 
     tauri::async_runtime::spawn_blocking(move || -> Result<AttioUploadResult, String> {
         let mid = match meeting_id {

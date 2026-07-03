@@ -278,8 +278,8 @@ function App() {
     <div className="app">
       <nav className="sidebar">
         <div className="brand">
-          <span className="brand-dot">{icon("mic")}</span>
-          Call Recorder
+          <img className="brand-logo" src="/icon.png" alt="" />
+          Hicorder
         </div>
         {TABS.map((t) => (
           <button

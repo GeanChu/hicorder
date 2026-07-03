@@ -64,15 +64,10 @@ body {
   margin: 4px 8px 20px;
 }
 
-.brand .brand-dot {
+.brand .brand-logo {
   width: 26px;
   height: 26px;
   border-radius: 8px;
-  background: linear-gradient(135deg, var(--accent), #7c73ff);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #fff;
   flex-shrink: 0;
 }
 

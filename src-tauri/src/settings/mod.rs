@@ -6,7 +6,9 @@
 use anyhow::{anyhow, Result};
 use keyring::Entry;
 
-const SERVICE: &str = "com.hicapital.callrecorder";
+const SERVICE: &str = "com.hicapital.hicorder";
+/// Nome antigo (Call Recorder) — mantido para migrar chaves já salvas.
+const OLD_SERVICE: &str = "com.hicapital.callrecorder";
 const TRANSCRIPTION_KEY: &str = "transcription_api_key";
 const SUMMARY_KEY: &str = "summary_api_key";
 const ATTIO_KEY: &str = "attio_api_key";
@@ -22,6 +24,20 @@ fn set_key(user: &str, key: &str) -> Result<()> {
 fn get_key(user: &str) -> Result<Option<String>> {
     match entry(user)?.get_password() {
         Ok(p) => Ok(Some(p)),
+        Err(keyring::Error::NoEntry) => migrate_old_key(user),
+        Err(e) => Err(anyhow!("keychain: {e}")),
+    }
+}
+
+/// Migração preguiçosa: se a chave só existe no serviço antigo, copia para o
+/// novo e passa a usá-lo. A entrada antiga é mantida (rollback possível).
+fn migrate_old_key(user: &str) -> Result<Option<String>> {
+    let old = Entry::new(OLD_SERVICE, user).map_err(|e| anyhow!("keychain: {e}"))?;
+    match old.get_password() {
+        Ok(p) => {
+            let _ = set_key(user, &p);
+            Ok(Some(p))
+        }
         Err(keyring::Error::NoEntry) => Ok(None),
         Err(e) => Err(anyhow!("keychain: {e}")),
     }

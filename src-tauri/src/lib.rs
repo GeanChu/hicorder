@@ -4,6 +4,7 @@ mod commands;
 mod encode;
 mod logs;
 mod meetings;
+mod migrate;
 mod net;
 mod scheduler;
 mod settings;
@@ -22,6 +23,7 @@ pub fn run() {
         .plugin(tauri_plugin_notification::init())
         .manage(Recorder::new())
         .setup(|app| {
+            migrate::run(app.handle());
             tray::build_tray(app.handle())?;
             scheduler::spawn(app.handle().clone());
 

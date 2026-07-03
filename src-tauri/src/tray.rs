@@ -10,13 +10,13 @@ use crate::commands;
 
 pub fn build_tray(app: &AppHandle) -> tauri::Result<()> {
     let toggle = MenuItem::with_id(app, "toggle", "Iniciar / parar gravação", true, None::<&str>)?;
-    let open = MenuItem::with_id(app, "open", "Abrir Call Recorder", true, None::<&str>)?;
+    let open = MenuItem::with_id(app, "open", "Abrir Hicorder", true, None::<&str>)?;
     let quit = MenuItem::with_id(app, "quit", "Sair", true, None::<&str>)?;
     let menu = Menu::with_items(app, &[&toggle, &open, &quit])?;
 
     TrayIconBuilder::with_id("main")
         .icon(app.default_window_icon().unwrap().clone())
-        .tooltip("Call Recorder")
+        .tooltip("Hicorder")
         .menu(&menu)
         .show_menu_on_left_click(false)
         .on_menu_event(|app, event| match event.id.as_ref() {
@@ -55,9 +55,9 @@ pub fn update_tray(app: &AppHandle) {
     let recording = app.state::<Recorder>().is_recording();
     if let Some(tray) = app.tray_by_id("main") {
         let _ = tray.set_tooltip(Some(if recording {
-            "Call Recorder — GRAVANDO"
+            "Hicorder — GRAVANDO"
         } else {
-            "Call Recorder"
+            "Hicorder"
         }));
         if let Some(base) = app.default_window_icon() {
             let _ = tray.set_icon(Some(tray_icon(base, recording)));
