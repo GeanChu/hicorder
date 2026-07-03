@@ -7,7 +7,7 @@ Cada PR é uma unidade lógica, testável e mergeável. Marque os checkboxes ao 
 ## PR0 — Repo + planejamento + docs ✅ (esta sessão)
 **Objetivo**: estrutura do repo e documentação de handoff.
 - [x] `git init`, identidade local, `.gitignore`, LICENSE, NOTICE.
-- [x] README, ARCHITECTURE, ROADMAP, DECISIONS, MINIMAX, CONTINUATION.
+- [x] README, ARCHITECTURE, ROADMAP, DECISIONS, PROVIDERS, CONTINUATION.
 - [x] Commit inicial.
 
 ---
@@ -83,7 +83,7 @@ Cada PR é uma unidade lógica, testável e mergeável. Marque os checkboxes ao 
 - [x] Estados em progresso/erro; comando `transcribe` é async + `spawn_blocking` (não trava a UI). Compila limpo.
 - [ ] **Aceite (você)**: configurar endpoint/modelo/chave da MiniMax → transcrever uma gravação → texto pt-BR → Copiar.
 
-**Dependência**: confirmar endpoint/modelo de ASR da MiniMax (a chave é a Subscription Key `sk-cp`, enviada como Bearer) — ver [MINIMAX.md](MINIMAX.md). Default de fábrica aponta p/ OpenAI Whisper como caminho que funciona.
+**Dependência**: confirmar endpoint/modelo de ASR da MiniMax (a chave é a Subscription Key `sk-cp`, enviada como Bearer) — ver [PROVIDERS.md](PROVIDERS.md). Default de fábrica aponta p/ OpenAI Whisper como caminho que funciona.
 
 ---
 
@@ -167,11 +167,20 @@ Repo público: github.com/GeanChu/call-recorder. Estratégia de assinatura grát
 
 ---
 
-## PR12 — Upload ao Attio (CRM) ✅ (código verificado por `cargo check`)
-- [x] `attio/mod.rs`: cliente HTTP — `list_meetings` (GET /v2/meetings?participants=), `find_or_create_meeting` (POST /v2/meetings), `find_person_by_email` (POST /v2/objects/people/records/query), `create_note` (POST /v2/notes com `meeting_id`).
+## PR12 — Upload ao Attio (CRM) ✅ (testado pelo usuário)
+- [x] `attio/mod.rs`: cliente HTTP — `list_meetings` por **janela de tempo** (`ends_from`/`starts_before`/`timezone`; o filtro `participants` do endpoint beta trava o servidor — ADR-007), `find_or_create_meeting`, `find_person_by_email`, `create_note` (nota por participante com `meeting_id`).
 - [x] Chave do Attio no keychain; comandos `attio_find_meetings` + `attio_upload` (async+spawn_blocking).
-- [x] UI (aba Transcrição): "Subir transcrição/resumo" → até 5 emails → **buscar reuniões no Attio** → escolher candidata ou **criar nova** → **conferir** → "Confirmar e subir nota". Nota em **cada participante**, linkando a meeting.
-- [ ] **Aceite (você)**: com a chave do Attio, subir → nota em cada pessoa, linkada à meeting. Ajustar shapes se o Attio reclamar (erros incluem o corpo da resposta).
+- [x] UI (aba Transcrição): "Subir transcrição/resumo" → busca reuniões pelo **horário da gravação** → escolher candidata ou criar nova → participantes sugeridos como checkboxes (usuário vem desmarcado) + emails manuais → "Confirmar e subir nota".
+- [x] Filtro pelas reuniões do usuário (campo "Seu email no Attio" nas Configurações).
+- [x] **Aceite**: busca e upload funcionando (validado pelo usuário).
+
+## PR13 — Qualidade de vida + rebrand ✅ (esta sessão)
+- [x] Selects de provedor e modelo por etapa (STT: Groq/OpenAI/Fireworks; Resumo: OpenAI/Claude/Gemini/MiniMax; + Personalizado), com ajuda de onde obter cada chave.
+- [x] Botão **Testar** por chave (STT via GET /models; resumo via completions de 1 token; Attio via GET /v2/meetings).
+- [x] Mensagens de erro amigáveis (`logs::humanize`) + **log persistente** (`callrec.log`, rotação 1MB) com Ver/Limpar nas Configurações.
+- [x] `net.rs` com resolver DNS IPv4-only (ADR-008) — corrige timeout em rede com IPv6 sem rota.
+- [x] **Rename para Hicorder** (v0.2.0): identifier `com.hicapital.hicorder`, migração não destrutiva de dados + keychain, logo novo (waveform) e icon set completo, metadados de bundle (AV), docs revisados.
+- [x] Preparação SignPath Foundation: [SIGNING.md](SIGNING.md), SECURITY.md.
 
 ---
 
