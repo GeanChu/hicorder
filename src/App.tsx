@@ -635,36 +635,59 @@ function AttioUpload({
   hasAttioKey: boolean;
 }) {
   const [kind, setKind] = useState<"transcript" | "summary" | null>(null);
-  const [emails, setEmails] = useState("");
   const [title, setTitle] = useState("");
   const [candidates, setCandidates] = useState<AttioMeeting[] | null>(null);
   const [selected, setSelected] = useState<string | null>(null); // meeting_id or "new"
+  const [checkedEmails, setCheckedEmails] = useState<Set<string>>(new Set());
+  const [manualEmails, setManualEmails] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<string | null>(null);
 
-  function parseEmails(): string[] {
-    return emails
+  function parseManual(): string[] {
+    return manualEmails
       .split(/[\s,;]+/)
       .map((e) => e.trim())
-      .filter((e) => e.includes("@"))
-      .slice(0, 5);
+      .filter((e) => e.includes("@"));
   }
 
-  function reset() {
+  // Emails finais = sugeridos marcados + digitados manualmente (dedup).
+  function finalEmails(): string[] {
+    return Array.from(new Set([...checkedEmails, ...parseManual()]));
+  }
+
+  // Ao escolher uma reunião, sugere seus participantes já marcados.
+  function pick(meeting: AttioMeeting | "new") {
+    if (meeting === "new") {
+      setSelected("new");
+      setCheckedEmails(new Set());
+    } else {
+      setSelected(meeting.meeting_id);
+      setCheckedEmails(new Set(meeting.participants));
+    }
+  }
+
+  function toggleEmail(email: string) {
+    setCheckedEmails((prev) => {
+      const next = new Set(prev);
+      if (next.has(email)) next.delete(email);
+      else next.add(email);
+      return next;
+    });
+  }
+
+  async function start(k: "transcript" | "summary") {
+    setKind(k);
     setCandidates(null);
     setSelected(null);
+    setCheckedEmails(new Set());
+    setManualEmails("");
+    setTitle("");
     setResult(null);
     setError(null);
-  }
-
-  async function search() {
     if (!recording) return;
-    setError(null);
-    setResult(null);
-    const list = parseEmails();
-    // Janela: da reunião que termina depois do início da gravação (com folga de
-    // 30min p/ gravação iniciada tarde) até a que começa antes do fim (+30min).
+    // Janela: reuniões que terminam depois do início da gravação (folga 30min p/
+    // gravação iniciada tarde) até as que começam antes do fim (+30min).
     const buffer = 30 * 60 * 1000;
     const endsFrom = new Date(recording.created_at - buffer).toISOString();
     const startsBefore = new Date(
@@ -677,10 +700,11 @@ function AttioUpload({
         endsFrom,
         startsBefore,
         timezone,
-        emails: list,
+        emails: [],
       });
       setCandidates(found);
-      setSelected(found.length > 0 ? found[0].meeting_id : "new");
+      if (found.length > 0) pick(found[0]);
+      else pick("new");
     } catch (e) {
       setError(String(e));
     } finally {
@@ -690,6 +714,11 @@ function AttioUpload({
 
   async function upload() {
     if (!recording || !kind || !selected) return;
+    const list = finalEmails();
+    if (list.length === 0) {
+      setError("Marque ou informe ao menos 1 email para receber a nota.");
+      return;
+    }
     setError(null);
     setResult(null);
     setBusy(true);
@@ -707,7 +736,7 @@ function AttioUpload({
           startIso: start.toISOString(),
           endIso: end.toISOString(),
           timezone: tz,
-          emails: parseEmails(),
+          emails: list,
         },
       );
       let msg = `${r.notes_created} nota(s) criada(s) na meeting ${r.meeting_id}.`;
@@ -720,6 +749,9 @@ function AttioUpload({
     }
   }
 
+  const selectedMeeting =
+    candidates?.find((m) => m.meeting_id === selected) ?? null;
+
   return (
     <div className="summary-block">
       <h3>Subir ao Attio</h3>
@@ -728,99 +760,93 @@ function AttioUpload({
       <div className="actions">
         <button
           className={kind === "transcript" ? "" : "secondary"}
-          onClick={() => {
-            setKind("transcript");
-            reset();
-          }}
-          disabled={!hasAttioKey}
+          onClick={() => start("transcript")}
+          disabled={!hasAttioKey || busy}
         >
           Subir transcrição
         </button>
         <button
           className={kind === "summary" ? "" : "secondary"}
-          onClick={() => {
-            setKind("summary");
-            reset();
-          }}
-          disabled={!hasAttioKey || !hasSummary}
+          onClick={() => start("summary")}
+          disabled={!hasAttioKey || !hasSummary || busy}
         >
           Subir resumo
         </button>
       </div>
 
-      {kind && (
-        <>
-          <p className="hint">
-            Subindo o {kind === "summary" ? "resumo" : "a transcrição"}. A reunião é buscada pelo
-            horário da gravação. Emails (opcional, até 5) priorizam as reuniões com esses
-            participantes.
-          </p>
-          <div className="form-row">
-            <label>Participantes (emails, opcional)</label>
+      {kind && busy && !candidates && <p className="hint">Buscando reuniões no horário...</p>}
+
+      {candidates && (
+        <div className="attio-candidates">
+          <p className="hint">1. Escolha a reunião (buscada pelo horário da gravação):</p>
+          {candidates.map((m) => (
+            <label key={m.meeting_id} className="chk">
+              <input
+                type="radio"
+                name="attio-meeting"
+                checked={selected === m.meeting_id}
+                onChange={() => pick(m)}
+              />
+              <span>
+                <strong>{m.title}</strong>
+                {m.start && <> — {new Date(m.start).toLocaleString("pt-BR")}</>}
+              </span>
+            </label>
+          ))}
+          {candidates.length === 0 && (
+            <p className="hint">Nenhuma reunião nesse horário. Crie uma nova abaixo.</p>
+          )}
+          <label className="chk">
             <input
-              value={emails}
-              onChange={(e) => setEmails(e.target.value)}
+              type="radio"
+              name="attio-meeting"
+              checked={selected === "new"}
+              onChange={() => pick("new")}
+            />
+            <span>➕ Criar nova reunião</span>
+          </label>
+
+          {selected === "new" && (
+            <div className="form-row">
+              <label>Nome da nova reunião</label>
+              <input
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder={`Reunião ${recording ? formatDate(recording.created_at) : ""}`}
+              />
+            </div>
+          )}
+
+          <p className="hint">2. Quem recebe a nota:</p>
+          {selectedMeeting && selectedMeeting.participants.length > 0 && (
+            <div className="attio-people">
+              {selectedMeeting.participants.map((email) => (
+                <label key={email} className="chk">
+                  <input
+                    type="checkbox"
+                    checked={checkedEmails.has(email)}
+                    onChange={() => toggleEmail(email)}
+                  />
+                  <span>{email}</span>
+                </label>
+              ))}
+            </div>
+          )}
+          <div className="form-row">
+            <label>Outros emails (opcional, separados por vírgula)</label>
+            <input
+              value={manualEmails}
+              onChange={(e) => setManualEmails(e.target.value)}
               placeholder="ana@empresa.com, bob@cliente.com"
             />
           </div>
+
           <div className="actions">
-            <button onClick={search} disabled={busy}>
-              {busy ? "Buscando..." : "Buscar reunião no Attio"}
+            <button onClick={upload} disabled={busy || !selected}>
+              {busy ? "Subindo..." : "Confirmar e subir nota"}
             </button>
           </div>
-
-          {candidates && (
-            <div className="attio-candidates">
-              <p className="hint">Confira e escolha a reunião antes de subir:</p>
-              {candidates.map((m) => (
-                <label key={m.meeting_id} className="chk">
-                  <input
-                    type="radio"
-                    name="attio-meeting"
-                    checked={selected === m.meeting_id}
-                    onChange={() => setSelected(m.meeting_id)}
-                  />
-                  <span>
-                    <strong>{m.title}</strong>
-                    {m.start && <> — {new Date(m.start).toLocaleString("pt-BR")}</>}
-                    {m.participants.length > 0 && (
-                      <span className="attio-parts"> · {m.participants.join(", ")}</span>
-                    )}
-                  </span>
-                </label>
-              ))}
-              {candidates.length === 0 && (
-                <p className="hint">Nenhuma reunião nesse horário. Crie uma nova abaixo.</p>
-              )}
-              <label className="chk">
-                <input
-                  type="radio"
-                  name="attio-meeting"
-                  checked={selected === "new"}
-                  onChange={() => setSelected("new")}
-                />
-                <span>➕ Criar nova reunião</span>
-              </label>
-
-              {selected === "new" && (
-                <div className="form-row">
-                  <label>Nome da nova reunião</label>
-                  <input
-                    value={title}
-                    onChange={(e) => setTitle(e.target.value)}
-                    placeholder={`Reunião ${recording ? formatDate(recording.created_at) : ""}`}
-                  />
-                </div>
-              )}
-
-              <div className="actions">
-                <button onClick={upload} disabled={busy || !selected}>
-                  {busy ? "Subindo..." : "Confirmar e subir nota"}
-                </button>
-              </div>
-            </div>
-          )}
-        </>
+        </div>
       )}
 
       {error && <p className="error">{error}</p>}
