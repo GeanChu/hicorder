@@ -814,12 +814,31 @@ fn resolve_ffmpeg(app: &AppHandle) -> String {
     for cand in [format!("resources/{bin}"), bin.to_string()] {
         if let Ok(p) = app.path().resolve(&cand, tauri::path::BaseDirectory::Resource) {
             if p.exists() {
+                ensure_executable(&p);
                 return p.to_string_lossy().into_owned();
             }
         }
     }
     std::env::var("CALLREC_FFMPEG").unwrap_or_else(|_| "ffmpeg".to_string())
 }
+
+/// macOS/Linux: garante o bit de executável no ffmpeg empacotado. O Tauri
+/// trata resources como dados e pode não preservar o `+x`, o que faria a
+/// execução falhar com "permission denied" mesmo achando o binário.
+#[cfg(unix)]
+fn ensure_executable(p: &Path) {
+    use std::os::unix::fs::PermissionsExt;
+    if let Ok(meta) = std::fs::metadata(p) {
+        let mut perms = meta.permissions();
+        if perms.mode() & 0o111 == 0 {
+            perms.set_mode(0o755);
+            let _ = std::fs::set_permissions(p, perms);
+        }
+    }
+}
+
+#[cfg(not(unix))]
+fn ensure_executable(_p: &Path) {}
 
 fn now_ms() -> i64 {
     SystemTime::now()
