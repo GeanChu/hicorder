@@ -11,8 +11,8 @@ use crate::attio::{self, AttioMeeting};
 use crate::audio::recorder::{Recorder, RecordingInfo};
 use crate::storage::{self, MeetingRow, RecordingRow, SummaryRow, TranscriptRow};
 use crate::summary::{self, SummaryConfig};
-use crate::transcription::{OpenAiCompatible, Transcriber, TranscriptionConfig};
-use crate::{audio, encode, meetings, settings};
+use crate::transcription::{self, OpenAiCompatible, Transcriber, TranscriptionConfig};
+use crate::{audio, encode, logs, meetings, settings};
 
 #[derive(Serialize, Clone)]
 pub struct AppSettings {
@@ -219,15 +219,81 @@ pub fn set_attio_key(key: String) -> Result<(), String> {
     settings::set_attio_key(&key).map_err(|e| e.to_string())
 }
 
-/// Diagnóstico: testa a conectividade com o Attio de dentro do processo do app.
+/// Registra o erro cru no log e devolve uma mensagem amigável ao usuário.
+fn fail(app: &AppHandle, category: &str, raw: String) -> String {
+    logs::log(app, "ERRO", category, &raw);
+    logs::humanize(&raw)
+}
+
+/// Testa a chave/endpoint da transcrição. `key` opcional (usa o keychain se vazio).
 #[tauri::command]
-pub async fn attio_selftest(emails: Vec<String>) -> Result<String, String> {
-    let key = settings::get_attio_key().ok().flatten();
-    tauri::async_runtime::spawn_blocking(move || {
-        crate::net::attio_selftest(key.as_deref(), &emails)
-    })
-    .await
-    .map_err(|e| e.to_string())
+pub async fn test_transcription_api(
+    app: AppHandle,
+    endpoint_url: String,
+    key: Option<String>,
+) -> Result<String, String> {
+    let api_key = match key.filter(|k| !k.trim().is_empty()) {
+        Some(k) => k,
+        None => settings::get_api_key()
+            .map_err(|e| e.to_string())?
+            .ok_or_else(|| "Nenhuma chave de transcrição configurada.".to_string())?,
+    };
+    tauri::async_runtime::spawn_blocking(move || transcription::test_key(&endpoint_url, &api_key))
+        .await
+        .map_err(|e| e.to_string())?
+        .map(|_| "Transcrição: conexão e chave OK.".to_string())
+        .map_err(|e| fail(&app, "transcricao", e.to_string()))
+}
+
+/// Testa a chave/endpoint/modelo do resumo. `key` opcional (usa o keychain se vazio).
+#[tauri::command]
+pub async fn test_summary_api(
+    app: AppHandle,
+    endpoint_url: String,
+    model: String,
+    key: Option<String>,
+) -> Result<String, String> {
+    let api_key = match key.filter(|k| !k.trim().is_empty()) {
+        Some(k) => k,
+        None => settings::get_summary_key()
+            .map_err(|e| e.to_string())?
+            .ok_or_else(|| "Nenhuma chave de resumo configurada.".to_string())?,
+    };
+    let cfg = SummaryConfig { endpoint_url, model };
+    tauri::async_runtime::spawn_blocking(move || summary::test_key(&cfg, &api_key))
+        .await
+        .map_err(|e| e.to_string())?
+        .map(|_| "Resumo: conexão, chave e modelo OK.".to_string())
+        .map_err(|e| fail(&app, "resumo", e.to_string()))
+}
+
+/// Testa a chave do Attio. `key` opcional (usa o keychain se vazio).
+#[tauri::command]
+pub async fn test_attio_api(app: AppHandle, key: Option<String>) -> Result<String, String> {
+    let api_key = match key.filter(|k| !k.trim().is_empty()) {
+        Some(k) => k,
+        None => settings::get_attio_key()
+            .map_err(|e| e.to_string())?
+            .ok_or_else(|| "Nenhuma chave do Attio configurada.".to_string())?,
+    };
+    tauri::async_runtime::spawn_blocking(move || attio::test_key(&api_key))
+        .await
+        .map_err(|e| e.to_string())?
+        .map(|_| "Attio: conexão e chave OK.".to_string())
+        .map_err(|e| fail(&app, "attio", e.to_string()))
+}
+
+/// Devolve o conteúdo do log persistente (para troubleshooting).
+#[tauri::command]
+pub fn get_logs(app: AppHandle) -> Result<String, String> {
+    Ok(logs::read(&app))
+}
+
+/// Limpa o log persistente.
+#[tauri::command]
+pub fn clear_logs(app: AppHandle) -> Result<(), String> {
+    logs::clear(&app);
+    Ok(())
 }
 
 /// Lista meetings do Attio numa janela de tempo, casando emails no cliente.
@@ -258,7 +324,7 @@ pub async fn attio_find_meetings(
     })
     .await
     .map_err(|e| e.to_string())?
-    .map_err(|e| e.to_string())
+    .map_err(|e| fail(&app, "attio", e.to_string()))
 }
 
 /// Sobe a transcrição ou o resumo como nota em cada participante, linkando a meeting.
@@ -323,6 +389,7 @@ pub async fn attio_upload(
     })
     .await
     .map_err(|e| e.to_string())?
+    .map_err(|raw| fail(&app, "attio", raw))
 }
 
 #[tauri::command]
@@ -367,7 +434,7 @@ pub async fn transcribe(
     })
     .await
     .map_err(|e| e.to_string())?
-    .map_err(|e| e.to_string())?;
+    .map_err(|e| fail(&app, "transcricao", e.to_string()))?;
 
     // "Participantes" = áudio do sistema (falha aqui não derruba a transcrição do mic).
     let sys_segs = if let Some(sp) = system_path {
@@ -380,11 +447,11 @@ pub async fn transcribe(
         {
             Ok(Ok(segs)) => segs,
             Ok(Err(e)) => {
-                eprintln!("[transcribe] sistema falhou: {e}");
+                logs::log(&app, "INFO", "transcricao", &format!("faixa do sistema falhou: {e}"));
                 Vec::new()
             }
             Err(e) => {
-                eprintln!("[transcribe] sistema panic: {e}");
+                logs::log(&app, "INFO", "transcricao", &format!("faixa do sistema panic: {e}"));
                 Vec::new()
             }
         }
@@ -462,7 +529,7 @@ pub async fn generate_summary(app: AppHandle, recording_id: String) -> Result<Su
     })
     .await
     .map_err(|e| e.to_string())?
-    .map_err(|e| e.to_string())?;
+    .map_err(|e| fail(&app, "resumo", e.to_string()))?;
 
     let row = SummaryRow {
         recording_id,

@@ -38,6 +38,27 @@ pub trait Transcriber {
     fn transcribe(&self, audio_path: &Path, language: &str) -> Result<Vec<TranscriptSegment>>;
 }
 
+/// Valida a chave/endpoint sem enviar áudio: GET `<base>/models` (espera 200).
+/// Deriva a base trocando `/audio/transcriptions` por `/models`.
+pub fn test_key(endpoint_url: &str, api_key: &str) -> Result<()> {
+    let models_url = if endpoint_url.contains("/audio/transcriptions") {
+        endpoint_url.replace("/audio/transcriptions", "/models")
+    } else {
+        endpoint_url.to_string()
+    };
+    let resp = crate::net::client(20)
+        .get(&models_url)
+        .bearer_auth(api_key)
+        .send()
+        .map_err(|e| anyhow!("falha na conexão: {e}"))?;
+    let status = resp.status();
+    if status.is_success() {
+        return Ok(());
+    }
+    let body = resp.text().unwrap_or_default();
+    bail!("provedor retornou {status}: {body}");
+}
+
 /// Provedor multipart compatível com a API OpenAI de transcrição.
 #[derive(Clone)]
 pub struct OpenAiCompatible {

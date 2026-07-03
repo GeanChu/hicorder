@@ -26,6 +26,27 @@ rotulada com \"Você\" (quem gravou) e \"Participantes\". Gere um resumo claro e
 contexto, pontos principais, decisões tomadas e itens de ação (com responsável quando houver). \
 Use tópicos curtos.";
 
+/// Valida a chave/endpoint/modelo: chat completions mínimo (1 token). Espera 200.
+pub fn test_key(cfg: &SummaryConfig, api_key: &str) -> Result<()> {
+    let body = serde_json::json!({
+        "model": cfg.model,
+        "messages": [{ "role": "user", "content": "ping" }],
+        "max_tokens": 1
+    });
+    let resp = crate::net::client(20)
+        .post(&cfg.endpoint_url)
+        .bearer_auth(api_key)
+        .json(&body)
+        .send()
+        .map_err(|e| anyhow!("falha na conexão: {e}"))?;
+    let status = resp.status();
+    if status.is_success() {
+        return Ok(());
+    }
+    let raw = resp.text().unwrap_or_default();
+    bail!("provedor retornou {status}: {raw}");
+}
+
 pub fn summarize(cfg: &SummaryConfig, api_key: &str, transcript: &str) -> Result<String> {
     let body = serde_json::json!({
         "model": cfg.model,

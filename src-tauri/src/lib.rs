@@ -2,6 +2,7 @@ mod attio;
 mod audio;
 mod commands;
 mod encode;
+mod logs;
 mod meetings;
 mod net;
 mod scheduler;
@@ -61,7 +62,11 @@ pub fn run() {
             commands::list_meetings,
             commands::set_meeting_record,
             commands::set_attio_key,
-            commands::attio_selftest,
+            commands::test_transcription_api,
+            commands::test_summary_api,
+            commands::test_attio_api,
+            commands::get_logs,
+            commands::clear_logs,
             commands::attio_find_meetings,
             commands::attio_upload,
         ])

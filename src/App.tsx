@@ -306,6 +306,7 @@ function App() {
             hasApiKey={settings?.has_api_key ?? false}
             hasSummaryKey={settings?.has_summary_key ?? false}
             hasAttioKey={settings?.has_attio_key ?? false}
+            attioUserEmail={settings?.attio_user_email ?? ""}
           />
         )}
         {tab === "config" && <ConfigScreen settings={settings} onSaved={refreshSettings} />}
@@ -575,12 +576,14 @@ function TranscriptionScreen({
   hasApiKey,
   hasSummaryKey,
   hasAttioKey,
+  attioUserEmail,
 }: {
   recordings: Recording[];
   defaultLanguage: string;
   hasApiKey: boolean;
   hasSummaryKey: boolean;
   hasAttioKey: boolean;
+  attioUserEmail: string;
 }) {
   const [selectedId, setSelectedId] = useState("");
   const [language, setLanguage] = useState(defaultLanguage);
@@ -732,6 +735,7 @@ function TranscriptionScreen({
               recording={recordings.find((r) => r.id === selectedId) ?? null}
               hasSummary={!!summary}
               hasAttioKey={hasAttioKey}
+              userEmail={attioUserEmail}
             />
           )}
         </>
@@ -744,10 +748,12 @@ function AttioUpload({
   recording,
   hasSummary,
   hasAttioKey,
+  userEmail,
 }: {
   recording: Recording | null;
   hasSummary: boolean;
   hasAttioKey: boolean;
+  userEmail: string;
 }) {
   const [kind, setKind] = useState<"transcript" | "summary" | null>(null);
   const [title, setTitle] = useState("");
@@ -771,14 +777,18 @@ function AttioUpload({
     return Array.from(new Set([...checkedEmails, ...parseManual()]));
   }
 
-  // Ao escolher uma reunião, sugere seus participantes já marcados.
+  // Ao escolher uma reunião, sugere seus participantes já marcados — exceto o
+  // próprio usuário (email do Attio nas Configurações), que vem desmarcado.
   function pick(meeting: AttioMeeting | "new") {
     if (meeting === "new") {
       setSelected("new");
       setCheckedEmails(new Set());
     } else {
       setSelected(meeting.meeting_id);
-      setCheckedEmails(new Set(meeting.participants));
+      const me = userEmail.trim().toLowerCase();
+      setCheckedEmails(
+        new Set(meeting.participants.filter((p) => p.trim().toLowerCase() !== me)),
+      );
     }
   }
 
@@ -988,12 +998,36 @@ function ConfigScreen({
   const [summaryKey, setSummaryKey] = useState("");
   const [attioKey, setAttioKey] = useState("");
   const [attioUserEmail, setAttioUserEmail] = useState("");
-  const [attioTest, setAttioTest] = useState<string | null>(null);
-  const [attioTestEmails, setAttioTestEmails] = useState("");
+  const [testResult, setTestResult] = useState<Record<string, string>>({});
+  const [logText, setLogText] = useState<string | null>(null);
   const [icsUrl, setIcsUrl] = useState("");
   const [recordAll, setRecordAll] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  async function testApi(which: "stt" | "summary" | "attio") {
+    setTestResult((t) => ({ ...t, [which]: "Testando..." }));
+    try {
+      let res: string;
+      if (which === "stt") {
+        res = await invoke<string>("test_transcription_api", {
+          endpointUrl,
+          key: apiKey.trim() || null,
+        });
+      } else if (which === "summary") {
+        res = await invoke<string>("test_summary_api", {
+          endpointUrl: summaryEndpointUrl,
+          model: summaryModel,
+          key: summaryKey.trim() || null,
+        });
+      } else {
+        res = await invoke<string>("test_attio_api", { key: attioKey.trim() || null });
+      }
+      setTestResult((t) => ({ ...t, [which]: res }));
+    } catch (e) {
+      setTestResult((t) => ({ ...t, [which]: String(e) }));
+    }
+  }
 
   useEffect(() => {
     if (settings) {
@@ -1112,12 +1146,18 @@ function ConfigScreen({
       </div>
       <div className="form-row">
         <label>Chave da API</label>
-        <input
-          type="password"
-          value={apiKey}
-          onChange={(e) => setApiKey(e.target.value)}
-          placeholder={settings?.has_api_key ? "•••••• (configurada)" : "cole a chave da transcrição"}
-        />
+        <div className="key-row">
+          <input
+            type="password"
+            value={apiKey}
+            onChange={(e) => setApiKey(e.target.value)}
+            placeholder={settings?.has_api_key ? "•••••• (configurada)" : "cole a chave da transcrição"}
+          />
+          <button type="button" className="secondary" onClick={() => testApi("stt")}>
+            Testar
+          </button>
+        </div>
+        {testResult.stt && <TestLine text={testResult.stt} />}
       </div>
 
       <h3 className="cfg-section">Resumo (LLM) — opcional</h3>
@@ -1174,12 +1214,18 @@ function ConfigScreen({
       </div>
       <div className="form-row">
         <label>Chave da API</label>
-        <input
-          type="password"
-          value={summaryKey}
-          onChange={(e) => setSummaryKey(e.target.value)}
-          placeholder={settings?.has_summary_key ? "•••••• (configurada)" : "cole a chave do resumo"}
-        />
+        <div className="key-row">
+          <input
+            type="password"
+            value={summaryKey}
+            onChange={(e) => setSummaryKey(e.target.value)}
+            placeholder={settings?.has_summary_key ? "•••••• (configurada)" : "cole a chave do resumo"}
+          />
+          <button type="button" className="secondary" onClick={() => testApi("summary")}>
+            Testar
+          </button>
+        </div>
+        {testResult.summary && <TestLine text={testResult.summary} />}
       </div>
 
       <p className="hint">As chaves ficam no keychain do sistema, nunca em texto puro.</p>
@@ -1217,50 +1263,57 @@ function ConfigScreen({
       </div>
       <div className="form-row">
         <label>Chave da API (Attio)</label>
-        <input
-          type="password"
-          value={attioKey}
-          onChange={(e) => setAttioKey(e.target.value)}
-          placeholder={settings?.has_attio_key ? "•••••• (configurada)" : "cole a chave do Attio"}
-        />
+        <div className="key-row">
+          <input
+            type="password"
+            value={attioKey}
+            onChange={(e) => setAttioKey(e.target.value)}
+            placeholder={settings?.has_attio_key ? "•••••• (configurada)" : "cole a chave do Attio"}
+          />
+          <button type="button" className="secondary" onClick={() => testApi("attio")}>
+            Testar
+          </button>
+        </div>
+        {testResult.attio && <TestLine text={testResult.attio} />}
       </div>
 
-      <div className="form-row">
-        <label>Emails p/ teste (separados por vírgula)</label>
-        <input
-          type="text"
-          value={attioTestEmails}
-          onChange={(e) => setAttioTestEmails(e.target.value)}
-          placeholder="gean@hi.capital, mika@hi.capital"
-        />
+      <h3 className="cfg-section">Logs (troubleshooting)</h3>
+      <p className="hint">Registro persistente dos erros de API para diagnóstico.</p>
+      <div className="actions">
+        <button
+          type="button"
+          className="secondary"
+          onClick={async () => setLogText((await invoke<string>("get_logs")) || "(sem registros)")}
+        >
+          Ver logs
+        </button>
+        <button
+          type="button"
+          className="secondary"
+          onClick={async () => {
+            await invoke("clear_logs");
+            setLogText("(sem registros)");
+          }}
+        >
+          Limpar logs
+        </button>
       </div>
+      {logText !== null && <pre className="log-view">{logText}</pre>}
 
       <div className="actions">
         <button onClick={save}>Salvar</button>
-        <button
-          className="secondary"
-          onClick={async () => {
-            setAttioTest("Testando...");
-            const emails = attioTestEmails
-              .split(",")
-              .map((s) => s.trim())
-              .filter(Boolean);
-            try {
-              setAttioTest(await invoke<string>("attio_selftest", { emails }));
-            } catch (e) {
-              setAttioTest(String(e));
-            }
-          }}
-        >
-          Testar conexão Attio
-        </button>
       </div>
-      {attioTest && <pre className="attio-test">{attioTest}</pre>}
 
       {msg && <p className="ok">{msg}</p>}
       {error && <p className="error">{error}</p>}
     </section>
   );
+}
+
+// Mostra o resultado de um teste de API; verde se "OK", senão vermelho.
+function TestLine({ text }: { text: string }) {
+  const ok = /\bOK\b/.test(text);
+  return <span className={ok ? "test-ok" : "test-err"}>{text}</span>;
 }
 
 function formatTime(s: number): string {

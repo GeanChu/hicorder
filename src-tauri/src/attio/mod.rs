@@ -32,6 +32,21 @@ fn client() -> reqwest::blocking::Client {
     crate::net::client(30)
 }
 
+/// Valida a chave: GET /v2/meetings?limit=1 (espera 200). Erro traz status+corpo.
+pub fn test_key(key: &str) -> Result<()> {
+    let resp = client()
+        .get(format!("{BASE}/meetings?limit=1"))
+        .bearer_auth(key)
+        .send()
+        .map_err(|e| anyhow!("falha na conexão: {e}"))?;
+    let status = resp.status();
+    if status.is_success() {
+        return Ok(());
+    }
+    let body = resp.text().unwrap_or_default();
+    bail!("Attio retornou {status}: {body}");
+}
+
 fn get_json(key: &str, url: reqwest::Url) -> Result<serde_json::Value> {
     let resp = client()
         .get(url)

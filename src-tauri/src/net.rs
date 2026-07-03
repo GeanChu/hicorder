@@ -9,7 +9,7 @@
 
 use std::net::{SocketAddr, ToSocketAddrs};
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use reqwest::dns::{Addrs, Name, Resolve, Resolving};
 
@@ -38,67 +38,4 @@ pub fn client(timeout_secs: u64) -> reqwest::blocking::Client {
         .timeout(Duration::from_secs(timeout_secs))
         .build()
         .unwrap_or_else(|_| reqwest::blocking::Client::new())
-}
-
-/// Diagnóstico de conectividade rodando dentro do processo do app.
-/// Bate em api.attio.com sem auth (espera 401 rápido). Compara o client
-/// padrão do reqwest com o nosso client (IPv4-only) p/ isolar a causa.
-pub fn attio_selftest(key: Option<&str>, emails: &[String]) -> String {
-    const URL: &str = "https://api.attio.com/v2/meetings?limit=1";
-    let mut out = String::new();
-
-    // 1. Client padrão do reqwest (sem nenhuma customização).
-    let t = Instant::now();
-    let plain = reqwest::blocking::Client::builder()
-        .timeout(Duration::from_secs(15))
-        .build();
-    match plain.and_then(|c| c.get(URL).send()) {
-        Ok(r) => out.push_str(&format!("[padrao] OK status={} ({:?})\n", r.status(), t.elapsed())),
-        Err(e) => out.push_str(&format!("[padrao] ERRO {e:?} ({:?})\n", t.elapsed())),
-    }
-
-    // 2. Nosso client (IPv4-only + native-tls + no-proxy).
-    let t = Instant::now();
-    match client(15).get(URL).send() {
-        Ok(r) => out.push_str(&format!("[app-ipv4] OK status={} ({:?})\n", r.status(), t.elapsed())),
-        Err(e) => out.push_str(&format!("[app-ipv4] ERRO {e:?} ({:?})\n", t.elapsed())),
-    }
-
-    // 3. Autenticado, se houver chave: isola auth e o param `participants`.
-    if let Some(key) = key {
-        let leg = |label: &str, url: String| -> String {
-            let t = Instant::now();
-            match client(20).get(&url).bearer_auth(key).send() {
-                Ok(r) => {
-                    let st = r.status();
-                    let body = r.text().unwrap_or_default();
-                    let snip: String = body.chars().take(160).collect();
-                    format!("[{label}] OK status={st} ({:?}) body={snip}\n", t.elapsed())
-                }
-                Err(e) => format!("[{label}] ERRO {e:?} ({:?})\n", t.elapsed()),
-            }
-        };
-        // A: authed simples (limit=1).
-        out.push_str(&leg("auth-simples", format!("{URL}")));
-        // B: authed por janela de tempo (a abordagem nova que substitui o
-        //    filtro `participants`, que trava no server beta do Attio).
-        let url_janela = reqwest::Url::parse_with_params(
-            "https://api.attio.com/v2/meetings",
-            &[
-                ("limit", "50"),
-                ("sort", "start_asc"),
-                ("ends_from", "2020-01-01T00:00:00.000Z"),
-                ("starts_before", "2030-01-01T00:00:00.000Z"),
-                ("timezone", "America/Sao_Paulo"),
-            ],
-        )
-        .map(|u| u.to_string())
-        .unwrap_or_else(|_| URL.to_string());
-        out.push_str(&leg("auth-janela", url_janela));
-        let _ = emails;
-    } else {
-        out.push_str("[auth] sem chave configurada — pulei os testes autenticados\n");
-    }
-
-    out
 }

@@ -463,8 +463,35 @@ button {
   font-size: 12px;
 }
 
-.attio-test {
+.key-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.key-row input {
+  flex: 1;
+}
+
+.test-ok,
+.test-err {
+  display: block;
+  margin-top: 6px;
+  font-size: 13px;
+}
+
+.test-ok {
+  color: #1a7f37;
+}
+
+.test-err {
+  color: #c0362c;
+}
+
+.log-view {
   margin-top: 10px;
+  max-height: 260px;
+  overflow: auto;
   padding: 10px 12px;
   border: 1px solid var(--border);
   border-radius: var(--radius);
