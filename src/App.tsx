@@ -827,6 +827,7 @@ function ConfigScreen({
   const [summaryKey, setSummaryKey] = useState("");
   const [attioKey, setAttioKey] = useState("");
   const [attioTest, setAttioTest] = useState<string | null>(null);
+  const [attioTestEmails, setAttioTestEmails] = useState("");
   const [icsUrl, setIcsUrl] = useState("");
   const [recordAll, setRecordAll] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
@@ -980,14 +981,28 @@ function ConfigScreen({
         />
       </div>
 
+      <div className="form-row">
+        <label>Emails p/ teste (separados por vírgula)</label>
+        <input
+          type="text"
+          value={attioTestEmails}
+          onChange={(e) => setAttioTestEmails(e.target.value)}
+          placeholder="gean@hi.capital, mika@hi.capital"
+        />
+      </div>
+
       <div className="actions">
         <button onClick={save}>Salvar</button>
         <button
           className="secondary"
           onClick={async () => {
             setAttioTest("Testando...");
+            const emails = attioTestEmails
+              .split(",")
+              .map((s) => s.trim())
+              .filter(Boolean);
             try {
-              setAttioTest(await invoke<string>("attio_selftest"));
+              setAttioTest(await invoke<string>("attio_selftest", { emails }));
             } catch (e) {
               setAttioTest(String(e));
             }

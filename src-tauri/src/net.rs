@@ -43,7 +43,7 @@ pub fn client(timeout_secs: u64) -> reqwest::blocking::Client {
 /// Diagnóstico de conectividade rodando dentro do processo do app.
 /// Bate em api.attio.com sem auth (espera 401 rápido). Compara o client
 /// padrão do reqwest com o nosso client (IPv4-only) p/ isolar a causa.
-pub fn attio_selftest() -> String {
+pub fn attio_selftest(key: Option<&str>, emails: &[String]) -> String {
     const URL: &str = "https://api.attio.com/v2/meetings?limit=1";
     let mut out = String::new();
 
@@ -62,6 +62,37 @@ pub fn attio_selftest() -> String {
     match client(15).get(URL).send() {
         Ok(r) => out.push_str(&format!("[app-ipv4] OK status={} ({:?})\n", r.status(), t.elapsed())),
         Err(e) => out.push_str(&format!("[app-ipv4] ERRO {e:?} ({:?})\n", t.elapsed())),
+    }
+
+    // 3. Autenticado, se houver chave: isola auth e o param `participants`.
+    if let Some(key) = key {
+        let leg = |label: &str, url: String| -> String {
+            let t = Instant::now();
+            match client(20).get(&url).bearer_auth(key).send() {
+                Ok(r) => {
+                    let st = r.status();
+                    let body = r.text().unwrap_or_default();
+                    let snip: String = body.chars().take(160).collect();
+                    format!("[{label}] OK status={st} ({:?}) body={snip}\n", t.elapsed())
+                }
+                Err(e) => format!("[{label}] ERRO {e:?} ({:?})\n", t.elapsed()),
+            }
+        };
+        // A: authed sem participants.
+        out.push_str(&leg("auth-sem-part", format!("{URL}")));
+        // B: authed com participants (a chamada real que trava).
+        if !emails.is_empty() {
+            let joined = emails.join(",");
+            let url = reqwest::Url::parse_with_params(
+                "https://api.attio.com/v2/meetings",
+                &[("limit", "25"), ("participants", joined.as_str())],
+            )
+            .map(|u| u.to_string())
+            .unwrap_or_else(|_| URL.to_string());
+            out.push_str(&leg("auth-com-part", url));
+        }
+    } else {
+        out.push_str("[auth] sem chave configurada — pulei os testes autenticados\n");
     }
 
     out
