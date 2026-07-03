@@ -22,8 +22,13 @@ const REFRESH_EVERY_TICKS: u32 = 10;
 
 pub fn spawn(app: AppHandle) {
     thread::spawn(move || {
-        // Pede permissão de notificação uma vez (Windows/macOS).
-        let _ = app.notification().request_permission();
+        // Pede permissão de notificação uma vez (main thread — exigência macOS).
+        {
+            let handle = app.clone();
+            let _ = app.run_on_main_thread(move || {
+                let _ = handle.notification().request_permission();
+            });
+        }
         let mut triggered: HashSet<String> = HashSet::new();
         let mut ticks: u32 = 0;
         loop {
@@ -210,8 +215,15 @@ fn urlencode(s: &str) -> String {
     out
 }
 
+/// Envia uma notificação nativa. Despacha para a thread principal — no macOS
+/// o centro de notificações exige main thread (o scheduler roda em outra).
 fn notify(app: &AppHandle, title: &str, body: &str) {
-    let _ = app.notification().builder().title(title).body(body).show();
+    let handle = app.clone();
+    let title = title.to_string();
+    let body = body.to_string();
+    let _ = app.run_on_main_thread(move || {
+        let _ = handle.notification().builder().title(title).body(body).show();
+    });
 }
 
 fn now_ms() -> i64 {

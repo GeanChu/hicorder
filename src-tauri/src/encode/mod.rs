@@ -58,7 +58,9 @@ pub fn transcode(ffmpeg: &str, src: &Path, out: &Path) -> Result<()> {
             cmd.arg("-c:a").arg("libmp3lame").arg("-q:a").arg("2");
         }
         "ogg" => {
-            cmd.arg("-c:a").arg("libvorbis").arg("-q:a").arg("5");
+            // Opus-em-Ogg: libopus está garantido nos 3 builds (usado no mix),
+            // ao contrário do libvorbis, que pode faltar no ffmpeg estático do Linux.
+            cmd.arg("-c:a").arg("libopus").arg("-b:a").arg("64k");
         }
         "wav" => {
             cmd.arg("-c:a").arg("pcm_s16le");
