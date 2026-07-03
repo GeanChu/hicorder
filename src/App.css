@@ -11,6 +11,9 @@
   --accent-soft: #eef2ff;
   --danger: #e0392b;
   --danger-hover: #c53024;
+  --danger-soft: #fdeceb;
+  --danger-soft-hover: #fbdbd8;
+  --play-hover: #e0e7ff;
   --success: #16a34a;
 
   --radius: 12px;
@@ -324,7 +327,7 @@ button {
 }
 
 .play-btn:hover {
-  background: #e0e7ff;
+  background: var(--play-hover);
 }
 
 .del-btn {
@@ -332,14 +335,14 @@ button {
   font-size: 13px;
   font-weight: 600;
   color: var(--danger);
-  background: #fdeceb;
+  background: var(--danger-soft);
   border: none;
   border-radius: var(--radius-sm);
   cursor: pointer;
 }
 
 .del-btn:hover {
-  background: #fbdbd8;
+  background: var(--danger-soft-hover);
 }
 
 /* ---- Forms ---- */
@@ -511,6 +514,29 @@ button {
 
 .meeting-extra a {
   color: var(--accent);
+}
+
+.meeting-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+.call-btn {
+  padding: 7px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #fff;
+  background: var(--accent);
+  border: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.call-btn:hover {
+  background: var(--accent-hover);
 }
 
 /* ---- Transcrição em chat ---- */
@@ -686,8 +712,27 @@ button {
 }
 
 /* ---- Dark mode ---- */
+/* Tokens dark reaproveitados: aplicados quando o tema é "dark" (explícito)
+   ou quando é "system"/ausente e o SO está em dark. */
+:root[data-theme="dark"] {
+  --bg: #0f1115;
+  --surface: #191c22;
+  --surface-2: #23272f;
+  --border: #2c313a;
+  --text: #e8eaed;
+  --text-muted: #9aa1ac;
+  --accent: #7c73ff;
+  --accent-hover: #6a60f0;
+  --accent-soft: #21243a;
+  --danger: #f0564a;
+  --danger-hover: #e0392b;
+  --danger-soft: #3a1f1d;
+  --danger-soft-hover: #4a2523;
+  --play-hover: #2a2f52;
+}
+
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]):not([data-theme="dark"]) {
     --bg: #0f1115;
     --surface: #191c22;
     --surface-2: #23272f;
@@ -699,14 +744,8 @@ button {
     --accent-soft: #21243a;
     --danger: #f0564a;
     --danger-hover: #e0392b;
-  }
-  .play-btn:hover {
-    background: #2a2f52;
-  }
-  .del-btn {
-    background: #3a1f1d;
-  }
-  .del-btn:hover {
-    background: #4a2523;
+    --danger-soft: #3a1f1d;
+    --danger-soft-hover: #4a2523;
+    --play-hover: #2a2f52;
   }
 }

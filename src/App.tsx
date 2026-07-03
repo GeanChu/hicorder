@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { convertFileSrc, invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { openUrl } from "@tauri-apps/plugin-opener";
 import "./App.css";
 
 type Tab = "agenda" | "gravacoes" | "transcricao" | "config";
@@ -44,6 +45,7 @@ type Settings = {
   record_all: boolean;
   has_attio_key: boolean;
   attio_user_email: string;
+  theme: string;
 };
 
 type AttioMeeting = {
@@ -271,6 +273,13 @@ function App() {
     refreshRecordings();
     refreshSettings();
   }, [refreshRecordings, refreshSettings]);
+
+  // Aplica o tema escolhido no <html> (system=sem atributo, segue o SO).
+  useEffect(() => {
+    const t = settings?.theme ?? "system";
+    if (t === "system") delete document.documentElement.dataset.theme;
+    else document.documentElement.dataset.theme = t;
+  }, [settings?.theme]);
 
   useEffect(() => {
     const un = listen("recording-changed", () => refreshRecordings());
@@ -617,23 +626,23 @@ function AgendaList({ hasIcs, recordAll }: { hasIcs: boolean; recordAll: boolean
                   {m.location && !isUrl(m.location) && (
                     <small className="meeting-extra">Local: {m.location}</small>
                   )}
-                  {m.link && (
-                    <small className="meeting-extra">
-                      <a href={m.link} target="_blank" rel="noreferrer">
-                        Link da call
-                      </a>
-                    </small>
-                  )}
                 </div>
-                <label className="chk" title={recordAll ? "Gravar todas está habilitado" : ""}>
-                  <input
-                    type="checkbox"
-                    checked={recordAll || m.record_enabled}
-                    disabled={recordAll}
-                    onChange={(e) => toggle(m.uid, e.target.checked)}
-                  />
-                  Gravar
-                </label>
+                <div className="meeting-actions">
+                  {m.link && (
+                    <button className="call-btn" onClick={() => openUrl(m.link!)}>
+                      Entrar na call
+                    </button>
+                  )}
+                  <label className="chk" title={recordAll ? "Gravar todas está habilitado" : ""}>
+                    <input
+                      type="checkbox"
+                      checked={recordAll || m.record_enabled}
+                      disabled={recordAll}
+                      onChange={(e) => toggle(m.uid, e.target.checked)}
+                    />
+                    Gravar
+                  </label>
+                </div>
               </div>
             </li>
           ))}
@@ -1145,6 +1154,7 @@ function ConfigScreen({
   const [logText, setLogText] = useState<string | null>(null);
   const [icsUrl, setIcsUrl] = useState("");
   const [recordAll, setRecordAll] = useState(false);
+  const [theme, setTheme] = useState("system");
   const [msg, setMsg] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -1184,6 +1194,7 @@ function ConfigScreen({
       setIcsUrl(settings.ics_url);
       setRecordAll(settings.record_all);
       setAttioUserEmail(settings.attio_user_email);
+      setTheme(settings.theme);
     }
   }, [settings]);
 
@@ -1200,6 +1211,7 @@ function ConfigScreen({
         icsUrl,
         recordAll,
         attioUserEmail,
+        theme,
       });
       if (apiKey.trim()) {
         await invoke("set_api_key", { key: apiKey });
@@ -1232,6 +1244,24 @@ function ConfigScreen({
               {l.label}
             </option>
           ))}
+        </select>
+      </div>
+
+      <div className="form-row">
+        <label>Tema</label>
+        <select
+          value={theme}
+          onChange={(e) => {
+            const t = e.target.value;
+            setTheme(t);
+            // Prévia imediata (persiste ao Salvar).
+            if (t === "system") delete document.documentElement.dataset.theme;
+            else document.documentElement.dataset.theme = t;
+          }}
+        >
+          <option value="system">Automático (sistema)</option>
+          <option value="light">Claro</option>
+          <option value="dark">Escuro</option>
         </select>
       </div>
 

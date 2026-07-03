@@ -31,6 +31,8 @@ pub struct AppSettings {
     pub has_attio_key: bool,
     /// Email do usuário no Attio — filtra reuniões sugeridas às que ele participa.
     pub attio_user_email: String,
+    /// Tema da UI: "system" | "light" | "dark".
+    pub theme: String,
 }
 
 #[derive(Serialize, Clone)]
@@ -168,6 +170,9 @@ pub fn get_settings(app: AppHandle) -> Result<AppSettings, String> {
     let attio_user_email = storage::get_setting(&conn, "attio_user_email")
         .map_err(|e| e.to_string())?
         .unwrap_or_default();
+    let theme = storage::get_setting(&conn, "theme")
+        .map_err(|e| e.to_string())?
+        .unwrap_or_else(|| "system".to_string());
     Ok(AppSettings {
         default_language,
         endpoint_url: cfg.endpoint_url,
@@ -180,6 +185,7 @@ pub fn get_settings(app: AppHandle) -> Result<AppSettings, String> {
         record_all,
         has_attio_key: settings::has_attio_key(),
         attio_user_email,
+        theme,
     })
 }
 
@@ -194,6 +200,7 @@ pub fn save_settings(
     ics_url: String,
     record_all: bool,
     attio_user_email: String,
+    theme: String,
 ) -> Result<(), String> {
     let conn = open_db(&app)?;
     storage::set_setting(&conn, "default_language", &default_language).map_err(|e| e.to_string())?;
@@ -207,6 +214,7 @@ pub fn save_settings(
         .map_err(|e| e.to_string())?;
     storage::set_setting(&conn, "attio_user_email", attio_user_email.trim())
         .map_err(|e| e.to_string())?;
+    storage::set_setting(&conn, "theme", &theme).map_err(|e| e.to_string())?;
     Ok(())
 }
 
