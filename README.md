@@ -22,7 +22,7 @@ Gravador de reuniões para times. Grava o áudio do **microfone** e do **sistema
 
 ## Instalação
 
-Baixe o instalador do seu sistema em [Releases](https://github.com/GeanChu/call-recorder/releases): `.msi`/`.exe` (Windows), `.dmg` (macOS), `.AppImage`/`.deb` (Linux).
+Baixe o instalador do seu sistema em [Releases](https://github.com/GeanChu/hicorder/releases): `.msi`/`.exe` (Windows), `.dmg` (macOS), `.AppImage`/`.deb` (Linux).
 
 ### Aviso do antivírus / SmartScreen
 

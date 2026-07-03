@@ -7,11 +7,11 @@ Instaladores não assinados disparam SmartScreen e antivírus (Kaspersky etc.). 
 
 ## Pré-requisitos (status)
 - [x] Licença OSI (MIT — [LICENSE](../LICENSE)).
-- [x] Código-fonte público: https://github.com/GeanChu/call-recorder
+- [x] Código-fonte público: https://github.com/GeanChu/hicorder
 - [x] Build 100% em CI público (GitHub Actions — [release.yml](../.github/workflows/release.yml)); os artefatos assinados devem vir do CI, nunca de build local.
 - [x] Metadados do produto no binário (publisher, versão, descrição — `tauri.conf.json`).
 - [x] README com descrição do projeto e política de segurança ([SECURITY.md](../SECURITY.md)).
-- [ ] Recomendado: renomear o repo para `hicorder` antes de aplicar (consistência com o produto).
+- [x] Repo renomeado para `hicorder` (consistência com o produto).
 
 ## Como aplicar (feito pelo dono do repo)
 1. Criar conta em https://app.signpath.io (login com GitHub).

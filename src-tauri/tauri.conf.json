@@ -33,7 +33,7 @@
     "category": "Productivity",
     "shortDescription": "Gravador de reunioes com transcricao por IA",
     "longDescription": "Hicorder grava o audio do microfone e do sistema durante reunioes, transcreve com IA, gera resumos e envia notas para o CRM. Codigo aberto (MIT).",
-    "homepage": "https://github.com/GeanChu/call-recorder",
+    "homepage": "https://github.com/GeanChu/hicorder",
     "resources": ["resources/*"],
     "icon": [
       "icons/32x32.png",

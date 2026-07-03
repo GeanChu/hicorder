@@ -104,7 +104,7 @@ Cada PR é uma unidade lógica, testável e mergeável. Marque os checkboxes ao 
 ---
 
 ## PR7 — Empacotamento e distribuição
-Repo público: github.com/GeanChu/call-recorder. Estratégia de assinatura grátis: **SignPath Foundation** (OSS) + reportar FP ao Kaspersky.
+Repo público: github.com/GeanChu/hicorder. Estratégia de assinatura grátis: **SignPath Foundation** (OSS) + reportar FP ao Kaspersky.
 
 ### PR7a — CI/Release (GitHub Actions) ✅ (código; falta rodar na nuvem)
 - [x] `.github/workflows/ci.yml`: builda no push (ubuntu/macos/windows) — **1ª compilação no Mac/Linux**, acha bugs de plataforma.

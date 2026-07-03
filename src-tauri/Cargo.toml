@@ -4,7 +4,7 @@ version = "0.2.0"
 description = "Hicorder — gravador de reuniões com transcrição por IA"
 authors = ["hi.capital"]
 license = "MIT"
-repository = "https://github.com/GeanChu/call-recorder"
+repository = "https://github.com/GeanChu/hicorder"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
