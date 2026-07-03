@@ -74,6 +74,98 @@ const LANGUAGES: { code: string; label: string }[] = [
   { code: "it", label: "Italiano" },
 ];
 
+type Provider = {
+  id: string;
+  label: string;
+  endpoint: string;
+  model: string;
+  keyHelp: string;
+};
+
+// Speech-to-text: compatíveis com a API OpenAI de transcrição (multipart Whisper).
+const STT_PROVIDERS: Provider[] = [
+  {
+    id: "groq",
+    label: "Groq (Whisper)",
+    endpoint: "https://api.groq.com/openai/v1/audio/transcriptions",
+    model: "whisper-large-v3-turbo",
+    keyHelp: "Chave grátis em console.groq.com/keys (Groq → API Keys → Create API Key).",
+  },
+  {
+    id: "openai",
+    label: "OpenAI (Whisper)",
+    endpoint: "https://api.openai.com/v1/audio/transcriptions",
+    model: "whisper-1",
+    keyHelp: "platform.openai.com/api-keys (OpenAI → API keys → Create new secret key).",
+  },
+  {
+    id: "fireworks",
+    label: "Fireworks AI (Whisper)",
+    endpoint: "https://api.fireworks.ai/inference/v1/audio/transcriptions",
+    model: "whisper-v3",
+    keyHelp: "fireworks.ai → Account → API Keys.",
+  },
+  {
+    id: "custom",
+    label: "Personalizado",
+    endpoint: "",
+    model: "",
+    keyHelp: "Informe um endpoint compatível com a API OpenAI de transcrição.",
+  },
+];
+
+// Resumo: compatíveis com a API OpenAI de chat completions.
+const SUMMARY_PROVIDERS: Provider[] = [
+  {
+    id: "openai",
+    label: "OpenAI (GPT)",
+    endpoint: "https://api.openai.com/v1/chat/completions",
+    model: "gpt-4o-mini",
+    keyHelp: "platform.openai.com/api-keys (OpenAI → API keys → Create new secret key).",
+  },
+  {
+    id: "anthropic",
+    label: "Claude (Anthropic)",
+    endpoint: "https://api.anthropic.com/v1/chat/completions",
+    model: "claude-3-5-sonnet-latest",
+    keyHelp: "console.anthropic.com/settings/keys (Anthropic → API Keys). Endpoint compatível com OpenAI.",
+  },
+  {
+    id: "gemini",
+    label: "Google Gemini",
+    endpoint: "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
+    model: "gemini-2.0-flash",
+    keyHelp: "aistudio.google.com/apikey (Google AI Studio → Get API key).",
+  },
+  {
+    id: "minimax_sub",
+    label: "MiniMax (Subscription sk-cp)",
+    endpoint: "https://api.minimax.io/v1/chat/completions",
+    model: "MiniMax-M3",
+    keyHelp: "Use a Subscription Key sk-cp da sua conta MiniMax (menu da conta → Subscription Key).",
+  },
+  {
+    id: "minimax_api",
+    label: "MiniMax (API)",
+    endpoint: "https://api.minimax.io/v1/chat/completions",
+    model: "MiniMax-M3",
+    keyHelp: "platform.minimax.io → Account → API Keys (chave de API, começa com ey...).",
+  },
+  {
+    id: "custom",
+    label: "Personalizado",
+    endpoint: "",
+    model: "",
+    keyHelp: "Informe um endpoint compatível com a API OpenAI de chat completions.",
+  },
+];
+
+// Descobre o provedor salvo a partir do endpoint (para pré-selecionar o select).
+function providerFromEndpoint(list: Provider[], endpoint: string): string {
+  const hit = list.find((p) => p.id !== "custom" && p.endpoint === endpoint);
+  return hit ? hit.id : "custom";
+}
+
 function icon(name: string) {
   const c = { width: 18, height: 18, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 2 };
   switch (name) {
@@ -864,9 +956,11 @@ function ConfigScreen({
   onSaved: () => void;
 }) {
   const [defaultLanguage, setDefaultLanguage] = useState("pt");
+  const [sttProvider, setSttProvider] = useState("groq");
   const [endpointUrl, setEndpointUrl] = useState("");
   const [model, setModel] = useState("");
   const [apiKey, setApiKey] = useState("");
+  const [summaryProvider, setSummaryProvider] = useState("minimax_sub");
   const [summaryEndpointUrl, setSummaryEndpointUrl] = useState("");
   const [summaryModel, setSummaryModel] = useState("");
   const [summaryKey, setSummaryKey] = useState("");
@@ -884,8 +978,10 @@ function ConfigScreen({
       setDefaultLanguage(settings.default_language);
       setEndpointUrl(settings.endpoint_url);
       setModel(settings.model);
+      setSttProvider(providerFromEndpoint(STT_PROVIDERS, settings.endpoint_url));
       setSummaryEndpointUrl(settings.summary_endpoint_url);
       setSummaryModel(settings.summary_model);
+      setSummaryProvider(providerFromEndpoint(SUMMARY_PROVIDERS, settings.summary_endpoint_url));
       setIcsUrl(settings.ics_url);
       setRecordAll(settings.record_all);
       setAttioUserEmail(settings.attio_user_email);
@@ -940,16 +1036,40 @@ function ConfigScreen({
         </select>
       </div>
 
-      <h3 className="cfg-section">Transcrição (Groq / Whisper)</h3>
+      <h3 className="cfg-section">Transcrição (speech-to-text)</h3>
       <p className="hint">Converte o áudio da reunião em texto.</p>
       <div className="form-row">
-        <label>Endpoint</label>
-        <input
-          value={endpointUrl}
-          onChange={(e) => setEndpointUrl(e.target.value)}
-          placeholder="https://api.groq.com/openai/v1/audio/transcriptions"
-        />
+        <label>Provedor</label>
+        <select
+          value={sttProvider}
+          onChange={(e) => {
+            const id = e.target.value;
+            setSttProvider(id);
+            const p = STT_PROVIDERS.find((x) => x.id === id)!;
+            if (id !== "custom") {
+              setEndpointUrl(p.endpoint);
+              setModel(p.model);
+            }
+          }}
+        >
+          {STT_PROVIDERS.map((p) => (
+            <option key={p.id} value={p.id}>
+              {p.label}
+            </option>
+          ))}
+        </select>
+        <span className="hint">{STT_PROVIDERS.find((p) => p.id === sttProvider)?.keyHelp}</span>
       </div>
+      {sttProvider === "custom" && (
+        <div className="form-row">
+          <label>Endpoint</label>
+          <input
+            value={endpointUrl}
+            onChange={(e) => setEndpointUrl(e.target.value)}
+            placeholder="https://.../v1/audio/transcriptions"
+          />
+        </div>
+      )}
       <div className="form-row">
         <label>Modelo</label>
         <input
@@ -968,16 +1088,40 @@ function ConfigScreen({
         />
       </div>
 
-      <h3 className="cfg-section">Resumo (MiniMax-M3) — opcional</h3>
-      <p className="hint">Gera um resumo da reunião a partir da transcrição. Usa a chave sk-cp da MiniMax.</p>
+      <h3 className="cfg-section">Resumo (LLM) — opcional</h3>
+      <p className="hint">Gera um resumo da reunião a partir da transcrição.</p>
       <div className="form-row">
-        <label>Endpoint</label>
-        <input
-          value={summaryEndpointUrl}
-          onChange={(e) => setSummaryEndpointUrl(e.target.value)}
-          placeholder="https://api.minimax.io/v1/chat/completions"
-        />
+        <label>Provedor</label>
+        <select
+          value={summaryProvider}
+          onChange={(e) => {
+            const id = e.target.value;
+            setSummaryProvider(id);
+            const p = SUMMARY_PROVIDERS.find((x) => x.id === id)!;
+            if (id !== "custom") {
+              setSummaryEndpointUrl(p.endpoint);
+              setSummaryModel(p.model);
+            }
+          }}
+        >
+          {SUMMARY_PROVIDERS.map((p) => (
+            <option key={p.id} value={p.id}>
+              {p.label}
+            </option>
+          ))}
+        </select>
+        <span className="hint">{SUMMARY_PROVIDERS.find((p) => p.id === summaryProvider)?.keyHelp}</span>
       </div>
+      {summaryProvider === "custom" && (
+        <div className="form-row">
+          <label>Endpoint</label>
+          <input
+            value={summaryEndpointUrl}
+            onChange={(e) => setSummaryEndpointUrl(e.target.value)}
+            placeholder="https://.../v1/chat/completions"
+          />
+        </div>
+      )}
       <div className="form-row">
         <label>Modelo</label>
         <input
@@ -987,7 +1131,7 @@ function ConfigScreen({
         />
       </div>
       <div className="form-row">
-        <label>Chave da API (sk-cp)</label>
+        <label>Chave da API</label>
         <input
           type="password"
           value={summaryKey}
