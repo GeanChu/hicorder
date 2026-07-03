@@ -1269,6 +1269,7 @@ function ConfigScreen({
   const [icsUrl, setIcsUrl] = useState("");
   const [recordAll, setRecordAll] = useState(false);
   const [autoSyncAgenda, setAutoSyncAgenda] = useState(true);
+  const [autostart, setAutostart] = useState(true);
   const [theme, setTheme] = useState("system");
   const [msg, setMsg] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -1313,6 +1314,21 @@ function ConfigScreen({
       setTheme(settings.theme);
     }
   }, [settings]);
+
+  // Estado da autoinicialização (nível do SO, não fica no AppSettings).
+  useEffect(() => {
+    invoke<boolean>("get_autostart").then(setAutostart).catch(() => {});
+  }, []);
+
+  async function toggleAutostart(enabled: boolean) {
+    setAutostart(enabled);
+    try {
+      await invoke("set_autostart", { enabled });
+    } catch (e) {
+      setError(String(e));
+      setAutostart(!enabled); // reverte se falhar
+    }
+  }
 
   async function save() {
     setError(null);
@@ -1545,6 +1561,15 @@ function ConfigScreen({
           onChange={(e) => setAutoSyncAgenda(e.target.checked)}
         />
         Sincronizar a agenda automaticamente ao abrir o app
+      </label>
+      <label className="chk">
+        <input
+          type="checkbox"
+          checked={autostart}
+          onChange={(e) => toggleAutostart(e.target.checked)}
+        />
+        Iniciar o Hicorder junto com o sistema (recomendado, para gravar reuniões
+        automaticamente)
       </label>
 
       <h3 className="cfg-section">Attio (CRM)</h3>

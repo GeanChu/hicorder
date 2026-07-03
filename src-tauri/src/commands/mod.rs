@@ -360,6 +360,41 @@ pub async fn test_attio_api(app: AppHandle, key: Option<String>) -> Result<Strin
         .map_err(|e| fail(&app, "attio", e.to_string()))
 }
 
+/// Liga a autoinicialização por padrão na primeira execução (uma única vez).
+pub fn ensure_autostart_default(app: &AppHandle) {
+    use tauri_plugin_autostart::ManagerExt;
+    let Ok(conn) = open_db(app) else {
+        return;
+    };
+    if storage::get_setting(&conn, "autostart_init")
+        .ok()
+        .flatten()
+        .is_some()
+    {
+        return; // já configurado antes — respeita a escolha do usuário.
+    }
+    if let Err(e) = app.autolaunch().enable() {
+        logs::log(app, "INFO", "autostart", &format!("falha ao habilitar: {e}"));
+    }
+    let _ = storage::set_setting(&conn, "autostart_init", "1");
+}
+
+/// Estado atual da autoinicialização com o SO.
+#[tauri::command]
+pub fn get_autostart(app: AppHandle) -> Result<bool, String> {
+    use tauri_plugin_autostart::ManagerExt;
+    app.autolaunch().is_enabled().map_err(|e| e.to_string())
+}
+
+/// Liga/desliga a autoinicialização com o SO.
+#[tauri::command]
+pub fn set_autostart(app: AppHandle, enabled: bool) -> Result<(), String> {
+    use tauri_plugin_autostart::ManagerExt;
+    let al = app.autolaunch();
+    let r = if enabled { al.enable() } else { al.disable() };
+    r.map_err(|e| e.to_string())
+}
+
 /// Devolve o conteúdo do log persistente (para troubleshooting).
 #[tauri::command]
 pub fn get_logs(app: AppHandle) -> Result<String, String> {

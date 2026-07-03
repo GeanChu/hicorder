@@ -22,9 +22,15 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_autostart::init(
+            tauri_plugin_autostart::MacosLauncher::LaunchAgent,
+            Some(vec!["--minimized"]),
+        ))
         .manage(Recorder::new())
         .setup(|app| {
             migrate::run(app.handle());
+            // Autoinicialização junto ao SO: ligada por padrão na 1ª execução.
+            commands::ensure_autostart_default(app.handle());
             tray::build_tray(app.handle())?;
             scheduler::spawn(app.handle().clone());
 
@@ -55,6 +61,10 @@ pub fn run() {
                         let _ = w.hide();
                     }
                 });
+                // Autoinicialização passa --minimized: começa escondido no tray.
+                if std::env::args().any(|a| a == "--minimized") {
+                    let _ = win.hide();
+                }
             }
             Ok(())
         })
@@ -87,6 +97,8 @@ pub fn run() {
             commands::test_attio_api,
             commands::get_logs,
             commands::clear_logs,
+            commands::get_autostart,
+            commands::set_autostart,
             commands::attio_find_meetings,
             commands::attio_upload,
         ])
