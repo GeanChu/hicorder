@@ -67,17 +67,35 @@ pub fn fetch_and_parse(ics_url: &str) -> Result<Vec<Meeting>> {
     parse_ics(&body)
 }
 
+/// Evento já parseado (dados próprios, sem borrows) — permite duas passadas.
+struct ParsedEvent {
+    uid: String,
+    title: String,
+    starts_at: i64,
+    ends_at: i64,
+    participants: Vec<String>,
+    location: Option<String>,
+    link: Option<String>,
+    rrule: Option<String>,
+    exdates: Vec<String>,
+    dtstart_line: Option<String>,
+    /// Início original da ocorrência substituída (VEVENT com RECURRENCE-ID).
+    recurrence_id: Option<i64>,
+}
+
 pub fn parse_ics(body: &str) -> Result<Vec<Meeting>> {
     let now = Utc::now().timestamp_millis();
     let horizon = now + HORIZON_DAYS * 86_400_000;
     let parser = IcalParser::new(BufReader::new(body.as_bytes()));
-    let mut out = Vec::new();
+
+    // Passada 1: coleta os eventos.
+    let mut events: Vec<ParsedEvent> = Vec::new();
     for cal in parser {
         let cal = cal.map_err(|e| anyhow!("ICS inválido: {e}"))?;
         for ev in cal.events {
             let mut uid = None;
             let mut title = None;
-            let mut dtstart: Option<&Property> = None;
+            let mut dtstart_line = None;
             let mut start = None;
             let mut end = None;
             let mut participants = Vec::new();
@@ -87,15 +105,17 @@ pub fn parse_ics(body: &str) -> Result<Vec<Meeting>> {
             let mut x_conference = None;
             let mut rrule = None;
             let mut exdates: Vec<String> = Vec::new();
+            let mut recurrence_id = None;
             for p in &ev.properties {
                 match p.name.as_str() {
                     "UID" => uid = p.value.clone(),
                     "SUMMARY" => title = p.value.clone(),
                     "DTSTART" => {
-                        dtstart = Some(p);
+                        dtstart_line = dtstart_line_of(p);
                         start = parse_dt(p);
                     }
                     "DTEND" => end = parse_dt(p),
+                    "RECURRENCE-ID" => recurrence_id = parse_dt(p),
                     "ATTENDEE" => {
                         if let Some(email) = attendee_email(p) {
                             participants.push(email);
@@ -118,40 +138,70 @@ pub fn parse_ics(body: &str) -> Result<Vec<Meeting>> {
                 continue;
             };
             let ends_at = end.unwrap_or(starts_at + 3_600_000); // default 1h
-            let duration = (ends_at - starts_at).max(0);
-            let title = title.unwrap_or_else(|| "(sem título)".to_string());
-            let link = pick_call_link(
-                x_conference.as_deref(),
-                url.as_deref(),
-                location.as_deref(),
-                description.as_deref(),
-            );
+            events.push(ParsedEvent {
+                uid,
+                title: title.unwrap_or_else(|| "(sem título)".to_string()),
+                starts_at,
+                ends_at,
+                participants,
+                location: location.clone(),
+                link: pick_call_link(
+                    x_conference.as_deref(),
+                    url.as_deref(),
+                    location.as_deref(),
+                    description.as_deref(),
+                ),
+                rrule,
+                exdates,
+                dtstart_line,
+                recurrence_id,
+            });
+        }
+    }
 
-            // Ocorrências: RRULE expandida na janela, ou a única data.
-            let occurrences = match (&rrule, dtstart) {
-                (Some(rule), Some(ds)) => {
-                    expand_rrule(ds, rule, &exdates, now, horizon).unwrap_or_else(|| vec![starts_at])
-                }
-                _ => vec![starts_at],
-            };
+    // Ocorrências substituídas por um override (RECURRENCE-ID) não devem sair
+    // da expansão da regra — o override as substitui.
+    let overrides: std::collections::HashSet<(String, i64)> = events
+        .iter()
+        .filter_map(|e| e.recurrence_id.map(|r| (e.uid.clone(), r)))
+        .collect();
 
-            for occ in occurrences {
-                // uid único por ocorrência para não colidir no banco.
-                let occ_uid = if rrule.is_some() {
-                    format!("{uid}-{occ}")
-                } else {
-                    uid.clone()
-                };
-                out.push(Meeting {
-                    uid: occ_uid,
-                    title: title.clone(),
-                    starts_at: occ,
-                    ends_at: occ + duration,
-                    participants: participants.clone(),
-                    location: location.clone(),
-                    link: link.clone(),
-                });
+    // Passada 2: emite, pulando duplicatas (mesma reunião no mesmo horário).
+    let mut seen: std::collections::HashSet<(i64, i64, String)> = std::collections::HashSet::new();
+    let mut out = Vec::new();
+    for e in &events {
+        let duration = (e.ends_at - e.starts_at).max(0);
+        let occurrences: Vec<i64> = match (&e.rrule, &e.dtstart_line) {
+            (Some(rule), Some(line)) => expand_rrule(line, rule, &e.exdates, now, horizon)
+                .unwrap_or_else(|| vec![e.starts_at])
+                .into_iter()
+                .filter(|occ| !overrides.contains(&(e.uid.clone(), *occ)))
+                .collect(),
+            _ => vec![e.starts_at],
+        };
+
+        for occ in occurrences {
+            let ends_at = occ + duration;
+            // Dedup: mesma reunião (título + horário) só entra uma vez.
+            if !seen.insert((occ, ends_at, e.title.clone())) {
+                continue;
             }
+            let uid = if e.rrule.is_some() {
+                format!("{}-{occ}", e.uid)
+            } else if let Some(r) = e.recurrence_id {
+                format!("{}-{r}", e.uid)
+            } else {
+                e.uid.clone()
+            };
+            out.push(Meeting {
+                uid,
+                title: e.title.clone(),
+                starts_at: occ,
+                ends_at,
+                participants: e.participants.clone(),
+                location: e.location.clone(),
+                link: e.link.clone(),
+            });
         }
     }
     Ok(out)
@@ -160,13 +210,13 @@ pub fn parse_ics(body: &str) -> Result<Vec<Meeting>> {
 /// Expande uma RRULE na janela [now-1h, horizon], respeitando EXDATE.
 /// Retorna os instantes de início (unix ms) ou None se a regra não parsear.
 fn expand_rrule(
-    dtstart: &Property,
+    dtstart_line: &str,
     rrule_value: &str,
     exdates: &[String],
     now_ms: i64,
     horizon_ms: i64,
 ) -> Option<Vec<i64>> {
-    let mut input = dtstart_line(dtstart)?;
+    let mut input = dtstart_line.to_string();
     input.push_str("\nRRULE:");
     input.push_str(rrule_value.trim());
     for ex in exdates {
@@ -197,7 +247,7 @@ fn expand_rrule(
 }
 
 /// Reconstrói a linha `DTSTART...` no formato iCal para alimentar o parser de RRULE.
-fn dtstart_line(p: &Property) -> Option<String> {
+fn dtstart_line_of(p: &Property) -> Option<String> {
     let value = p.value.as_ref()?;
     if let Some(tzid) = tzid_param(p) {
         Some(format!("DTSTART;TZID={tzid}:{value}"))
@@ -378,5 +428,21 @@ END:VEVENT\r\nEND:VCALENDAR\r\n";
     fn link_usa_x_google_conference() {
         let l = pick_call_link(Some("https://meet.google.com/xyz-1234-abc"), None, None, None);
         assert_eq!(l.as_deref(), Some("https://meet.google.com/xyz-1234-abc"));
+    }
+
+    #[test]
+    fn nao_duplica_ocorrencia_com_recurrence_id() {
+        // Mestre semanal + override (RECURRENCE-ID) de uma ocorrência: uma só.
+        let ics = "BEGIN:VCALENDAR\r\n\
+BEGIN:VEVENT\r\nUID:rec\r\nSUMMARY:Comite\r\nDTSTART:20200106T130000Z\r\nDTEND:20200106T140000Z\r\nRRULE:FREQ=WEEKLY;BYDAY=MO\r\nEND:VEVENT\r\n\
+BEGIN:VEVENT\r\nUID:rec\r\nSUMMARY:Comite\r\nRECURRENCE-ID:20200113T130000Z\r\nDTSTART:20200113T130000Z\r\nDTEND:20200113T140000Z\r\nEND:VEVENT\r\n\
+END:VCALENDAR\r\n";
+        let ms = parse_ics(ics).unwrap();
+        // Nenhuma tripla (start,end,title) repetida.
+        let mut keys: Vec<_> = ms.iter().map(|m| (m.starts_at, m.ends_at, &m.title)).collect();
+        let total = keys.len();
+        keys.sort();
+        keys.dedup();
+        assert_eq!(keys.len(), total, "há reuniões duplicadas");
     }
 }
