@@ -5,6 +5,7 @@ import { openUrl } from "@tauri-apps/plugin-opener";
 import { save } from "@tauri-apps/plugin-dialog";
 import { check } from "@tauri-apps/plugin-updater";
 import { relaunch } from "@tauri-apps/plugin-process";
+import { getVersion } from "@tauri-apps/api/app";
 import "./App.css";
 
 // Registra um erro do frontend no log persistente (callrec.log).
@@ -1364,8 +1365,58 @@ function ConfigScreen({
   const [autoSyncAgenda, setAutoSyncAgenda] = useState(true);
   const [autostart, setAutostart] = useState(true);
   const [theme, setTheme] = useState("system");
+  const [appVersion, setAppVersion] = useState("");
+  const [updateStatus, setUpdateStatus] = useState<string | null>(null);
+  const [updateVersion, setUpdateVersion] = useState<string | null>(null);
+  const [updBusy, setUpdBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    getVersion().then(setAppVersion).catch(() => {});
+  }, []);
+
+  async function checkUpdate() {
+    setUpdBusy(true);
+    setUpdateStatus("Verificando...");
+    setUpdateVersion(null);
+    try {
+      const u = await check();
+      if (u) {
+        setUpdateVersion(u.version);
+        setUpdateStatus(`Nova versão ${u.version} disponível.`);
+      } else {
+        setUpdateStatus("Você já está na versão mais recente.");
+      }
+    } catch (e) {
+      setUpdateStatus("Não foi possível verificar agora.");
+      logClient("updater", e);
+    } finally {
+      setUpdBusy(false);
+    }
+  }
+
+  async function installUpdate() {
+    setUpdBusy(true);
+    setUpdateStatus("Baixando atualização...");
+    try {
+      const u = await check();
+      if (!u) {
+        setUpdateStatus("Você já está na versão mais recente.");
+        setUpdateVersion(null);
+        return;
+      }
+      await u.downloadAndInstall((e) => {
+        if (e.event === "Finished") setUpdateStatus("Instalando...");
+      });
+      await relaunch();
+    } catch (e) {
+      setUpdateStatus("Falha ao atualizar. Veja os logs.");
+      logClient("updater", e);
+    } finally {
+      setUpdBusy(false);
+    }
+  }
 
   async function testApi(which: "stt" | "summary" | "attio") {
     setTestResult((t) => ({ ...t, [which]: "Testando..." }));
@@ -1715,6 +1766,20 @@ function ConfigScreen({
         </button>
       </div>
       {logText !== null && <pre className="log-view">{logText}</pre>}
+
+      <h3 className="cfg-section">Sobre</h3>
+      <p className="hint">Versão instalada: {appVersion || "..."}</p>
+      <div className="actions">
+        <button type="button" className="secondary" onClick={checkUpdate} disabled={updBusy}>
+          Buscar atualização
+        </button>
+        {updateVersion && (
+          <button type="button" onClick={installUpdate} disabled={updBusy}>
+            {updBusy ? "Atualizando..." : `Atualizar para ${updateVersion}`}
+          </button>
+        )}
+      </div>
+      {updateStatus && <p className="hint">{updateStatus}</p>}
 
       <div className="actions">
         <button onClick={save}>Salvar</button>
