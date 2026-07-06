@@ -640,6 +640,36 @@ button {
   border: 1px solid color-mix(in srgb, var(--accent) 25%, transparent);
 }
 
+.update-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+  padding: 10px 14px;
+  border-radius: var(--radius-sm);
+  background: var(--accent);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.update-banner button {
+  border: none;
+  background: #fff;
+  color: var(--accent);
+  font-weight: 600;
+  padding: 7px 14px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.update-banner button:disabled {
+  opacity: 0.7;
+  cursor: default;
+}
+
 .meeting-extra {
   display: block;
   color: var(--text-muted);

@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "Hicorder",
-  "version": "0.2.6",
+  "version": "0.2.7",
   "identifier": "com.hicapital.hicorder",
   "build": {
     "beforeDevCommand": "npm run dev",
@@ -28,6 +28,7 @@
   "bundle": {
     "active": true,
     "targets": "all",
+    "createUpdaterArtifacts": true,
     "publisher": "hi.capital",
     "copyright": "Copyright (c) 2026 hi.capital",
     "category": "Productivity",
@@ -42,5 +43,13 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ]
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDZGRjg0RjdGMUM1N0JBQTIKUldTaXVsY2NmMC80YitqMytmZFljb3JYcytzazhqT3FGQm9zVzN1ZEEwVXgxQzFHc1VBNmdWTTMK",
+      "endpoints": [
+        "https://github.com/GeanChu/hicorder/releases/latest/download/latest.json"
+      ]
+    }
   }
 }

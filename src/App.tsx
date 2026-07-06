@@ -3,6 +3,8 @@ import { convertFileSrc, invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { save } from "@tauri-apps/plugin-dialog";
+import { check } from "@tauri-apps/plugin-updater";
+import { relaunch } from "@tauri-apps/plugin-process";
 import "./App.css";
 
 // Registra um erro do frontend no log persistente (callrec.log).
@@ -289,6 +291,8 @@ function App() {
   const [tab, setTab] = useState<Tab>("agenda");
   const [recordings, setRecordings] = useState<Recording[]>([]);
   const [settings, setSettings] = useState<Settings | null>(null);
+  const [update, setUpdate] = useState<{ version: string } | null>(null);
+  const [updating, setUpdating] = useState<string | null>(null);
 
   // Janela-toast de reunião começando (aberta pelo scheduler com ?alert=1).
   const isAlert = new URLSearchParams(window.location.search).get("alert") === "1";
@@ -328,6 +332,48 @@ function App() {
     };
   }, [refreshRecordings]);
 
+  // Verifica atualização no início e uma vez por dia. Falha silenciosa
+  // (offline, sem manifesto) — só avisa quando há versão nova.
+  useEffect(() => {
+    if (isAlert) return;
+    let cancelled = false;
+    const run = async () => {
+      try {
+        const u = await check();
+        if (u && !cancelled) setUpdate({ version: u.version });
+      } catch {
+        /* offline ou sem update */
+      }
+    };
+    run();
+    const id = window.setInterval(run, 24 * 60 * 60 * 1000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(id);
+    };
+  }, [isAlert]);
+
+  async function applyUpdate() {
+    setUpdating("Baixando atualização...");
+    try {
+      const u = await check();
+      if (!u) {
+        setUpdate(null);
+        setUpdating(null);
+        return;
+      }
+      await u.downloadAndInstall((e) => {
+        if (e.event === "Progress") setUpdating("Baixando atualização...");
+        else if (e.event === "Finished") setUpdating("Instalando...");
+      });
+      await relaunch();
+    } catch (e) {
+      setUpdating(null);
+      logClient("updater", e);
+      alert("Falha ao atualizar: " + String(e));
+    }
+  }
+
   if (isAlert) return <MeetingAlert />;
 
   return (
@@ -358,6 +404,14 @@ function App() {
       </nav>
 
       <main className="content">
+        {update && (
+          <div className="update-banner">
+            <span>Nova versão {update.version} disponível.</span>
+            <button onClick={applyUpdate} disabled={!!updating}>
+              {updating ?? "Atualizar agora"}
+            </button>
+          </div>
+        )}
         {tab === "agenda" && (
           <HomeScreen
             hasIcs={!!settings?.ics_url}
