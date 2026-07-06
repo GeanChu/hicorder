@@ -377,17 +377,35 @@ pub fn ensure_autostart_default(app: &AppHandle) {
     let Ok(conn) = open_db(app) else {
         return;
     };
-    if storage::get_setting(&conn, "autostart_init")
+    let al = app.autolaunch();
+    let already = storage::get_setting(&conn, "autostart_init")
         .ok()
         .flatten()
-        .is_some()
-    {
-        return; // já configurado antes — respeita a escolha do usuário.
+        .is_some();
+
+    // Primeira execução (ou tentativa anterior que falhou): liga por padrão.
+    // Só marca como inicializado quando o enable dá certo — assim uma falha
+    // é re-tentada no próximo boot em vez de ficar travada.
+    if !already {
+        match al.enable() {
+            Ok(()) => {
+                let _ = storage::set_setting(&conn, "autostart_init", "1");
+                logs::log(app, "INFO", "autostart", "habilitado por padrão");
+            }
+            Err(e) => logs::log(app, "ERRO", "autostart", &format!("falha ao habilitar: {e}")),
+        }
     }
-    if let Err(e) = app.autolaunch().enable() {
-        logs::log(app, "INFO", "autostart", &format!("falha ao habilitar: {e}"));
+
+    // Diagnóstico: registra o estado real no log a cada boot.
+    match al.is_enabled() {
+        Ok(on) => logs::log(
+            app,
+            "INFO",
+            "autostart",
+            if on { "estado: ligado" } else { "estado: desligado" },
+        ),
+        Err(e) => logs::log(app, "INFO", "autostart", &format!("is_enabled erro: {e}")),
     }
-    let _ = storage::set_setting(&conn, "autostart_init", "1");
 }
 
 /// Estado atual da autoinicialização com o SO.
