@@ -6,9 +6,9 @@
 //! o nosso.
 
 mod mic;
+mod opus;
 pub mod recorder;
 mod system;
-mod wav;
 
 use std::path::PathBuf;
 

@@ -69,9 +69,10 @@ pub async fn stop_recording(app: AppHandle) -> Result<RecordingRow, String> {
 /// Núcleo de iniciar — chamável pelo command, pelo tray e pelo scheduler.
 pub fn start_recording_core(app: &AppHandle) -> Result<RecordingInfo, String> {
     let dir = recordings_dir(app).map_err(|e| e.to_string())?;
+    let ffmpeg = resolve_ffmpeg(app);
     let info = app
         .state::<Recorder>()
-        .start(dir, new_id(), None, "Gravação manual".to_string())
+        .start(ffmpeg, dir, new_id(), None, "Gravação manual".to_string())
         .map_err(|e| e.to_string())?;
     let _ = app.emit("recording-changed", true);
     Ok(info)
@@ -89,9 +90,10 @@ pub fn start_recording_for_meeting_core(
     } else {
         title.to_string()
     };
+    let ffmpeg = resolve_ffmpeg(app);
     let info = app
         .state::<Recorder>()
-        .start(dir, new_id(), Some(meeting_end_ms), title)
+        .start(ffmpeg, dir, new_id(), Some(meeting_end_ms), title)
         .map_err(|e| e.to_string())?;
     let _ = app.emit("recording-changed", true);
     Ok(info)
@@ -108,52 +110,21 @@ pub fn start_meeting_recording(
 }
 
 pub fn stop_recording_core(app: &AppHandle) -> Result<RecordingRow, String> {
+    // As faixas já foram encodadas ao vivo para Opus/Ogg (mic.ogg / system.ogg).
+    // Parar só fecha os pipes do ffmpeg — sem encode aqui, é quase instantâneo.
+    // A faixa mixada para o player é gerada sob demanda no primeiro Play/Exportar.
     let res = app.state::<Recorder>().stop().map_err(|e| e.to_string())?;
-    let dir = Path::new(&res.mic_path)
-        .parent()
-        .ok_or_else(|| "caminho da gravação inválido".to_string())?;
 
-    let ffmpeg = resolve_ffmpeg(app);
-
-    // Faixas separadas (Opus/.webm): mic = "Você", sistema = "Participantes".
-    let mic_out = dir.join("mic.webm");
-    encode::mix_to_opus(&ffmpeg, &res.mic_path, None, &mic_out).map_err(|e| e.to_string())?;
-
-    let system_path = match &res.system_path {
-        Some(sys) => {
-            let so = dir.join("system.webm");
-            match encode::mix_to_opus(&ffmpeg, sys, None, &so) {
-                Ok(()) => Some(so.to_string_lossy().into_owned()),
-                Err(e) => {
-                    eprintln!("[encode] faixa do sistema falhou: {e}");
-                    None
-                }
-            }
-        }
-        None => None,
-    };
-
-    // Faixa mixada (os dois lados juntos) só para reprodução. Best-effort.
-    let mix_out = dir.join("recording.webm");
-    let _ = encode::mix_to_opus(&ffmpeg, &res.mic_path, res.system_path.as_deref(), &mix_out);
-
-    // Encode OK: remove os WAVs brutos.
-    let _ = std::fs::remove_file(&res.mic_path);
-    if let Some(sys) = &res.system_path {
-        let _ = std::fs::remove_file(sys);
-    }
-
-    let mut size_bytes = std::fs::metadata(&mic_out).map(|m| m.len()).unwrap_or(0);
-    if let Some(sp) = &system_path {
+    let mut size_bytes = std::fs::metadata(&res.mic_path).map(|m| m.len()).unwrap_or(0);
+    if let Some(sp) = &res.system_path {
         size_bytes += std::fs::metadata(sp).map(|m| m.len()).unwrap_or(0);
     }
-    size_bytes += std::fs::metadata(&mix_out).map(|m| m.len()).unwrap_or(0);
 
     let row = RecordingRow {
         id: res.id,
         title: res.title,
-        path: mic_out.to_string_lossy().into_owned(),
-        system_path,
+        path: res.mic_path, // mic.ogg = "Você"
+        system_path: res.system_path, // system.ogg = "Participantes"
         created_at: now_ms(),
         duration_s: res.duration_s,
         size_bytes: size_bytes as i64,
@@ -165,6 +136,48 @@ pub fn stop_recording_core(app: &AppHandle) -> Result<RecordingRow, String> {
     Ok(row)
 }
 
+/// Caminho do arquivo para reprodução/exportação: a faixa mixada (mic+sistema).
+/// Gera `recording.<ext>` sob demanda (uma vez) e cacheia. Se não houver faixa
+/// do sistema, usa a própria faixa do mic. Compatível com gravações antigas
+/// (mic.webm + recording.webm já existente).
+fn ensure_mixed(app: &AppHandle, recording_id: &str) -> Result<PathBuf, String> {
+    let conn = open_db(app)?;
+    let (mic, system) = storage::recording_paths(&conn, recording_id)
+        .map_err(|e| e.to_string())?
+        .ok_or_else(|| "gravação não encontrada".to_string())?;
+    let mic_path = PathBuf::from(&mic);
+
+    // Sem faixa do sistema: reproduz o próprio mic.
+    let Some(system) = system else {
+        return Ok(mic_path);
+    };
+
+    let ext = mic_path
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("ogg");
+    let mixed = mic_path.with_file_name(format!("recording.{ext}"));
+    if mixed.exists() {
+        return Ok(mixed);
+    }
+    let ffmpeg = resolve_ffmpeg(app);
+    encode::mix_to_opus(&ffmpeg, &mic, Some(&system), &mixed)
+        .map_err(|e| fail(app, "gravacao", e.to_string()))?;
+    Ok(mixed)
+}
+
+/// Prepara o arquivo de reprodução e devolve o caminho absoluto (a UI converte
+/// com convertFileSrc). Mixa mic+sistema no primeiro uso.
+#[tauri::command]
+pub async fn prepare_playback(app: AppHandle, recording_id: String) -> Result<String, String> {
+    let app2 = app.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        ensure_mixed(&app2, &recording_id).map(|p| p.to_string_lossy().into_owned())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
 /// Exporta o áudio da gravação para `dest_path` (formato pela extensão).
 #[tauri::command]
 pub async fn export_audio(
@@ -172,19 +185,8 @@ pub async fn export_audio(
     recording_id: String,
     dest_path: String,
 ) -> Result<(), String> {
-    let src = {
-        let conn = open_db(&app)?;
-        let (mic, _sys) = storage::recording_paths(&conn, &recording_id)
-            .map_err(|e| e.to_string())?
-            .ok_or_else(|| "gravação não encontrada".to_string())?;
-        // Prefere a faixa mixada (os dois lados); cai no mic se não existir.
-        let mixed = Path::new(&mic).with_file_name("recording.webm");
-        if mixed.exists() {
-            mixed
-        } else {
-            PathBuf::from(mic)
-        }
-    };
+    // Fonte = faixa mixada (mic + sistema), gerada sob demanda se preciso.
+    let src = ensure_mixed(&app, &recording_id)?;
     let ffmpeg = resolve_ffmpeg(&app);
     let app2 = app.clone();
     tauri::async_runtime::spawn_blocking(move || {

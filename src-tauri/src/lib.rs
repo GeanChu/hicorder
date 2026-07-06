@@ -77,6 +77,7 @@ pub fn run() {
             commands::delete_recording,
             commands::rename_recording,
             commands::export_audio,
+            commands::prepare_playback,
             commands::recording_level,
             commands::recording_status,
             commands::is_recording,

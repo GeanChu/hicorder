@@ -15,15 +15,17 @@ use super::RecordedTrack;
 
 #[cfg(windows)]
 pub fn spawn_system(
+    ffmpeg: String,
     out_path: PathBuf,
     stop: Arc<AtomicBool>,
     level: Arc<AtomicU32>,
 ) -> Result<Option<JoinHandle<Result<RecordedTrack>>>> {
-    Ok(Some(windows_impl::spawn(out_path, stop, level)?))
+    Ok(Some(windows_impl::spawn(ffmpeg, out_path, stop, level)?))
 }
 
 #[cfg(not(windows))]
 pub fn spawn_system(
+    _ffmpeg: String,
     _out_path: PathBuf,
     _stop: Arc<AtomicBool>,
     _level: Arc<AtomicU32>,
@@ -45,13 +47,14 @@ mod windows_impl {
         initialize_mta, DeviceEnumerator, Direction, SampleType, StreamMode, WaveFormat,
     };
 
-    use super::super::wav::WavSink;
+    use super::super::opus::OpusSink;
     use super::super::RecordedTrack;
 
     const CHANNELS: u16 = 2;
     const SAMPLE_RATE: u32 = 48_000;
 
     pub fn spawn(
+        ffmpeg: String,
         out_path: PathBuf,
         stop: Arc<AtomicBool>,
         level: Arc<AtomicU32>,
@@ -83,7 +86,7 @@ mod windows_impl {
             let frame_bytes = format.get_blockalign() as usize; // canais * 4 bytes (f32)
             audio_client.start_stream().map_err(wasapi_err)?;
 
-            let mut sink = WavSink::create(&out_path, SAMPLE_RATE, CHANNELS)?;
+            let mut sink = OpusSink::create(&ffmpeg, &out_path, SAMPLE_RATE, CHANNELS)?;
             let mut queue: VecDeque<u8> = VecDeque::new();
 
             while !stop.load(Ordering::Relaxed) {

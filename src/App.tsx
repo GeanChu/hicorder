@@ -776,6 +776,8 @@ function GravacoesScreen({
   const [sumError, setSumError] = useState<string | null>(null);
   const [sumCopied, setSumCopied] = useState(false);
   const [playing, setPlaying] = useState(false);
+  const [playSrc, setPlaySrc] = useState<string | null>(null);
+  const [preparing, setPreparing] = useState(false);
   const [exportFmt, setExportFmt] = useState("mp3");
   const [exporting, setExporting] = useState(false);
   const [actionMsg, setActionMsg] = useState<string | null>(null);
@@ -788,11 +790,31 @@ function GravacoesScreen({
 
   useEffect(() => {
     setPlaying(false);
+    setPlaySrc(null);
     setActionMsg(null);
   }, [selectedId]);
 
-  function mixSrc(micPath: string): string {
-    return convertFileSrc(micPath.replace(/mic\.webm$/, "recording.webm"));
+  // Prepara a faixa mixada sob demanda (mic+sistema) e toca. Na 1a vez pode
+  // levar alguns segundos (mixagem); depois fica em cache.
+  async function togglePlay() {
+    if (playing) {
+      setPlaying(false);
+      setPlaySrc(null);
+      return;
+    }
+    if (!selected) return;
+    setPlaying(true);
+    setPreparing(true);
+    setError(null);
+    try {
+      const path = await invoke<string>("prepare_playback", { recordingId: selected.id });
+      setPlaySrc(convertFileSrc(path));
+    } catch (e) {
+      setError(String(e));
+      setPlaying(false);
+    } finally {
+      setPreparing(false);
+    }
   }
 
   async function renameSel() {
@@ -924,9 +946,9 @@ function GravacoesScreen({
 
           {selected && (
             <div className="rec-toolbar">
-              <button className="icon-btn" onClick={() => setPlaying((p) => !p)}>
+              <button className="icon-btn" onClick={togglePlay} disabled={preparing}>
                 {icon(playing ? "stop" : "play")}
-                {playing ? "Fechar player" : "Play"}
+                {preparing ? "Preparando..." : playing ? "Fechar player" : "Play"}
               </button>
               <button className="icon-btn" onClick={renameSel}>
                 {icon("rename")}
@@ -949,15 +971,15 @@ function GravacoesScreen({
               </button>
             </div>
           )}
-          {playing && selected && (
+          {playing && playSrc && (
             <audio
               className="player"
               controls
               autoPlay
-              src={mixSrc(selected.path)}
+              src={playSrc}
               onError={() => {
                 setError("Não foi possível reproduzir esta gravação.");
-                logClient("player", `falha ao reproduzir ${selected.path}`);
+                logClient("player", `falha ao reproduzir ${selected?.path ?? ""}`);
               }}
             />
           )}

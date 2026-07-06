@@ -15,7 +15,7 @@ use anyhow::{anyhow, bail, Result};
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use cpal::SampleFormat;
 
-use super::wav::WavSink;
+use super::opus::OpusSink;
 use super::RecordedTrack;
 
 fn report_err(e: cpal::StreamError) {
@@ -37,6 +37,7 @@ pub fn list_input_devices() -> Result<Vec<String>> {
 /// Inicia a captura do microfone padrão numa thread dedicada.
 /// `stop` sinaliza o fim; `level` recebe o pico mais recente (bits de f32, 0.0..=1.0).
 pub fn spawn_microphone(
+    ffmpeg: String,
     out_path: PathBuf,
     stop: Arc<AtomicBool>,
     level: Arc<AtomicU32>,
@@ -86,7 +87,7 @@ pub fn spawn_microphone(
 
         stream.play()?;
 
-        let mut sink = WavSink::create(&out_path, sample_rate, channels)?;
+        let mut sink = OpusSink::create(&ffmpeg, &out_path, sample_rate, channels)?;
         while !stop.load(Ordering::Relaxed) {
             match rx.recv_timeout(Duration::from_millis(100)) {
                 Ok(chunk) => {

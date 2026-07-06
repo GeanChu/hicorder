@@ -86,6 +86,7 @@ impl Recorder {
 
     pub fn start(
         &self,
+        ffmpeg: String,
         recordings_dir: PathBuf,
         id: String,
         meeting_end_ms: Option<i64>,
@@ -102,10 +103,19 @@ impl Recorder {
         let mic_level = Arc::new(AtomicU32::new(0));
         let system_level = Arc::new(AtomicU32::new(0));
 
-        let mic_handle =
-            mic::spawn_microphone(dir.join("mic.wav"), stop.clone(), mic_level.clone())?;
-        let system_handle =
-            system::spawn_system(dir.join("system.wav"), stop.clone(), system_level.clone())?;
+        // Encode ao vivo direto para Opus/Ogg (crash-safe + stop instantâneo).
+        let mic_handle = mic::spawn_microphone(
+            ffmpeg.clone(),
+            dir.join("mic.ogg"),
+            stop.clone(),
+            mic_level.clone(),
+        )?;
+        let system_handle = system::spawn_system(
+            ffmpeg,
+            dir.join("system.ogg"),
+            stop.clone(),
+            system_level.clone(),
+        )?;
 
         *guard = Some(ActiveSession {
             id: id.clone(),
