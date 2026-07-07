@@ -21,12 +21,17 @@ impl Default for SummaryConfig {
     }
 }
 
-const SYSTEM_PROMPT: &str = "Você resume reuniões em português do Brasil. A transcrição vem \
+pub const DEFAULT_SUMMARY_PROMPT: &str = "Você resume reuniões em português do Brasil. A transcrição vem \
 rotulada com \"Você\" (quem gravou) e \"Participantes\". Gere um resumo claro e conciso com: \
 contexto, pontos principais, decisões tomadas e itens de ação (com responsável quando houver). \
 Use tópicos curtos. Quando houver \"Anotações manuais\" de quem gravou, use-as para enriquecer, \
 corrigir e dar mais clareza ao resumo — elas têm prioridade sobre a transcrição em caso de \
 conflito, pois foram escritas por uma pessoa presente na reunião.";
+
+/// Prompt base de fábrica (para a UI oferecer "restaurar padrão").
+pub fn default_prompt() -> &'static str {
+    DEFAULT_SUMMARY_PROMPT
+}
 
 /// Valida a chave/endpoint/modelo: chat completions mínimo (1 token). Espera 200.
 pub fn test_key(cfg: &SummaryConfig, api_key: &str) -> Result<()> {
@@ -54,7 +59,13 @@ pub fn summarize(
     api_key: &str,
     transcript: &str,
     notes: Option<&str>,
+    system_prompt: &str,
 ) -> Result<String> {
+    let system_prompt = if system_prompt.trim().is_empty() {
+        DEFAULT_SUMMARY_PROMPT
+    } else {
+        system_prompt
+    };
     let user_content = match notes.map(str::trim).filter(|n| !n.is_empty()) {
         Some(n) => format!(
             "Transcrição da reunião:\n{transcript}\n\n---\nAnotações manuais de quem gravou:\n{n}"
@@ -64,7 +75,7 @@ pub fn summarize(
     let body = serde_json::json!({
         "model": cfg.model,
         "messages": [
-            { "role": "system", "content": SYSTEM_PROMPT },
+            { "role": "system", "content": system_prompt },
             { "role": "user", "content": user_content }
         ]
     });

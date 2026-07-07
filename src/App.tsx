@@ -51,6 +51,7 @@ type Settings = {
   summary_endpoint_url: string;
   summary_model: string;
   has_summary_key: boolean;
+  summary_prompt: string;
   ics_url: string;
   record_all: boolean;
   has_attio_key: boolean;
@@ -429,6 +430,7 @@ function App() {
             hasSummaryKey={settings?.has_summary_key ?? false}
             hasAttioKey={settings?.has_attio_key ?? false}
             attioUserEmail={settings?.attio_user_email ?? ""}
+            baseSummaryPrompt={settings?.summary_prompt ?? ""}
             onChanged={refreshRecordings}
           />
         )}
@@ -895,6 +897,7 @@ function GravacoesScreen({
   hasSummaryKey,
   hasAttioKey,
   attioUserEmail,
+  baseSummaryPrompt,
   onChanged,
 }: {
   recordings: Recording[];
@@ -903,6 +906,7 @@ function GravacoesScreen({
   hasSummaryKey: boolean;
   hasAttioKey: boolean;
   attioUserEmail: string;
+  baseSummaryPrompt: string;
   onChanged: () => void;
 }) {
   const [selectedId, setSelectedId] = useState("");
@@ -917,6 +921,8 @@ function GravacoesScreen({
   const [sumBusy, setSumBusy] = useState(false);
   const [sumError, setSumError] = useState<string | null>(null);
   const [sumCopied, setSumCopied] = useState(false);
+  const [editingPrompt, setEditingPrompt] = useState(false);
+  const [promptOverride, setPromptOverride] = useState("");
   const [notes, setNotes] = useState("");
   const [notesSaved, setNotesSaved] = useState(""); // últimas anotações persistidas
   const [notesSaving, setNotesSaving] = useState(false);
@@ -1055,6 +1061,8 @@ function GravacoesScreen({
     setNotesSaved("");
     setError(null);
     setSumError(null);
+    setEditingPrompt(false);
+    setPromptOverride("");
     if (!selectedId) return;
     invoke<Transcript | null>("get_transcript", { recordingId: selectedId })
       .then((t) => {
@@ -1131,7 +1139,8 @@ function GravacoesScreen({
     setSumError(null);
     setSumBusy(true);
     try {
-      const s = await invoke<Summary>("generate_summary", { recordingId: selectedId });
+      const prompt = editingPrompt && promptOverride.trim() ? promptOverride : null;
+      const s = await invoke<Summary>("generate_summary", { recordingId: selectedId, prompt });
       setSummary(s.text);
       setSummarySaved(s.text);
     } catch (e) {
@@ -1139,6 +1148,14 @@ function GravacoesScreen({
     } finally {
       setSumBusy(false);
     }
+  }
+
+  function togglePromptEditor() {
+    setEditingPrompt((on) => {
+      const next = !on;
+      if (next && !promptOverride) setPromptOverride(baseSummaryPrompt);
+      return next;
+    });
   }
 
   async function copySummary() {
@@ -1301,7 +1318,29 @@ function GravacoesScreen({
                     {sumCopied ? "Copiado!" : "Copiar resumo"}
                   </button>
                 )}
+                <button className="secondary" onClick={togglePromptEditor}>
+                  {editingPrompt ? "Ocultar prompt" : "Editar prompt deste resumo"}
+                </button>
               </div>
+              {editingPrompt && (
+                <div className="prompt-editor">
+                  <p className="hint">
+                    Só afeta este resumo. Clique em "Refazer resumo" para aplicar. O prompt base fica
+                    em Configurações.
+                  </p>
+                  <textarea
+                    className="transcript"
+                    value={promptOverride}
+                    onChange={(e) => setPromptOverride(e.target.value)}
+                    placeholder="Instruções para o modelo gerar o resumo..."
+                  />
+                  <div className="actions">
+                    <button className="secondary" onClick={() => setPromptOverride(baseSummaryPrompt)}>
+                      Restaurar prompt base
+                    </button>
+                  </div>
+                </div>
+              )}
               {sumError && <p className="error">{sumError}</p>}
               {summary && (
                 <>
@@ -1602,6 +1641,7 @@ function ConfigScreen({
   const [summaryEndpointUrl, setSummaryEndpointUrl] = useState("");
   const [summaryModel, setSummaryModel] = useState("");
   const [summaryKey, setSummaryKey] = useState("");
+  const [summaryPrompt, setSummaryPrompt] = useState("");
   const [attioKey, setAttioKey] = useState("");
   const [attioUserEmail, setAttioUserEmail] = useState("");
   const [testResult, setTestResult] = useState<Record<string, string>>({});
@@ -1696,6 +1736,7 @@ function ConfigScreen({
       setSttProvider(providerFromEndpoint(STT_PROVIDERS, settings.endpoint_url));
       setSummaryEndpointUrl(settings.summary_endpoint_url);
       setSummaryModel(settings.summary_model);
+      setSummaryPrompt(settings.summary_prompt);
       setSummaryProvider(providerFromEndpoint(SUMMARY_PROVIDERS, settings.summary_endpoint_url));
       setIcsUrl(settings.ics_url);
       setRecordAll(settings.record_all);
@@ -1730,6 +1771,7 @@ function ConfigScreen({
         model,
         summaryEndpointUrl,
         summaryModel,
+        summaryPrompt,
         icsUrl,
         recordAll,
         attioUserEmail,
@@ -1922,6 +1964,36 @@ function ConfigScreen({
           </button>
         </div>
         {testResult.summary && <TestLine text={testResult.summary} />}
+      </div>
+
+      <div className="form-row" style={{ maxWidth: 760 }}>
+        <label>Prompt do resumo (base)</label>
+        <span className="hint">
+          Instrução enviada ao modelo em todos os resumos. Você pode ajustar um resumo específico na
+          aba Gravações.
+        </span>
+        <textarea
+          className="transcript"
+          style={{ minHeight: 160 }}
+          value={summaryPrompt}
+          onChange={(e) => setSummaryPrompt(e.target.value)}
+          placeholder="Instruções para o modelo gerar o resumo..."
+        />
+        <div className="actions">
+          <button
+            type="button"
+            className="secondary"
+            onClick={async () => {
+              try {
+                setSummaryPrompt(await invoke<string>("default_summary_prompt"));
+              } catch (e) {
+                logClient("resumo", e);
+              }
+            }}
+          >
+            Restaurar padrão
+          </button>
+        </div>
       </div>
 
       <p className="hint">As chaves ficam no keychain do sistema, nunca em texto puro.</p>

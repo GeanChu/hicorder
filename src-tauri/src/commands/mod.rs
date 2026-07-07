@@ -24,6 +24,8 @@ pub struct AppSettings {
     pub summary_endpoint_url: String,
     pub summary_model: String,
     pub has_summary_key: bool,
+    /// Prompt base usado em todos os resumos (editável nas Configurações).
+    pub summary_prompt: String,
     // Calendário (ICS).
     pub ics_url: String,
     pub record_all: bool,
@@ -266,6 +268,10 @@ pub fn get_settings(app: AppHandle) -> Result<AppSettings, String> {
         .map_err(|e| e.to_string())?
         .unwrap_or_else(|| "pt".to_string());
     let scfg = load_summary_config(&conn).map_err(|e| e.to_string())?;
+    let summary_prompt = storage::get_setting(&conn, "summary_prompt")
+        .map_err(|e| e.to_string())?
+        .filter(|s| !s.trim().is_empty())
+        .unwrap_or_else(|| summary::default_prompt().to_string());
     let ics_url = storage::get_setting(&conn, "ics_url")
         .map_err(|e| e.to_string())?
         .unwrap_or_default();
@@ -292,6 +298,7 @@ pub fn get_settings(app: AppHandle) -> Result<AppSettings, String> {
         summary_endpoint_url: scfg.endpoint_url,
         summary_model: scfg.model,
         has_summary_key: settings::has_summary_key(),
+        summary_prompt,
         ics_url,
         record_all,
         has_attio_key: settings::has_attio_key(),
@@ -309,6 +316,7 @@ pub fn save_settings(
     model: String,
     summary_endpoint_url: String,
     summary_model: String,
+    summary_prompt: String,
     ics_url: String,
     record_all: bool,
     attio_user_email: String,
@@ -322,6 +330,7 @@ pub fn save_settings(
     storage::set_setting(&conn, "summary_endpoint_url", &summary_endpoint_url)
         .map_err(|e| e.to_string())?;
     storage::set_setting(&conn, "summary_model", &summary_model).map_err(|e| e.to_string())?;
+    storage::set_setting(&conn, "summary_prompt", summary_prompt.trim()).map_err(|e| e.to_string())?;
     storage::set_setting(&conn, "ics_url", &ics_url).map_err(|e| e.to_string())?;
     storage::set_setting(&conn, "record_all", if record_all { "1" } else { "0" })
         .map_err(|e| e.to_string())?;
@@ -722,9 +731,16 @@ pub fn delete_recording(app: AppHandle, recording_id: String) -> Result<(), Stri
     logged(&app, "gravacao", r)
 }
 
+/// Gera o resumo. `prompt` opcional sobrescreve o prompt base só nesta chamada
+/// (edição do prompt de um resumo específico na aba Gravações). Vazio/None usa
+/// o prompt base salvo nas Configurações (ou o padrão de fábrica).
 #[tauri::command]
-pub async fn generate_summary(app: AppHandle, recording_id: String) -> Result<SummaryRow, String> {
-    let (transcript_text, notes, cfg, api_key) = {
+pub async fn generate_summary(
+    app: AppHandle,
+    recording_id: String,
+    prompt: Option<String>,
+) -> Result<SummaryRow, String> {
+    let (transcript_text, notes, cfg, api_key, system_prompt) = {
         let conn = open_db(&app)?;
         let t = storage::get_transcript(&conn, &recording_id)
             .map_err(|e| e.to_string())?
@@ -734,11 +750,21 @@ pub async fn generate_summary(app: AppHandle, recording_id: String) -> Result<Su
         let api_key = settings::get_summary_key()
             .map_err(|e| e.to_string())?
             .ok_or_else(|| "configure a chave do Resumo (MiniMax) nas Configurações".to_string())?;
-        (t.text, notes, cfg, api_key)
+        let system_prompt = prompt
+            .map(|p| p.trim().to_string())
+            .filter(|p| !p.is_empty())
+            .or_else(|| {
+                storage::get_setting(&conn, "summary_prompt")
+                    .ok()
+                    .flatten()
+                    .filter(|s| !s.trim().is_empty())
+            })
+            .unwrap_or_else(|| summary::default_prompt().to_string());
+        (t.text, notes, cfg, api_key, system_prompt)
     };
 
     let text = tauri::async_runtime::spawn_blocking(move || {
-        summary::summarize(&cfg, &api_key, &transcript_text, notes.as_deref())
+        summary::summarize(&cfg, &api_key, &transcript_text, notes.as_deref(), &system_prompt)
     })
     .await
     .map_err(|e| e.to_string())?
@@ -752,6 +778,12 @@ pub async fn generate_summary(app: AppHandle, recording_id: String) -> Result<Su
     let conn = open_db(&app)?;
     storage::upsert_summary(&conn, &row).map_err(|e| e.to_string())?;
     Ok(row)
+}
+
+/// Prompt base de fábrica do resumo (para "restaurar padrão" na UI).
+#[tauri::command]
+pub fn default_summary_prompt() -> String {
+    summary::default_prompt().to_string()
 }
 
 #[tauri::command]

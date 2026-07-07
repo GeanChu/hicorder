@@ -95,6 +95,7 @@ pub fn run() {
             commands::transcribe,
             commands::get_transcript,
             commands::generate_summary,
+            commands::default_summary_prompt,
             commands::get_summary,
             commands::refresh_meetings,
             commands::list_meetings,
