@@ -183,9 +183,15 @@ pub fn find_or_create_meeting(
             json!({ "email_address": e, "is_organizer": i == 0, "status": "accepted" })
         })
         .collect();
+    // A API de meetings (beta) exige `description` (string) e `external_ref`
+    // (referência externa única). O external_ref é estável por (início+título),
+    // então re-subir a mesma reunião reaproveita a existente em vez de duplicar.
+    let external_ref = format!("hicorder:{start_iso}|{title}");
     let body = json!({
         "data": {
             "title": title,
+            "description": title,
+            "external_ref": external_ref,
             "start": { "datetime": start_iso, "timezone": timezone },
             "end": { "datetime": end_iso, "timezone": timezone },
             "is_all_day": false,

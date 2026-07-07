@@ -927,6 +927,8 @@ function GravacoesScreen({
   const [exporting, setExporting] = useState(false);
   const [importing, setImporting] = useState(false);
   const [actionMsg, setActionMsg] = useState<string | null>(null);
+  const [renaming, setRenaming] = useState(false);
+  const [renameValue, setRenameValue] = useState("");
 
   const selected = recordings.find((r) => r.id === selectedId) ?? null;
 
@@ -938,6 +940,7 @@ function GravacoesScreen({
     setPlaying(false);
     setPlaySrc(null);
     setActionMsg(null);
+    setRenaming(false);
   }, [selectedId]);
 
   // Prepara a faixa mixada sob demanda (mic+sistema) e toca. Na 1a vez pode
@@ -963,12 +966,23 @@ function GravacoesScreen({
     }
   }
 
-  async function renameSel() {
+  function startRename() {
     if (!selected) return;
-    const title = window.prompt("Novo nome da gravação:", selected.title);
-    if (title === null || !title.trim()) return;
+    setRenameValue(selected.title);
+    setRenaming(true);
+  }
+
+  async function confirmRename() {
+    if (!selected) return;
+    const t = renameValue.trim();
+    if (!t) {
+      setRenaming(false);
+      return;
+    }
+    setError(null);
     try {
-      await invoke("rename_recording", { recordingId: selected.id, title: title.trim() });
+      await invoke("rename_recording", { recordingId: selected.id, title: t });
+      setRenaming(false);
       onChanged();
     } catch (e) {
       setError(String(e));
@@ -1167,10 +1181,30 @@ function GravacoesScreen({
                 {icon(playing ? "stop" : "play")}
                 {preparing ? "Preparando..." : playing ? "Fechar player" : "Play"}
               </button>
-              <button className="icon-btn" onClick={renameSel}>
-                {icon("rename")}
-                Renomear
-              </button>
+              {renaming ? (
+                <span className="rename-inline">
+                  <input
+                    autoFocus
+                    value={renameValue}
+                    onChange={(e) => setRenameValue(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") confirmRename();
+                      if (e.key === "Escape") setRenaming(false);
+                    }}
+                  />
+                  <button className="icon-btn" onClick={confirmRename}>
+                    Salvar
+                  </button>
+                  <button className="icon-btn" onClick={() => setRenaming(false)}>
+                    Cancelar
+                  </button>
+                </span>
+              ) : (
+                <button className="icon-btn" onClick={startRename}>
+                  {icon("rename")}
+                  Renomear
+                </button>
+              )}
               <span className="export-group">
                 <button className="icon-btn" onClick={exportAudio} disabled={exporting}>
                   {icon("export")}

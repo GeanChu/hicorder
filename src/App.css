@@ -383,6 +383,27 @@ body {
   background: var(--danger-soft-hover);
 }
 
+.rename-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.rename-inline input {
+  padding: 7px 10px;
+  font-size: 13px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+  min-width: 200px;
+}
+
+.rename-inline input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
 .export-group {
   display: inline-flex;
   flex-direction: column;
