@@ -37,8 +37,14 @@ Baixe sempre a versão mais recente na página de **[Releases](https://github.co
 [**Baixar para macOS**](https://github.com/GeanChu/hicorder/releases/latest) — arquivo `Hicorder_x.y.z_universal.dmg` (universal).
 
 1. Abra o `.dmg` e arraste o **Hicorder** para a pasta Aplicativos.
-2. Na primeira vez (app ainda não notarizado): clique com o **botão direito** no Hicorder → **Abrir** → **Abrir**. Ou vá em **Ajustes do Sistema → Privacidade e Segurança → Abrir mesmo assim**.
-3. Autorize a permissão de **microfone** quando pedida.
+2. Na primeira vez (app ainda não notarizado): clique com o **botão direito** no Hicorder → **Abrir** → **Abrir**. Ou **Ajustes do Sistema → Privacidade e Segurança → Abrir mesmo assim**.
+3. Se o macOS bloquear ("não é possível verificar" ou "está danificado"), rode no **Terminal** e abra de novo:
+   ```bash
+   xattr -dr com.apple.quarantine /Applications/Hicorder.app
+   # se ainda disser "danificado" (Apple Silicon):
+   codesign --force --deep -s - /Applications/Hicorder.app
+   ```
+4. Autorize a permissão de **microfone** quando pedida.
 
 ### Linux
 [**Baixar para Linux**](https://github.com/GeanChu/hicorder/releases/latest) — `AppImage` (portátil), `.deb` (Debian/Ubuntu) ou `.rpm` (Fedora/RHEL).
