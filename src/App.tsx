@@ -491,9 +491,23 @@ function MeetingAlert() {
   const [busy, setBusy] = useState(false);
 
   async function close() {
-    const { getCurrentWindow } = await import("@tauri-apps/api/window");
-    await getCurrentWindow().close();
+    try {
+      const { getCurrentWindow } = await import("@tauri-apps/api/window");
+      // destroy() fecha incondicionalmente; close() pode ficar pendurado se
+      // algo no webview interceptar o fechamento — e o toast não tem outra
+      // forma de ser fechado (sem decoração/taskbar).
+      await getCurrentWindow().destroy();
+    } catch (e) {
+      logClient("agenda", `toast: falha ao fechar: ${String(e)}`);
+    }
   }
+
+  // Auto-dispensa após 60s: alerta de "reunião começando" não deve persistir.
+  useEffect(() => {
+    const t = window.setTimeout(close, 60_000);
+    return () => window.clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   async function record() {
     setBusy(true);

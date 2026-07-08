@@ -203,8 +203,21 @@ fn build_toast(app: &AppHandle, title: &str, end_ms: i64) {
         let y = size.height as f64 / scale - h - 64.0;
         builder = builder.position(x, y);
     }
-    if let Err(e) = builder.build() {
-        logs::log(app, "ERRO", "agenda", &format!("falha ao abrir a janela-toast: {e}"));
+    match builder.build() {
+        Err(e) => logs::log(app, "ERRO", "agenda", &format!("falha ao abrir a janela-toast: {e}")),
+        Ok(win) => {
+            // Rede de segurança: o toast não tem decoração nem taskbar, então
+            // se o webview travar o usuário não consegue fechá-lo. Destrói
+            // após 90s caso ainda exista (o normal é fechar antes via botão).
+            let label = win.label().to_string();
+            let app2 = app.clone();
+            thread::spawn(move || {
+                thread::sleep(Duration::from_secs(90));
+                if let Some(w) = app2.get_webview_window(&label) {
+                    let _ = w.destroy();
+                }
+            });
+        }
     }
 }
 
