@@ -1,6 +1,6 @@
 [package]
 name = "hicorder"
-version = "0.2.20"
+version = "0.2.21"
 description = "Hicorder — gravador de reuniões com transcrição por IA"
 authors = ["hi.capital"]
 license = "MIT"
@@ -15,6 +15,11 @@ edition = "2021"
 # This seems to be only an issue on Windows, see https://github.com/rust-lang/cargo/issues/8519
 name = "hicorder_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
+
+[features]
+# Liga a captura de áudio do sistema no macOS (ScreenCaptureKit). Off por padrão
+# porque a dep transitiva apple-metal quebra o build na CI do GitHub.
+macos-system-audio = ["dep:screencapturekit"]
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
@@ -45,8 +50,11 @@ keyring = { version = "4.1.2", default-features = false, features = ["v1", "wind
 
 [target.'cfg(target_os = "macos")'.dependencies]
 # macOS guarda as chaves em arquivo (settings), não no keychain — sem keyring aqui.
-# Áudio do sistema via ScreenCaptureKit (macOS 13+).
-screencapturekit = { version = "8.0.0", features = ["macos_13_0"] }
+# Áudio do sistema via ScreenCaptureKit (macOS 13+). Opcional: a dep transitiva
+# apple-metal compila Swift contra SDK beta e quebra a CI do GitHub sempre que o
+# Xcode default do runner muda. Fica atrás da feature `macos-system-audio` (off
+# por padrão) para não derrubar o build do macOS.
+screencapturekit = { version = "8.0.0", features = ["macos_13_0"], optional = true }
 
 [target.'cfg(target_os = "linux")'.dependencies]
 keyring = { version = "4.1.2", default-features = false, features = ["v1", "zbus-secret-service-keyring-store"] }

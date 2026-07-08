@@ -26,7 +26,11 @@ pub fn spawn_system(
     Ok(Some(windows_impl::spawn(ffmpeg, out_path, stop, level)?))
 }
 
-#[cfg(target_os = "macos")]
+// macOS: captura do sistema via ScreenCaptureKit só quando a feature
+// `macos-system-audio` está ligada. Ela puxa a dep `screencapturekit`, cujo
+// build de Swift (apple-metal) exige um SDK muito novo e quebra a Cs do GitHub
+// de forma recorrente. Por padrão fica desligada → macOS grava só o microfone.
+#[cfg(all(target_os = "macos", feature = "macos-system-audio"))]
 pub fn spawn_system(
     ffmpeg: String,
     out_path: PathBuf,
@@ -34,6 +38,17 @@ pub fn spawn_system(
     level: Arc<AtomicU32>,
 ) -> Result<Option<JoinHandle<Result<RecordedTrack>>>> {
     Ok(Some(macos_impl::spawn(ffmpeg, out_path, stop, level)?))
+}
+
+#[cfg(all(target_os = "macos", not(feature = "macos-system-audio")))]
+pub fn spawn_system(
+    _ffmpeg: String,
+    _out_path: PathBuf,
+    _stop: Arc<AtomicBool>,
+    _level: Arc<AtomicU32>,
+) -> Result<Option<JoinHandle<Result<RecordedTrack>>>> {
+    // Áudio do sistema desabilitado neste build (só microfone).
+    Ok(None)
 }
 
 #[cfg(all(not(windows), not(target_os = "macos")))]
@@ -47,7 +62,7 @@ pub fn spawn_system(
     Ok(None)
 }
 
-#[cfg(target_os = "macos")]
+#[cfg(all(target_os = "macos", feature = "macos-system-audio"))]
 mod macos_impl {
     use std::path::PathBuf;
     use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
