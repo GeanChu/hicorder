@@ -48,6 +48,9 @@ pub struct RecordingResult {
     pub mic_path: String,
     pub system_path: Option<String>,
     pub duration_s: f64,
+    /// Erro da captura do sistema, se ela falhou (gravação degradou p/ só-mic).
+    /// Fica aqui para o comando logar no callrec.log — eprintln não é visível.
+    pub system_error: Option<String>,
 }
 
 impl Recorder {
@@ -178,19 +181,13 @@ impl Recorder {
             .map_err(|_| anyhow!("a thread do microfone terminou em pânico"))??;
 
         // Falha na captura do sistema degrada para só-microfone (não perde a gravação).
-        let system_path = match session.system_handle {
+        let (system_path, system_error) = match session.system_handle {
             Some(handle) => match handle.join() {
-                Ok(Ok(track)) => Some(track.path.to_string_lossy().into_owned()),
-                Ok(Err(e)) => {
-                    eprintln!("[system] captura falhou: {e}");
-                    None
-                }
-                Err(_) => {
-                    eprintln!("[system] thread terminou em pânico");
-                    None
-                }
+                Ok(Ok(track)) => (Some(track.path.to_string_lossy().into_owned()), None),
+                Ok(Err(e)) => (None, Some(e.to_string())),
+                Err(_) => (None, Some("thread da captura do sistema terminou em pânico".to_string())),
             },
-            None => None,
+            None => (None, None),
         };
 
         Ok(RecordingResult {
@@ -199,6 +196,7 @@ impl Recorder {
             mic_path: mic_track.path.to_string_lossy().into_owned(),
             system_path,
             duration_s,
+            system_error,
         })
     }
 }

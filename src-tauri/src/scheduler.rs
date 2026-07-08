@@ -167,9 +167,14 @@ fn show_meeting_toast(app: &AppHandle, title: &str, end_ms: i64) {
 }
 
 fn build_toast(app: &AppHandle, title: &str, end_ms: i64) {
-    // Uma por vez: fecha a anterior se ainda estiver aberta.
-    if let Some(w) = app.get_webview_window("meeting-alert") {
-        let _ = w.close();
+    // Uma por vez: destrói toasts anteriores ainda abertos. `close()` é
+    // assíncrono e o label continuava vivo, colidindo na criação seguinte
+    // ("a webview with label `meeting-alert` already exists"); destroy() é
+    // imediato e o label com timestamp garante unicidade mesmo assim.
+    for (label, w) in app.webview_windows() {
+        if label.starts_with("meeting-alert") {
+            let _ = w.destroy();
+        }
     }
     let url = format!(
         "index.html?alert=1&title={}&end={}",
@@ -177,9 +182,10 @@ fn build_toast(app: &AppHandle, title: &str, end_ms: i64) {
         end_ms
     );
     let (w, h) = (380.0, 140.0);
+    let label = format!("meeting-alert-{}", now_ms());
     let mut builder = tauri::WebviewWindowBuilder::new(
         app,
-        "meeting-alert",
+        label,
         tauri::WebviewUrl::App(url.into()),
     )
     .title("Hicorder")

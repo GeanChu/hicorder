@@ -111,22 +111,76 @@ pub fn start_meeting_recording(
     logged(&app, "gravacao", start_recording_for_meeting_core(&app, end_ms, &title))
 }
 
+/// Abaixo disso a faixa é só cabeçalho Ogg sem áudio de verdade — a captura
+/// não produziu nada (ex.: dispositivo errado, driver, antivírus no ffmpeg).
+const MIN_TRACK_BYTES: u64 = 2048;
+
 pub fn stop_recording_core(app: &AppHandle) -> Result<RecordingRow, String> {
     // As faixas já foram encodadas ao vivo para Opus/Ogg (mic.ogg / system.ogg).
     // Parar só fecha os pipes do ffmpeg — sem encode aqui, é quase instantâneo.
     // A faixa mixada para o player é gerada sob demanda no primeiro Play/Exportar.
     let res = app.state::<Recorder>().stop().map_err(|e| e.to_string())?;
 
-    let mut size_bytes = std::fs::metadata(&res.mic_path).map(|m| m.len()).unwrap_or(0);
-    if let Some(sp) = &res.system_path {
-        size_bytes += std::fs::metadata(sp).map(|m| m.len()).unwrap_or(0);
+    // A captura do sistema falhou durante a gravação: registra o motivo real.
+    if let Some(err) = &res.system_error {
+        logs::log(
+            app,
+            "ERRO",
+            "gravacao",
+            &format!("captura do sistema falhou (gravou só o mic): {err}"),
+        );
     }
 
+    let mic_size = std::fs::metadata(&res.mic_path).map(|m| m.len()).unwrap_or(0);
+    let sys_size = res
+        .system_path
+        .as_ref()
+        .map(|p| std::fs::metadata(p).map(|m| m.len()).unwrap_or(0));
+
+    // Diagnóstico: tamanhos das faixas em toda parada (ajuda a rastrear
+    // capturas vazias sem depender de reproduzir o problema).
+    logs::log(
+        app,
+        "INFO",
+        "gravacao",
+        &format!(
+            "parada: {:.0}s, mic {} bytes, sistema {} bytes",
+            res.duration_s,
+            mic_size,
+            sys_size.map_or("(sem faixa)".to_string(), |s| s.to_string())
+        ),
+    );
+    if mic_size < MIN_TRACK_BYTES {
+        logs::log(
+            app,
+            "ERRO",
+            "gravacao",
+            &format!("faixa do microfone vazia ({mic_size} bytes) — nenhum áudio capturado do mic"),
+        );
+    }
+
+    // Faixa do sistema vazia: descarta para não quebrar o mix do player
+    // ("Error opening input files: End of file") — vira gravação só-mic.
+    let system_path = match (res.system_path, sys_size) {
+        (Some(p), Some(s)) if s < MIN_TRACK_BYTES => {
+            logs::log(
+                app,
+                "ERRO",
+                "gravacao",
+                &format!("faixa do sistema vazia ({s} bytes), descartada — áudio da call não foi capturado"),
+            );
+            let _ = std::fs::remove_file(&p);
+            None
+        }
+        (p, _) => p,
+    };
+
+    let size_bytes = mic_size + sys_size.unwrap_or(0);
     let row = RecordingRow {
         id: res.id,
         title: res.title,
         path: res.mic_path, // mic.ogg = "Você"
-        system_path: res.system_path, // system.ogg = "Participantes"
+        system_path,        // system.ogg = "Participantes"
         created_at: now_ms(),
         duration_s: res.duration_s,
         size_bytes: size_bytes as i64,
@@ -154,6 +208,19 @@ fn ensure_mixed(app: &AppHandle, recording_id: &str) -> Result<PathBuf, String> 
         return Ok(mic_path);
     };
 
+    // Faixa do sistema vazia (gravações antigas, antes do descarte no stop):
+    // ignora e reproduz só o mic em vez de quebrar o mix com "End of file".
+    let sys_size = std::fs::metadata(&system).map(|m| m.len()).unwrap_or(0);
+    if sys_size < MIN_TRACK_BYTES {
+        logs::log(
+            app,
+            "INFO",
+            "gravacao",
+            &format!("faixa do sistema vazia ({sys_size} bytes) ignorada no mix"),
+        );
+        return Ok(mic_path);
+    }
+
     let ext = mic_path
         .extension()
         .and_then(|e| e.to_str())
@@ -163,9 +230,14 @@ fn ensure_mixed(app: &AppHandle, recording_id: &str) -> Result<PathBuf, String> 
         return Ok(mixed);
     }
     let ffmpeg = resolve_ffmpeg(app);
-    encode::mix_to_opus(&ffmpeg, &mic, Some(&system), &mixed)
-        .map_err(|e| fail(app, "gravacao", e.to_string()))?;
-    Ok(mixed)
+    match encode::mix_to_opus(&ffmpeg, &mic, Some(&system), &mixed) {
+        Ok(()) => Ok(mixed),
+        Err(e) => {
+            // Mix falhou (faixa corrompida?): degrada para só-mic, logando o erro.
+            logs::log(app, "ERRO", "gravacao", &format!("mix falhou, usando só o mic: {e}"));
+            Ok(mic_path)
+        }
+    }
 }
 
 /// Prepara o arquivo de reprodução e devolve o caminho absoluto (a UI converte
