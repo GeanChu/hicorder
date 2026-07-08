@@ -17,7 +17,12 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - platform: macos-latest
+          # Fixado em macos-14 (Xcode 15 / SDK 14): a imagem `macos-latest`
+          # rotacionou para um Xcode/SDK novo que quebra o build Swift da dep
+          # transitiva apple-metal (via screencapturekit) — "cannot find
+          # MTLSamplerReductionMode in scope". macos-14 é o ambiente que compilou
+          # da 0.2.13 à 0.2.18.
+          - platform: macos-14
             target: universal-apple-darwin
             rust-targets: aarch64-apple-darwin,x86_64-apple-darwin
           - platform: ubuntu-22.04
@@ -113,7 +118,7 @@ jobs:
           done
 
       - name: Fetch ffmpeg (macOS)
-        if: matrix.platform == 'macos-latest'
+        if: matrix.platform == 'macos-14'
         run: |
           set -e
           for i in 1 2 3; do
