@@ -28,6 +28,12 @@ pub struct AttioMeeting {
     pub participants: Vec<String>,
 }
 
+#[derive(Serialize, Clone)]
+pub struct AttioCompany {
+    pub record_id: String,
+    pub name: String,
+}
+
 fn client() -> reqwest::blocking::Client {
     crate::net::client(30)
 }
@@ -217,6 +223,49 @@ pub fn find_person_by_email(key: &str, email: &str) -> Result<Option<String>> {
         .pointer("/data/0/id/record_id")
         .and_then(|x| x.as_str())
         .map(String::from))
+}
+
+/// record_id da empresa vinculada a uma pessoa (atributo `company`). None se não houver.
+fn person_company_id(key: &str, email: &str) -> Result<Option<String>> {
+    let body = json!({ "filter": { "email_addresses": email }, "limit": 1 });
+    let json = post_json(key, &format!("{BASE}/objects/people/records/query"), &body)?;
+    Ok(json
+        .pointer("/data/0/values/company/0/target_record_id")
+        .and_then(|x| x.as_str())
+        .map(String::from))
+}
+
+/// Nome de uma empresa pelo record_id. None se não achar/sem nome.
+fn company_name(key: &str, record_id: &str) -> Result<Option<String>> {
+    let url = reqwest::Url::parse(&format!("{BASE}/objects/companies/records/{record_id}"))
+        .map_err(|e| anyhow!("Attio: URL inválida: {e}"))?;
+    let json = get_json(key, url)?;
+    Ok(json
+        .pointer("/data/values/name/0/value")
+        .and_then(|x| x.as_str())
+        .map(String::from))
+}
+
+/// Empresas (dedup) vinculadas às pessoas de uma lista de emails, para o usuário
+/// escolher quais também recebem a nota. Erros por-email não derrubam o conjunto.
+pub fn companies_for_emails(key: &str, emails: &[String]) -> Result<Vec<AttioCompany>> {
+    let mut ids: Vec<String> = Vec::new();
+    for e in emails {
+        if let Ok(Some(cid)) = person_company_id(key, e) {
+            if !ids.contains(&cid) {
+                ids.push(cid);
+            }
+        }
+    }
+    let mut out = Vec::new();
+    for id in ids {
+        let name = company_name(key, &id)
+            .ok()
+            .flatten()
+            .unwrap_or_else(|| "(empresa)".to_string());
+        out.push(AttioCompany { record_id: id, name });
+    }
+    Ok(out)
 }
 
 /// Cria uma nota num record pai, linkando a meeting.

@@ -110,6 +110,7 @@ pub fn run() {
             commands::get_autostart,
             commands::set_autostart,
             commands::attio_find_meetings,
+            commands::attio_meeting_companies,
             commands::attio_upload,
         ])
         .run(tauri::generate_context!())

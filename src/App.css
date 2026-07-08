@@ -612,8 +612,15 @@ button {
 }
 
 /* ---- Home: layout com painel de anotações ao vivo ---- */
+/* Coluna: barra de gravar fixa no topo, depois o corpo (agenda + anotações).
+   Assim o botão Gravar/Parar fica sempre visível, mesmo com a janela estreita. */
 .panel.home-layout {
   max-width: none;
+  display: flex;
+  flex-direction: column;
+}
+
+.home-body {
   display: flex;
   gap: 24px;
   align-items: flex-start;
@@ -627,12 +634,12 @@ button {
 
 .live-notes {
   position: sticky;
-  top: 0;
-  flex: 0 0 380px;
+  top: 64px;
+  flex: 0 0 360px;
   align-self: stretch;
   display: flex;
   flex-direction: column;
-  max-height: calc(100vh - 80px);
+  max-height: calc(100vh - 120px);
   padding: 16px;
   background: var(--surface);
   border: 1px solid var(--border);
@@ -678,15 +685,26 @@ button {
   border-color: var(--accent);
 }
 
+/* Janela estreita (ex.: Hicorder lado a lado com a call): empilha, mas mantém
+   à vista o que importa — barra de gravar (fixa no topo) e as anotações, que
+   vêm antes da agenda. */
 @media (max-width: 900px) {
-  .panel.home-layout {
+  .home-body {
     flex-direction: column;
   }
   .live-notes {
+    order: -1;
     position: static;
     flex-basis: auto;
     width: 100%;
     max-height: none;
+  }
+  .live-notes-area {
+    min-height: 200px;
+  }
+  .home-main {
+    max-width: none;
+    width: 100%;
   }
 }
 

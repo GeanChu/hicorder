@@ -7,7 +7,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager, State};
 
-use crate::attio::{self, AttioMeeting};
+use crate::attio::{self, AttioCompany, AttioMeeting};
 use crate::audio::recorder::{Recorder, RecordingInfo};
 use crate::storage::{self, MeetingRow, RecordingRow, SummaryRow, TranscriptRow};
 use crate::summary::{self, SummaryConfig};
@@ -537,6 +537,22 @@ pub async fn attio_find_meetings(
     .map_err(|e| fail(&app, "attio", e.to_string()))
 }
 
+/// Empresas vinculadas aos participantes (por email) para o usuário escolher
+/// quais também recebem a nota.
+#[tauri::command]
+pub async fn attio_meeting_companies(
+    app: AppHandle,
+    emails: Vec<String>,
+) -> Result<Vec<AttioCompany>, String> {
+    let key = settings::get_attio_key()
+        .map_err(|e| e.to_string())?
+        .ok_or_else(|| "configure a chave do Attio nas Configurações".to_string())?;
+    tauri::async_runtime::spawn_blocking(move || attio::companies_for_emails(&key, &emails))
+        .await
+        .map_err(|e| e.to_string())?
+        .map_err(|e| fail(&app, "attio", e.to_string()))
+}
+
 /// Sobe a transcrição ou o resumo como nota em cada participante, linkando a meeting.
 /// Se `meeting_id` for None, faz find-or-create com título/horário/emails.
 #[tauri::command]
@@ -550,6 +566,7 @@ pub async fn attio_upload(
     end_iso: String,
     timezone: String,
     emails: Vec<String>,
+    company_ids: Vec<String>,
 ) -> Result<AttioUploadResult, String> {
     let content = {
         let conn = open_db(&app)?;
@@ -597,6 +614,12 @@ pub async fn attio_upload(
                 }
                 None => missing.push(e.clone()),
             }
+        }
+        // Notas também nas empresas selecionadas (record_id já resolvido no cliente).
+        for cid in &company_ids {
+            attio::create_note(&key, "companies", cid, &mid, &note_title, &content)
+                .map_err(|er| er.to_string())?;
+            notes_created += 1;
         }
         Ok(AttioUploadResult {
             meeting_id: mid,

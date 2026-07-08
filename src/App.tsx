@@ -68,6 +68,11 @@ type AttioMeeting = {
   participants: string[];
 };
 
+type AttioCompany = {
+  record_id: string;
+  name: string;
+};
+
 type Summary = {
   recording_id: string;
   text: string;
@@ -535,11 +540,13 @@ function HomeScreen({
 }) {
   return (
     <section className="panel home-layout">
-      <div className="home-main">
-        <RecordBar onFinished={onFinished} />
-        <AgendaList hasIcs={hasIcs} recordAll={recordAll} autoSync={autoSync} />
+      <RecordBar onFinished={onFinished} />
+      <div className="home-body">
+        <div className="home-main">
+          <AgendaList hasIcs={hasIcs} recordAll={recordAll} autoSync={autoSync} />
+        </div>
+        <LiveNotes />
       </div>
-      <LiveNotes />
     </section>
   );
 }
@@ -1399,6 +1406,9 @@ function AttioUpload({
   const [selected, setSelected] = useState<string | null>(null); // meeting_id or "new"
   const [checkedEmails, setCheckedEmails] = useState<Set<string>>(new Set());
   const [manualEmails, setManualEmails] = useState("");
+  const [companies, setCompanies] = useState<AttioCompany[]>([]);
+  const [checkedCompanies, setCheckedCompanies] = useState<Set<string>>(new Set());
+  const [loadingCompanies, setLoadingCompanies] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<string | null>(null);
@@ -1439,11 +1449,54 @@ function AttioUpload({
     });
   }
 
+  function toggleCompany(id: string) {
+    setCheckedCompanies((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  // Ao escolher uma reunião real, busca as empresas dos participantes (todas
+  // sugeridas já marcadas). "Nova reunião" ou sem participantes: sem empresas.
+  useEffect(() => {
+    const m = candidates?.find((x) => x.meeting_id === selected) ?? null;
+    if (!m || m.participants.length === 0) {
+      setCompanies([]);
+      setCheckedCompanies(new Set());
+      return;
+    }
+    let cancelled = false;
+    setLoadingCompanies(true);
+    invoke<AttioCompany[]>("attio_meeting_companies", { emails: m.participants })
+      .then((cs) => {
+        if (cancelled) return;
+        setCompanies(cs);
+        setCheckedCompanies(new Set(cs.map((c) => c.record_id)));
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setCompanies([]);
+          setCheckedCompanies(new Set());
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingCompanies(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selected, candidates]);
+
   async function start(k: "transcript" | "summary" | "notes") {
     setKind(k);
     setCandidates(null);
     setSelected(null);
     setCheckedEmails(new Set());
+    setCompanies([]);
+    setCheckedCompanies(new Set());
     setManualEmails("");
     setTitle("");
     setResult(null);
@@ -1478,8 +1531,9 @@ function AttioUpload({
   async function upload() {
     if (!recording || !kind || !selected) return;
     const list = finalEmails();
-    if (list.length === 0) {
-      setError("Marque ou informe ao menos 1 email para receber a nota.");
+    const companyIds = Array.from(checkedCompanies);
+    if (list.length === 0 && companyIds.length === 0) {
+      setError("Marque ao menos 1 pessoa ou empresa para receber a nota.");
       return;
     }
     setError(null);
@@ -1500,6 +1554,7 @@ function AttioUpload({
           endIso: end.toISOString(),
           timezone: tz,
           emails: list,
+          companyIds,
         },
       );
       let msg = `${r.notes_created} nota(s) criada(s) na meeting ${r.meeting_id}.`;
@@ -1598,6 +1653,22 @@ function AttioUpload({
                     onChange={() => toggleEmail(email)}
                   />
                   <span>{email}</span>
+                </label>
+              ))}
+            </div>
+          )}
+          {loadingCompanies && <p className="hint">Buscando empresas dos participantes...</p>}
+          {companies.length > 0 && (
+            <div className="attio-people">
+              <span className="hint">Empresas:</span>
+              {companies.map((c) => (
+                <label key={c.record_id} className="chk">
+                  <input
+                    type="checkbox"
+                    checked={checkedCompanies.has(c.record_id)}
+                    onChange={() => toggleCompany(c.record_id)}
+                  />
+                  <span>{c.name}</span>
                 </label>
               ))}
             </div>
