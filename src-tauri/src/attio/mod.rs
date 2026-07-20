@@ -240,10 +240,42 @@ fn company_name(key: &str, record_id: &str) -> Result<Option<String>> {
     let url = reqwest::Url::parse(&format!("{BASE}/objects/companies/records/{record_id}"))
         .map_err(|e| anyhow!("Attio: URL inválida: {e}"))?;
     let json = get_json(key, url)?;
-    Ok(json
-        .pointer("/data/values/name/0/value")
-        .and_then(|x| x.as_str())
-        .map(String::from))
+    // O nome pode vir em `value` ou `full_name` conforme o tipo do atributo;
+    // sem os dois, cai no domínio para não mostrar "(empresa)" genérico.
+    for p in [
+        "/data/values/name/0/value",
+        "/data/values/name/0/full_name",
+        "/data/values/domains/0/domain",
+    ] {
+        if let Some(s) = json.pointer(p).and_then(|x| x.as_str()) {
+            if !s.trim().is_empty() {
+                return Ok(Some(s.to_string()));
+            }
+        }
+    }
+    Ok(None)
+}
+
+/// Acha o record_id de uma empresa pelo nome. Tenta exato e, se não achar,
+/// por conteúdo (o usuário digita o nome como lembra). None se não existir.
+pub fn find_company_by_name(key: &str, name: &str) -> Result<Option<String>> {
+    let url = format!("{BASE}/objects/companies/records/query");
+    for filter in [
+        json!({ "name": name }),
+        json!({ "name": { "$contains": name } }),
+    ] {
+        let body = json!({ "filter": filter, "limit": 1 });
+        if let Ok(json) = post_json(key, &url, &body) {
+            if let Some(id) = json
+                .pointer("/data/0/id/record_id")
+                .and_then(|x| x.as_str())
+                .map(String::from)
+            {
+                return Ok(Some(id));
+            }
+        }
+    }
+    Ok(None)
 }
 
 /// Empresas (dedup) vinculadas às pessoas de uma lista de emails, para o usuário

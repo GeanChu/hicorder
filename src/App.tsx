@@ -1489,6 +1489,7 @@ function AttioUpload({
   const [selected, setSelected] = useState<string | null>(null); // meeting_id or "new"
   const [checkedEmails, setCheckedEmails] = useState<Set<string>>(new Set());
   const [manualEmails, setManualEmails] = useState("");
+  const [manualCompanies, setManualCompanies] = useState("");
   const [companies, setCompanies] = useState<AttioCompany[]>([]);
   const [checkedCompanies, setCheckedCompanies] = useState<Set<string>>(new Set());
   const [loadingCompanies, setLoadingCompanies] = useState(false);
@@ -1506,6 +1507,15 @@ function AttioUpload({
   // Emails finais = sugeridos marcados + digitados manualmente (dedup).
   function finalEmails(): string[] {
     return Array.from(new Set([...checkedEmails, ...parseManual()]));
+  }
+
+  // Empresas digitadas por nome (o backend resolve o record_id no Attio).
+  // Só vírgula/; separam — nome de empresa costuma ter espaço.
+  function parseCompanyNames(): string[] {
+    return manualCompanies
+      .split(/[,;\n]+/)
+      .map((c) => c.trim())
+      .filter(Boolean);
   }
 
   // Ao escolher uma reunião, sugere seus participantes já marcados — exceto o
@@ -1581,6 +1591,7 @@ function AttioUpload({
     setCompanies([]);
     setCheckedCompanies(new Set());
     setManualEmails("");
+    setManualCompanies("");
     setTitle("");
     setResult(null);
     setError(null);
@@ -1615,8 +1626,9 @@ function AttioUpload({
     if (!recording || !kind || !selected) return;
     const list = finalEmails();
     const companyIds = Array.from(checkedCompanies);
-    if (list.length === 0 && companyIds.length === 0) {
-      setError("Marque ao menos 1 pessoa ou empresa para receber a nota.");
+    const companyNames = parseCompanyNames();
+    if (list.length === 0 && companyIds.length === 0 && companyNames.length === 0) {
+      setError("Marque ou informe ao menos 1 pessoa ou empresa para receber a nota.");
       return;
     }
     setError(null);
@@ -1626,22 +1638,27 @@ function AttioUpload({
       const start = new Date(recording.created_at);
       const end = new Date(recording.created_at + recording.duration_s * 1000);
       const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
-      const r = await invoke<{ meeting_id: string; notes_created: number; missing_people: string[] }>(
-        "attio_upload",
-        {
-          recordingId: recording.id,
-          kind,
-          meetingId: selected === "new" ? null : selected,
-          title: title || `Reunião ${formatDate(recording.created_at)}`,
-          startIso: start.toISOString(),
-          endIso: end.toISOString(),
-          timezone: tz,
-          emails: list,
-          companyIds,
-        },
-      );
+      const r = await invoke<{
+        meeting_id: string;
+        notes_created: number;
+        missing_people: string[];
+        missing_companies: string[];
+      }>("attio_upload", {
+        recordingId: recording.id,
+        kind,
+        meetingId: selected === "new" ? null : selected,
+        title: title || `Reunião ${formatDate(recording.created_at)}`,
+        startIso: start.toISOString(),
+        endIso: end.toISOString(),
+        timezone: tz,
+        emails: list,
+        companyIds,
+        companyNames,
+      });
       let msg = `${r.notes_created} nota(s) criada(s) na meeting ${r.meeting_id}.`;
       if (r.missing_people.length > 0) msg += ` Sem pessoa no Attio: ${r.missing_people.join(", ")}.`;
+      if (r.missing_companies.length > 0)
+        msg += ` Sem empresa no Attio: ${r.missing_companies.join(", ")}.`;
       setResult(msg);
     } catch (e) {
       setError(String(e));
@@ -1756,6 +1773,14 @@ function AttioUpload({
               ))}
             </div>
           )}
+          <div className="form-row">
+            <label>Outras empresas (opcional, pelo nome, separadas por vírgula)</label>
+            <input
+              value={manualCompanies}
+              onChange={(e) => setManualCompanies(e.target.value)}
+              placeholder="Honey Island Capital, Upstcap"
+            />
+          </div>
           <div className="form-row">
             <label>Outros emails (opcional, separados por vírgula)</label>
             <input

@@ -44,6 +44,8 @@ pub struct AttioUploadResult {
     pub meeting_id: String,
     pub notes_created: usize,
     pub missing_people: Vec<String>,
+    /// Nomes de empresa digitados que não existem no Attio.
+    pub missing_companies: Vec<String>,
 }
 
 #[tauri::command]
@@ -654,6 +656,7 @@ pub async fn attio_upload(
     timezone: String,
     emails: Vec<String>,
     company_ids: Vec<String>,
+    company_names: Vec<String>,
 ) -> Result<AttioUploadResult, String> {
     let content = {
         let conn = open_db(&app)?;
@@ -702,8 +705,21 @@ pub async fn attio_upload(
                 None => missing.push(e.clone()),
             }
         }
-        // Notas também nas empresas selecionadas (record_id já resolvido no cliente).
-        for cid in &company_ids {
+        // Empresas: as marcadas (record_id já resolvido) + as digitadas por nome,
+        // resolvidas aqui. Dedup para não criar nota repetida na mesma empresa.
+        let mut ids: Vec<String> = company_ids.clone();
+        let mut missing_companies = Vec::new();
+        for name in company_names.iter().filter(|n| !n.trim().is_empty()) {
+            match attio::find_company_by_name(&key, name.trim()).map_err(|er| er.to_string())? {
+                Some(cid) => {
+                    if !ids.contains(&cid) {
+                        ids.push(cid);
+                    }
+                }
+                None => missing_companies.push(name.trim().to_string()),
+            }
+        }
+        for cid in &ids {
             attio::create_note(&key, "companies", cid, &mid, &note_title, &content)
                 .map_err(|er| er.to_string())?;
             notes_created += 1;
@@ -712,6 +728,7 @@ pub async fn attio_upload(
             meeting_id: mid,
             notes_created,
             missing_people: missing,
+            missing_companies,
         })
     })
     .await
