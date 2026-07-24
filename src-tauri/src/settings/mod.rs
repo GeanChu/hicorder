@@ -106,26 +106,99 @@ fn get_key(user: &str) -> Result<Option<String>> {
     store::get(user)
 }
 
-// Transcrição (Groq/Whisper).
-pub fn set_api_key(key: &str) -> Result<()> {
-    set_key(TRANSCRIPTION_KEY, key)
-}
-pub fn get_api_key() -> Result<Option<String>> {
-    get_key(TRANSCRIPTION_KEY)
-}
-pub fn has_api_key() -> bool {
-    matches!(get_api_key(), Ok(Some(_)))
+/// Host da URL, sem esquema nem caminho ("https://api.groq.com/x" → "api.groq.com").
+fn host_of(url: &str) -> String {
+    url.split("://")
+        .nth(1)
+        .unwrap_or(url)
+        .split('/')
+        .next()
+        .unwrap_or("")
+        .to_lowercase()
 }
 
-// Resumo (MiniMax-M3, sk-cp).
-pub fn set_summary_key(key: &str) -> Result<()> {
-    set_key(SUMMARY_KEY, key)
+/// Identificador sob o qual a chave é guardada — define quantas chaves distintas
+/// o app mantém.
+///
+/// - **NVIDIA NIM**: uma chave POR MODELO. O programa de incentivo da NVIDIA
+///   emite uma chave para cada modelo, então trocar de modelo troca de chave.
+/// - **Demais provedores**: uma chave por host. A mesma chave da Groq vale para
+///   todos os modelos Whisper; a da MiniMax vale para todos os modelos dela.
+pub fn key_scope(kind: &str, endpoint_url: &str, model: &str) -> String {
+    let ep = endpoint_url.to_lowercase();
+    if ep.contains("integrate.api.nvidia.com") {
+        return format!("{kind}:nvidia:{}", model.trim().to_lowercase());
+    }
+    format!("{kind}:{}", host_of(&ep))
 }
-pub fn get_summary_key() -> Result<Option<String>> {
-    get_key(SUMMARY_KEY)
+
+/// Lê a chave do escopo; se ainda não houver, cai na chave única antiga (de
+/// antes das chaves por provedor) para não quebrar quem já tinha configurado.
+fn get_scoped(scope: &str, legacy: &str) -> Result<Option<String>> {
+    if let Some(v) = get_key(scope)? {
+        return Ok(Some(v));
+    }
+    get_key(legacy)
 }
-pub fn has_summary_key() -> bool {
-    matches!(get_summary_key(), Ok(Some(_)))
+
+// Transcrição (Groq/Whisper).
+pub fn set_api_key(endpoint_url: &str, model: &str, key: &str) -> Result<()> {
+    set_key(&key_scope("stt", endpoint_url, model), key)
+}
+pub fn get_api_key(endpoint_url: &str, model: &str) -> Result<Option<String>> {
+    get_scoped(&key_scope("stt", endpoint_url, model), TRANSCRIPTION_KEY)
+}
+pub fn has_api_key(endpoint_url: &str, model: &str) -> bool {
+    matches!(get_api_key(endpoint_url, model), Ok(Some(_)))
+}
+
+// Resumo (LLM).
+pub fn set_summary_key(endpoint_url: &str, model: &str, key: &str) -> Result<()> {
+    set_key(&key_scope("summary", endpoint_url, model), key)
+}
+pub fn get_summary_key(endpoint_url: &str, model: &str) -> Result<Option<String>> {
+    get_scoped(&key_scope("summary", endpoint_url, model), SUMMARY_KEY)
+}
+pub fn has_summary_key(endpoint_url: &str, model: &str) -> bool {
+    matches!(get_summary_key(endpoint_url, model), Ok(Some(_)))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::key_scope;
+
+    #[test]
+    fn mesma_chave_para_modelos_da_mesma_familia() {
+        let a = key_scope("stt", "https://api.groq.com/openai/v1/audio/transcriptions", "whisper-large-v3");
+        let b = key_scope("stt", "https://api.groq.com/openai/v1/audio/transcriptions", "whisper-large-v3-turbo");
+        assert_eq!(a, b);
+
+        let m1 = key_scope("summary", "https://api.minimax.io/v1/chat/completions", "MiniMax-M3");
+        let m2 = key_scope("summary", "https://api.minimax.io/v1/chat/completions", "MiniMax-Text-01");
+        assert_eq!(m1, m2);
+    }
+
+    #[test]
+    fn nvidia_tem_chave_por_modelo() {
+        let ep = "https://integrate.api.nvidia.com/v1/chat/completions";
+        let a = key_scope("summary", ep, "minimaxai/minimax-m3");
+        let b = key_scope("summary", ep, "deepseek-ai/deepseek-v4-pro");
+        assert_ne!(a, b);
+    }
+
+    #[test]
+    fn provedores_diferentes_nao_compartilham() {
+        let g = key_scope("summary", "https://api.openai.com/v1/chat/completions", "gpt-4o");
+        let m = key_scope("summary", "https://api.minimax.io/v1/chat/completions", "MiniMax-M3");
+        assert_ne!(g, m);
+    }
+
+    #[test]
+    fn stt_e_resumo_nao_compartilham_mesmo_host() {
+        let a = key_scope("stt", "https://api.openai.com/v1/audio/transcriptions", "whisper-1");
+        let b = key_scope("summary", "https://api.openai.com/v1/chat/completions", "gpt-4o");
+        assert_ne!(a, b);
+    }
 }
 
 // Attio (CRM).

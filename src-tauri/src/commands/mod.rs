@@ -386,14 +386,18 @@ pub fn get_settings(app: AppHandle) -> Result<AppSettings, String> {
         .map_err(|e| e.to_string())?
         .and_then(|v| v.parse::<i64>().ok())
         .unwrap_or(120);
+    // Presença da chave é por escopo (host, ou host+modelo na NVIDIA), então
+    // depende do endpoint/modelo salvos — calcula antes de mover para o struct.
+    let has_api_key = settings::has_api_key(&cfg.endpoint_url, &cfg.model);
+    let has_summary_key = settings::has_summary_key(&scfg.endpoint_url, &scfg.model);
     Ok(AppSettings {
         default_language,
         endpoint_url: cfg.endpoint_url,
         model: cfg.model,
-        has_api_key: settings::has_api_key(),
+        has_api_key,
         summary_endpoint_url: scfg.endpoint_url,
         summary_model: scfg.model,
-        has_summary_key: settings::has_summary_key(),
+        has_summary_key,
         summary_prompt,
         ics_url,
         record_all,
@@ -442,14 +446,28 @@ pub fn save_settings(
     Ok(())
 }
 
+/// Guarda a chave de transcrição no escopo do provedor/modelo informados.
 #[tauri::command]
-pub fn set_api_key(key: String) -> Result<(), String> {
-    settings::set_api_key(&key).map_err(|e| e.to_string())
+pub fn set_api_key(endpoint_url: String, model: String, key: String) -> Result<(), String> {
+    settings::set_api_key(&endpoint_url, &model, &key).map_err(|e| e.to_string())
 }
 
+/// Guarda a chave do resumo no escopo do provedor/modelo informados.
 #[tauri::command]
-pub fn set_summary_key(key: String) -> Result<(), String> {
-    settings::set_summary_key(&key).map_err(|e| e.to_string())
+pub fn set_summary_key(endpoint_url: String, model: String, key: String) -> Result<(), String> {
+    settings::set_summary_key(&endpoint_url, &model, &key).map_err(|e| e.to_string())
+}
+
+/// Há chave guardada para este provedor/modelo? Usado pela UI ao trocar de
+/// modelo — o valor da chave nunca sai do backend, só a informação de existir.
+/// `kind`: "stt" | "summary".
+#[tauri::command]
+pub fn has_provider_key(kind: String, endpoint_url: String, model: String) -> bool {
+    if kind == "stt" {
+        settings::has_api_key(&endpoint_url, &model)
+    } else {
+        settings::has_summary_key(&endpoint_url, &model)
+    }
 }
 
 #[tauri::command]
@@ -478,11 +496,12 @@ fn logged<T>(app: &AppHandle, category: &str, r: Result<T, String>) -> Result<T,
 pub async fn test_transcription_api(
     app: AppHandle,
     endpoint_url: String,
+    model: String,
     key: Option<String>,
 ) -> Result<String, String> {
     let api_key = match key.filter(|k| !k.trim().is_empty()) {
         Some(k) => k,
-        None => settings::get_api_key()
+        None => settings::get_api_key(&endpoint_url, &model)
             .map_err(|e| e.to_string())?
             .ok_or_else(|| "Nenhuma chave de transcrição configurada.".to_string())?,
     };
@@ -503,7 +522,7 @@ pub async fn test_summary_api(
 ) -> Result<String, String> {
     let api_key = match key.filter(|k| !k.trim().is_empty()) {
         Some(k) => k,
-        None => settings::get_summary_key()
+        None => settings::get_summary_key(&endpoint_url, &model)
             .map_err(|e| e.to_string())?
             .ok_or_else(|| "Nenhuma chave de resumo configurada.".to_string())?,
     };
@@ -766,7 +785,7 @@ pub async fn transcribe(
             .map_err(|e| e.to_string())?
             .ok_or_else(|| "gravação não encontrada".to_string())?;
         let cfg = load_config(&conn).map_err(|e| e.to_string())?;
-        let api_key = settings::get_api_key()
+        let api_key = settings::get_api_key(&cfg.endpoint_url, &cfg.model)
             .map_err(|e| e.to_string())?
             .ok_or_else(|| "configure a chave da API nas Configurações".to_string())?;
         (
@@ -885,9 +904,9 @@ pub async fn generate_summary(
             .ok_or_else(|| "transcreva a gravação antes de resumir".to_string())?;
         let notes = storage::get_notes(&conn, &recording_id).map_err(|e| e.to_string())?;
         let cfg = load_summary_config(&conn).map_err(|e| e.to_string())?;
-        let api_key = settings::get_summary_key()
+        let api_key = settings::get_summary_key(&cfg.endpoint_url, &cfg.model)
             .map_err(|e| e.to_string())?
-            .ok_or_else(|| "configure a chave do Resumo (MiniMax) nas Configurações".to_string())?;
+            .ok_or_else(|| "configure a chave do Resumo nas Configurações".to_string())?;
         let system_prompt = prompt
             .map(|p| p.trim().to_string())
             .filter(|p| !p.is_empty())

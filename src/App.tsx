@@ -2132,6 +2132,9 @@ function ConfigScreen({
   const [recordAll, setRecordAll] = useState(false);
   const [autoSyncAgenda, setAutoSyncAgenda] = useState(true);
   const [autoStopMinutes, setAutoStopMinutes] = useState(120);
+  // Há chave guardada para o provedor/modelo selecionados na tela?
+  const [sttKeySaved, setSttKeySaved] = useState(false);
+  const [summaryKeySaved, setSummaryKeySaved] = useState(false);
   const [autostart, setAutostart] = useState(true);
   const [theme, setTheme] = useState("system");
   const [appVersion, setAppVersion] = useState("");
@@ -2187,6 +2190,45 @@ function ConfigScreen({
     }
   }
 
+  // Existe chave guardada para o provedor/modelo selecionados AGORA na tela?
+  // Refaz a consulta a cada troca — na NVIDIA a chave é por modelo, então mudar
+  // o modelo muda a resposta. O valor da chave nunca vem para a UI, só o "tem".
+  useEffect(() => {
+    let cancelled = false;
+    invoke<boolean>("has_provider_key", { kind: "stt", endpointUrl, model })
+      .then((v) => !cancelled && setSttKeySaved(v))
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [endpointUrl, model]);
+
+  useEffect(() => {
+    let cancelled = false;
+    invoke<boolean>("has_provider_key", {
+      kind: "summary",
+      endpointUrl: summaryEndpointUrl,
+      model: summaryModel,
+    })
+      .then((v) => !cancelled && setSummaryKeySaved(v))
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [summaryEndpointUrl, summaryModel]);
+
+  // Trocar de provedor/modelo limpa o campo digitado: o que estava ali era a
+  // chave do provedor anterior.
+  useEffect(() => {
+    setApiKey("");
+    setTestResult((t) => ({ ...t, stt: "" }));
+  }, [endpointUrl, model]);
+
+  useEffect(() => {
+    setSummaryKey("");
+    setTestResult((t) => ({ ...t, summary: "" }));
+  }, [summaryEndpointUrl, summaryModel]);
+
   async function testApi(which: "stt" | "summary" | "attio") {
     setTestResult((t) => ({ ...t, [which]: "Testando..." }));
     try {
@@ -2194,6 +2236,7 @@ function ConfigScreen({
       if (which === "stt") {
         res = await invoke<string>("test_transcription_api", {
           endpointUrl,
+          model,
           key: apiKey.trim() || null,
         });
       } else if (which === "summary") {
@@ -2263,18 +2306,36 @@ function ConfigScreen({
         autoSyncAgenda,
         autoStopMinutes,
       });
+      // A chave é guardada no escopo do provedor/modelo atual (na NVIDIA, por
+      // modelo), então o backend precisa saber endpoint+modelo junto da chave.
       if (apiKey.trim()) {
-        await invoke("set_api_key", { key: apiKey });
+        await invoke("set_api_key", { endpointUrl, model, key: apiKey });
         setApiKey("");
       }
       if (summaryKey.trim()) {
-        await invoke("set_summary_key", { key: summaryKey });
+        await invoke("set_summary_key", {
+          endpointUrl: summaryEndpointUrl,
+          model: summaryModel,
+          key: summaryKey,
+        });
         setSummaryKey("");
       }
       if (attioKey.trim()) {
         await invoke("set_attio_key", { key: attioKey });
         setAttioKey("");
       }
+      // Reavalia os indicadores: os efeitos só disparam quando muda
+      // provedor/modelo, e aqui o que mudou foi a chave guardada.
+      invoke<boolean>("has_provider_key", { kind: "stt", endpointUrl, model })
+        .then(setSttKeySaved)
+        .catch(() => {});
+      invoke<boolean>("has_provider_key", {
+        kind: "summary",
+        endpointUrl: summaryEndpointUrl,
+        model: summaryModel,
+      })
+        .then(setSummaryKeySaved)
+        .catch(() => {});
       setMsg("Configurações salvas.");
       onSaved();
     } catch (e) {
@@ -2374,7 +2435,11 @@ function ConfigScreen({
             type="password"
             value={apiKey}
             onChange={(e) => setApiKey(e.target.value)}
-            placeholder={settings?.has_api_key ? "•••••• (configurada)" : "cole a chave da transcrição"}
+            placeholder={
+              sttKeySaved
+                ? "•••••• (chave salva para este provedor)"
+                : "cole a chave da transcrição"
+            }
           />
           <button type="button" className="secondary" onClick={() => testApi("stt")}>
             Testar
@@ -2442,7 +2507,11 @@ function ConfigScreen({
             type="password"
             value={summaryKey}
             onChange={(e) => setSummaryKey(e.target.value)}
-            placeholder={settings?.has_summary_key ? "•••••• (configurada)" : "cole a chave do resumo"}
+            placeholder={
+              summaryKeySaved
+                ? "•••••• (chave salva para este modelo)"
+                : "cole a chave deste modelo"
+            }
           />
           <button type="button" className="secondary" onClick={() => testApi("summary")}>
             Testar
@@ -2481,7 +2550,11 @@ function ConfigScreen({
         </div>
       </div>
 
-      <p className="hint">As chaves ficam no keychain do sistema, nunca em texto puro.</p>
+      <p className="hint">
+        As chaves ficam no keychain do sistema, nunca em texto puro. Cada provedor
+        guarda a sua: ao trocar de provedor, a chave anterior continua salva. Na
+        NVIDIA a chave é por modelo — cada modelo precisa da sua.
+      </p>
 
       <h3 className="cfg-section">Calendário (agenda)</h3>
       <p className="hint">URL secreta (ICS) do seu calendário, para listar as próximas reuniões.</p>
