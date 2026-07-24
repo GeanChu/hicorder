@@ -131,8 +131,8 @@ const STT_PROVIDERS: Provider[] = [
     id: "groq",
     label: "Groq (Whisper)",
     endpoint: "https://api.groq.com/openai/v1/audio/transcriptions",
-    model: "whisper-large-v3-turbo",
-    models: ["whisper-large-v3-turbo", "whisper-large-v3"],
+    model: "whisper-large-v3",
+    models: ["whisper-large-v3", "whisper-large-v3-turbo"],
     keyHelp: "Chave grátis em console.groq.com/keys (Groq → API Keys → Create API Key).",
   },
   {
@@ -207,6 +207,18 @@ const SUMMARY_PROVIDERS: Provider[] = [
     model: "MiniMax-M3",
     models: ["MiniMax-M3", "MiniMax-Text-01"],
     keyHelp: "platform.minimax.io → Account → API Keys (chave de API, começa com ey...).",
+  },
+  {
+    id: "nvidia",
+    label: "NVIDIA NIM",
+    endpoint: "https://integrate.api.nvidia.com/v1/chat/completions",
+    model: "minimaxai/minimax-m3",
+    models: [
+      "minimaxai/minimax-m3",
+      "meta/llama-3.3-70b-instruct",
+      "deepseek-ai/deepseek-r1",
+    ],
+    keyHelp: "build.nvidia.com → API key (começa com nvapi-). Endpoint compatível com OpenAI.",
   },
   {
     id: "custom",

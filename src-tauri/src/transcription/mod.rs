@@ -20,9 +20,10 @@ pub struct TranscriptionConfig {
 impl Default for TranscriptionConfig {
     fn default() -> Self {
         // Groq Whisper (OpenAI-compatível, free tier). MiniMax NÃO tem STT.
+        // large-v3 (não o turbo): alucina menos em trechos de silêncio.
         Self {
             endpoint_url: "https://api.groq.com/openai/v1/audio/transcriptions".to_string(),
-            model: "whisper-large-v3-turbo".to_string(),
+            model: "whisper-large-v3".to_string(),
         }
     }
 }
