@@ -72,13 +72,19 @@ pub fn summarize(
         ),
         None => transcript.to_string(),
     };
-    let body = serde_json::json!({
+    let mut body = serde_json::json!({
         "model": cfg.model,
         "messages": [
             { "role": "system", "content": system_prompt },
             { "role": "user", "content": user_content }
         ]
     });
+    // NVIDIA NIM tem um `max_tokens` padrão baixo e corta o resumo no meio.
+    // Só para esse endpoint — outros provedores (ex.: o4-mini da OpenAI) rejeitam
+    // ou interpretam `max_tokens` de forma diferente.
+    if cfg.endpoint_url.contains("integrate.api.nvidia.com") {
+        body["max_tokens"] = serde_json::json!(16384);
+    }
 
     let resp = crate::net::client(180)
         .post(&cfg.endpoint_url)

@@ -215,6 +215,7 @@ const SUMMARY_PROVIDERS: Provider[] = [
     model: "minimaxai/minimax-m3",
     models: [
       "minimaxai/minimax-m3",
+      "deepseek-ai/deepseek-v4-pro",
       "meta/llama-3.3-70b-instruct",
       "deepseek-ai/deepseek-r1",
     ],
