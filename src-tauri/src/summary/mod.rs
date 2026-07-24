@@ -33,12 +33,16 @@ pub fn default_prompt() -> &'static str {
     DEFAULT_SUMMARY_PROMPT
 }
 
-/// Valida a chave/endpoint/modelo: chat completions mínimo (1 token). Espera 200.
+/// Valida a chave/endpoint/modelo com um chat completions mínimo. Espera 200.
+///
+/// `max_tokens` pequeno mas não 1: modelos de raciocínio (deepseek-v4-pro,
+/// minimax-m3) gastam tokens pensando antes de responder e alguns provedores
+/// devolvem 400 quando o teto não permite nenhuma saída útil.
 pub fn test_key(cfg: &SummaryConfig, api_key: &str) -> Result<()> {
     let body = serde_json::json!({
         "model": cfg.model,
         "messages": [{ "role": "user", "content": "ping" }],
-        "max_tokens": 1
+        "max_tokens": 16
     });
     let resp = crate::net::client(20)
         .post(&cfg.endpoint_url)
