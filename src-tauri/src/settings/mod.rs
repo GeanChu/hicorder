@@ -115,19 +115,17 @@ fn host_of(url: &str) -> String {
         .to_lowercase()
 }
 
-/// Identificador sob o qual a chave é guardada — define quantas chaves distintas
-/// o app mantém.
+/// Identificador sob o qual a chave é guardada — uma chave por (tipo, host).
 ///
-/// - **NVIDIA NIM**: uma chave POR MODELO. O programa de incentivo da NVIDIA
-///   emite uma chave para cada modelo, então trocar de modelo troca de chave.
-/// - **Demais provedores**: uma chave por host. A mesma chave da Groq vale para
-///   todos os modelos Whisper; a da MiniMax vale para todos os modelos dela.
-pub fn key_scope(kind: &str, endpoint_url: &str, model: &str) -> String {
-    let ep = endpoint_url.to_lowercase();
-    if ep.contains("integrate.api.nvidia.com") {
-        return format!("{kind}:nvidia:{}", model.trim().to_lowercase());
-    }
-    format!("{kind}:{}", host_of(&ep))
+/// A chave vale para todos os modelos do mesmo provedor: a da Groq serve todos
+/// os Whisper, a da MiniMax todos os modelos dela, e a `nvapi-` da NVIDIA todos
+/// os modelos do NIM (é chave de conta, não de modelo — o botão "Get API Key"
+/// de cada página de modelo entrega/rotaciona a mesma chave da conta).
+///
+/// `kind` separa transcrição de resumo: o mesmo host pode servir os dois com
+/// credenciais diferentes (ex.: OpenAI Whisper vs GPT).
+pub fn key_scope(kind: &str, endpoint_url: &str, _model: &str) -> String {
+    format!("{kind}:{}", host_of(&endpoint_url.to_lowercase()))
 }
 
 // Transcrição (Groq/Whisper).
@@ -177,11 +175,12 @@ mod tests {
     }
 
     #[test]
-    fn nvidia_tem_chave_por_modelo() {
+    fn nvidia_usa_a_mesma_chave_em_todos_os_modelos() {
+        // A nvapi- é chave de conta: vale para todo o catálogo do NIM.
         let ep = "https://integrate.api.nvidia.com/v1/chat/completions";
         let a = key_scope("summary", ep, "minimaxai/minimax-m3");
         let b = key_scope("summary", ep, "deepseek-ai/deepseek-v4-pro");
-        assert_ne!(a, b);
+        assert_eq!(a, b);
     }
 
     #[test]
