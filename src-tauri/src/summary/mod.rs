@@ -49,7 +49,7 @@ pub fn test_key(cfg: &SummaryConfig, api_key: &str) -> Result<()> {
         .bearer_auth(api_key)
         .json(&body)
         .send()
-        .map_err(|e| anyhow!("falha na conexão: {e}"))?;
+        .map_err(|e| anyhow!("falha na conexão: {}", crate::net::describe(&e)))?;
     let status = resp.status();
     if status.is_success() {
         return Ok(());
@@ -104,7 +104,7 @@ pub fn summarize(
         .bearer_auth(api_key)
         .json(&body)
         .send()
-        .map_err(|e| anyhow!("falha na requisição de resumo: {e}"))?;
+        .map_err(|e| anyhow!("falha na requisição de resumo: {}", crate::net::describe(&e)))?;
 
     let status = resp.status();
     let raw = resp.text().unwrap_or_default();

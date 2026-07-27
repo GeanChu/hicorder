@@ -51,7 +51,7 @@ pub fn test_key(endpoint_url: &str, api_key: &str) -> Result<()> {
         .get(&models_url)
         .bearer_auth(api_key)
         .send()
-        .map_err(|e| anyhow!("falha na conexão: {e}"))?;
+        .map_err(|e| anyhow!("falha na conexão: {}", crate::net::describe(&e)))?;
     let status = resp.status();
     if status.is_success() {
         return Ok(());

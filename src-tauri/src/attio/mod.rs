@@ -44,7 +44,7 @@ pub fn test_key(key: &str) -> Result<()> {
         .get(format!("{BASE}/meetings?limit=1"))
         .bearer_auth(key)
         .send()
-        .map_err(|e| anyhow!("falha na conexão: {e}"))?;
+        .map_err(|e| anyhow!("falha na conexão: {}", crate::net::describe(&e)))?;
     let status = resp.status();
     if status.is_success() {
         return Ok(());

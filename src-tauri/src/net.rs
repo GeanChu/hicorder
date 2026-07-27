@@ -30,6 +30,19 @@ impl Resolve for Ipv4Only {
     }
 }
 
+/// Descreve um erro do reqwest com toda a cadeia de causas. A mensagem de topo
+/// ("error sending request for url ...") não diz o que falhou de fato — o motivo
+/// real (TLS, conexão recusada, DNS, timeout) está nos `source` aninhados.
+pub fn describe(e: &(dyn std::error::Error + 'static)) -> String {
+    let mut out = e.to_string();
+    let mut cur = e.source();
+    while let Some(c) = cur {
+        out.push_str(&format!(" << {c}"));
+        cur = c.source();
+    }
+    out
+}
+
 pub fn client(timeout_secs: u64) -> reqwest::blocking::Client {
     reqwest::blocking::Client::builder()
         .use_native_tls()
