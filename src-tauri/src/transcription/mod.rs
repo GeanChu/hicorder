@@ -263,16 +263,17 @@ mod tests {
 
 /// Vocabulário de fábrica: jargão de VC/investimentos/fintech. Vira o campo
 /// `prompt` do Whisper, que condiciona o modelo a reconhecer esses termos.
+/// 40 termos: deixa folga dentro do teto de 224 tokens do `prompt` para o
+/// usuário cadastrar os próprios (nomes de empresas, fundos, pessoas).
+/// Prioriza jargão que o modelo erra — palavras comuns do português ficam de
+/// fora porque ele já acerta.
 pub const DEFAULT_VOCABULARY: &[&str] = &[
-    "valuation", "cap table", "term sheet", "due diligence", "follow-on", "lead investor",
+    "valuation", "cap table", "term sheet", "due diligence", "follow-on",
     "LP", "GP", "carry", "runway", "burn rate", "MRR", "ARR", "churn", "CAC", "LTV",
-    "payback", "ticket médio", "unit economics", "break-even", "EBITDA", "múltiplo",
-    "equity", "dívida conversível", "SAFE", "vesting", "cliff", "stock options",
-    "diluição", "pro rata", "liquidation preference", "tag along", "drag along",
-    "earn-out", "M&A", "IPO", "exit", "secundária", "bridge round", "pre-seed", "seed",
-    "Série A", "Série B", "venture capital", "private equity", "portfólio", "deal flow",
-    "tese de investimento", "captação", "aporte", "milestone", "fintech", "open banking",
-    "PIX", "adquirência", "KYC", "BACEN", "CVM", "SaaS", "GMV",
+    "ticket médio", "unit economics", "EBITDA", "SAFE", "vesting", "cliff",
+    "stock options", "pro rata", "liquidation preference", "tag along", "drag along",
+    "earn-out", "M&A", "pre-seed", "venture capital", "deal flow", "fintech",
+    "open banking", "PIX", "adquirência", "KYC", "BACEN", "CVM", "SaaS", "GMV",
 ];
 
 /// Vocabulário padrão como texto (uma linha, separado por vírgula).

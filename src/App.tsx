@@ -95,7 +95,7 @@ const TABS: { id: Tab; label: string }[] = [
 ];
 
 // ---- Dicionário (vocabulário do Whisper) ----
-const VOCAB_MAX = 100;
+const VOCAB_MAX = 65;
 /// Teto rígido da API do Whisper para o campo `prompt`. Acima disso o provedor
 /// descarta o excedente silenciosamente.
 const VOCAB_TOKEN_LIMIT = 224;
