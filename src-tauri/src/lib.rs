@@ -93,6 +93,7 @@ pub fn run() {
             commands::set_api_key,
             commands::set_summary_key,
             commands::has_provider_key,
+            commands::default_vocabulary,
             commands::transcribe,
             commands::get_transcript,
             commands::generate_summary,

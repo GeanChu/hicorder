@@ -868,6 +868,141 @@ button {
   background: var(--accent-hover);
 }
 
+/* ---- Abas das Configurações ---- */
+.cfg-tabs {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 4px;
+  border-bottom: 1px solid var(--border);
+}
+
+.cfg-tabs button {
+  padding: 9px 16px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-muted);
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  cursor: pointer;
+}
+
+.cfg-tabs button:hover {
+  color: var(--text);
+}
+
+.cfg-tabs button.active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
+/* A primeira seção de cada aba não precisa da linha de topo. */
+.cfg-tabs + * .cfg-section:first-child,
+.cfg-tabs ~ * > .cfg-section:first-child {
+  border-top: none;
+  padding-top: 8px;
+}
+
+/* ---- Dicionário (vocabulário) ---- */
+.vocab-add,
+.vocab-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 10px 0;
+  max-width: 620px;
+}
+
+.vocab-add input,
+.vocab-bar input {
+  flex: 1;
+  min-width: 0;
+  padding: 9px 12px;
+  font-size: 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+}
+
+.vocab-add input:focus,
+.vocab-bar input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.vocab-add button,
+.vocab-bar button {
+  padding: 8px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  color: var(--text);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.vocab-add button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.vocab-count {
+  font-size: 12.5px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.vocab-count.full {
+  color: var(--danger);
+  font-weight: 600;
+}
+
+.vocab-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin: 10px 0 4px;
+  max-width: 760px;
+}
+
+.vocab-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 6px 5px 11px;
+  font-size: 13px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text);
+}
+
+.vocab-chip button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  font-size: 15px;
+  line-height: 1;
+  color: var(--text-muted);
+  background: transparent;
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.vocab-chip button:hover {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
 /* ---- Busca na transcrição / resumo ---- */
 .search-row {
   display: flex;

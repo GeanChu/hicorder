@@ -261,22 +261,48 @@ mod tests {
     }
 }
 
+/// Vocabulário de fábrica: jargão de VC/investimentos/fintech. Vira o campo
+/// `prompt` do Whisper, que condiciona o modelo a reconhecer esses termos.
+pub const DEFAULT_VOCABULARY: &[&str] = &[
+    "valuation", "cap table", "term sheet", "due diligence", "follow-on", "lead investor",
+    "LP", "GP", "carry", "runway", "burn rate", "MRR", "ARR", "churn", "CAC", "LTV",
+    "payback", "ticket médio", "unit economics", "break-even", "EBITDA", "múltiplo",
+    "equity", "dívida conversível", "SAFE", "vesting", "cliff", "stock options",
+    "diluição", "pro rata", "liquidation preference", "tag along", "drag along",
+    "earn-out", "M&A", "IPO", "exit", "secundária", "bridge round", "pre-seed", "seed",
+    "Série A", "Série B", "venture capital", "private equity", "portfólio", "deal flow",
+    "tese de investimento", "captação", "aporte", "milestone", "fintech", "open banking",
+    "PIX", "adquirência", "KYC", "BACEN", "CVM", "SaaS", "GMV",
+];
+
+/// Vocabulário padrão como texto (uma linha, separado por vírgula).
+pub fn default_vocabulary() -> String {
+    DEFAULT_VOCABULARY.join(", ")
+}
+
 /// Provedor multipart compatível com a API OpenAI de transcrição.
 #[derive(Clone)]
 pub struct OpenAiCompatible {
     pub endpoint_url: String,
     pub model: String,
     pub api_key: String,
+    /// Termos que o modelo deve reconhecer (nomes, siglas, jargão). Vai no
+    /// campo `prompt`, limitado a 224 tokens pela API — o excedente é
+    /// descartado silenciosamente pelo provedor.
+    pub vocabulary: String,
 }
 
 impl Transcriber for OpenAiCompatible {
     fn transcribe(&self, audio_path: &Path, language: &str) -> Result<Vec<TranscriptSegment>> {
-        let form = reqwest::blocking::multipart::Form::new()
+        let mut form = reqwest::blocking::multipart::Form::new()
             .text("model", self.model.clone())
             .text("language", language.to_string())
             .text("response_format", "verbose_json")
             .file("file", audio_path)
             .map_err(|e| anyhow!("falha ao anexar o áudio: {e}"))?;
+        if !self.vocabulary.trim().is_empty() {
+            form = form.text("prompt", self.vocabulary.trim().to_string());
+        }
 
         let resp = crate::net::client(180)
             .post(&self.endpoint_url)

@@ -39,6 +39,8 @@ pub struct AppSettings {
     pub auto_sync_agenda: bool,
     /// Parar a gravação automaticamente após X minutos (0 = desligado).
     pub auto_stop_minutes: i64,
+    /// Termos que ajudam o Whisper (nomes, siglas, jargão), separados por vírgula.
+    pub vocabulary: String,
 }
 
 #[derive(Serialize, Clone)]
@@ -386,6 +388,11 @@ pub fn get_settings(app: AppHandle) -> Result<AppSettings, String> {
         .map_err(|e| e.to_string())?
         .and_then(|v| v.parse::<i64>().ok())
         .unwrap_or(120);
+    // Primeira execução (setting ausente) já vem com o vocabulário de fábrica;
+    // string vazia é uma escolha do usuário e é respeitada.
+    let vocabulary = storage::get_setting(&conn, "vocabulary")
+        .map_err(|e| e.to_string())?
+        .unwrap_or_else(transcription::default_vocabulary);
     // Presença da chave é por escopo (host, ou host+modelo na NVIDIA), então
     // depende do endpoint/modelo salvos — calcula antes de mover para o struct.
     let has_api_key = settings::has_api_key(&cfg.endpoint_url, &cfg.model);
@@ -406,7 +413,14 @@ pub fn get_settings(app: AppHandle) -> Result<AppSettings, String> {
         theme,
         auto_sync_agenda,
         auto_stop_minutes,
+        vocabulary,
     })
+}
+
+/// Vocabulário de fábrica (para o botão "restaurar padrão").
+#[tauri::command]
+pub fn default_vocabulary() -> String {
+    transcription::default_vocabulary()
 }
 
 #[tauri::command]
@@ -424,6 +438,7 @@ pub fn save_settings(
     theme: String,
     auto_sync_agenda: bool,
     auto_stop_minutes: i64,
+    vocabulary: String,
 ) -> Result<(), String> {
     let conn = open_db(&app)?;
     storage::set_setting(&conn, "default_language", &default_language).map_err(|e| e.to_string())?;
@@ -443,6 +458,7 @@ pub fn save_settings(
         .map_err(|e| e.to_string())?;
     storage::set_setting(&conn, "auto_stop_minutes", &auto_stop_minutes.to_string())
         .map_err(|e| e.to_string())?;
+    storage::set_setting(&conn, "vocabulary", vocabulary.trim()).map_err(|e| e.to_string())?;
     Ok(())
 }
 
@@ -788,6 +804,9 @@ pub async fn transcribe(
         let api_key = settings::get_api_key(&cfg.endpoint_url, &cfg.model)
             .map_err(|e| e.to_string())?
             .ok_or_else(|| "configure a chave da API nas Configurações".to_string())?;
+        let vocabulary = storage::get_setting(&conn, "vocabulary")
+            .map_err(|e| e.to_string())?
+            .unwrap_or_else(transcription::default_vocabulary);
         (
             mic,
             sys,
@@ -795,6 +814,7 @@ pub async fn transcribe(
                 endpoint_url: cfg.endpoint_url,
                 model: cfg.model,
                 api_key,
+                vocabulary,
             },
         )
     };

@@ -66,6 +66,7 @@ type Settings = {
   theme: string;
   auto_sync_agenda: boolean;
   auto_stop_minutes: number;
+  vocabulary: string;
 };
 
 type AttioMeeting = {
@@ -92,6 +93,39 @@ const TABS: { id: Tab; label: string }[] = [
   { id: "gravacoes", label: "Gravações" },
   { id: "prompts", label: "Prompts de resumo" },
 ];
+
+// ---- Dicionário (vocabulário do Whisper) ----
+const VOCAB_MAX = 100;
+/// Teto rígido da API do Whisper para o campo `prompt`. Acima disso o provedor
+/// descarta o excedente silenciosamente.
+const VOCAB_TOKEN_LIMIT = 224;
+
+/// Texto salvo ("a, b, c") → lista sem duplicatas, ordenada alfabeticamente.
+function parseVocab(text: string): string[] {
+    const seen = new Set<string>();
+    const out: string[] = [];
+    for (const raw of text.split(/[,;\n]+/)) {
+      const t = raw.trim().replace(/\s+/g, " ");
+      if (!t) continue;
+      const k = t.toLowerCase();
+      if (seen.has(k)) continue;
+      seen.add(k);
+      out.push(t);
+    }
+    return sortVocab(out);
+}
+
+/// Ordem alfabética estável, insensível a acento/caixa (pt-BR).
+function sortVocab(list: string[]): string[] {
+  return [...list].sort((a, b) => a.localeCompare(b, "pt-BR", { sensitivity: "base" }));
+}
+
+/// Estimativa de tokens do prompt. Aproximação: ~4 caracteres por token, mais
+/// 1 token por separador. Serve para avisar antes de o provedor truncar.
+function estimateTokens(list: string[]): number {
+  const chars = list.join(", ").length;
+  return Math.ceil(chars / 4) + list.length;
+}
 
 // Opções do auto-stop por tempo (em minutos).
 const AUTO_STOP_OPTIONS: { min: number; label: string }[] = [
@@ -2135,6 +2169,8 @@ function ConfigScreen({
   // Há chave guardada para o provedor/modelo selecionados na tela?
   const [sttKeySaved, setSttKeySaved] = useState(false);
   const [summaryKeySaved, setSummaryKeySaved] = useState(false);
+  const [vocab, setVocab] = useState<string[]>([]);
+  const [cfgTab, setCfgTab] = useState<"conexoes" | "sistema">("conexoes");
   const [autostart, setAutostart] = useState(true);
   const [theme, setTheme] = useState("system");
   const [appVersion, setAppVersion] = useState("");
@@ -2268,6 +2304,7 @@ function ConfigScreen({
       setRecordAll(settings.record_all);
       setAutoSyncAgenda(settings.auto_sync_agenda);
       setAutoStopMinutes(settings.auto_stop_minutes);
+      setVocab(parseVocab(settings.vocabulary));
       setAttioUserEmail(settings.attio_user_email);
       setTheme(settings.theme);
     }
@@ -2305,6 +2342,7 @@ function ConfigScreen({
         theme,
         autoSyncAgenda,
         autoStopMinutes,
+        vocabulary: vocab.join(", "),
       });
       // A chave é guardada no escopo do provedor/modelo atual (na NVIDIA, por
       // modelo), então o backend precisa saber endpoint+modelo junto da chave.
@@ -2347,35 +2385,25 @@ function ConfigScreen({
     <section className="panel">
       <h2>Configurações</h2>
 
-      <div className="form-row">
-        <label>Idioma padrão</label>
-        <select value={defaultLanguage} onChange={(e) => setDefaultLanguage(e.target.value)}>
-          {LANGUAGES.map((l) => (
-            <option key={l.code} value={l.code}>
-              {l.label}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      <div className="form-row">
-        <label>Tema</label>
-        <select
-          value={theme}
-          onChange={(e) => {
-            const t = e.target.value;
-            setTheme(t);
-            // Prévia imediata (persiste ao Salvar).
-            if (t === "system") delete document.documentElement.dataset.theme;
-            else document.documentElement.dataset.theme = t;
-          }}
+      <div className="cfg-tabs">
+        <button
+          type="button"
+          className={cfgTab === "conexoes" ? "active" : ""}
+          onClick={() => setCfgTab("conexoes")}
         >
-          <option value="system">Automático (sistema)</option>
-          <option value="light">Claro</option>
-          <option value="dark">Escuro</option>
-        </select>
+          Conexões
+        </button>
+        <button
+          type="button"
+          className={cfgTab === "sistema" ? "active" : ""}
+          onClick={() => setCfgTab("sistema")}
+        >
+          Sistema
+        </button>
       </div>
 
+      {cfgTab === "conexoes" && (
+        <>
       <h3 className="cfg-section">Transcrição (speech-to-text)</h3>
       <p className="hint">Converte o áudio da reunião em texto.</p>
       <div className="form-row">
@@ -2582,37 +2610,6 @@ function ConfigScreen({
         />
         Sincronizar a agenda automaticamente ao abrir o app
       </label>
-      <label className="chk">
-        <input
-          type="checkbox"
-          checked={autostart}
-          onChange={(e) => toggleAutostart(e.target.checked)}
-        />
-        Iniciar o Hicorder junto com o sistema (recomendado, para gravar reuniões
-        automaticamente)
-      </label>
-
-      <h3 className="cfg-section">Gravação</h3>
-      <p className="hint">Evita gravações esquecidas ligadas por muito tempo.</p>
-      <label className="chk">
-        <input
-          type="checkbox"
-          checked={autoStopMinutes > 0}
-          onChange={(e) => setAutoStopMinutes(e.target.checked ? 120 : 0)}
-        />
-        Parar a gravação automaticamente após
-        <select
-          value={autoStopMinutes > 0 ? autoStopMinutes : 120}
-          disabled={autoStopMinutes === 0}
-          onChange={(e) => setAutoStopMinutes(Number(e.target.value))}
-        >
-          {AUTO_STOP_OPTIONS.map((o) => (
-            <option key={o.min} value={o.min}>
-              {o.label}
-            </option>
-          ))}
-        </select>
-      </label>
 
       <h3 className="cfg-section">Attio (CRM)</h3>
       <p className="hint">Sobe transcrição/resumo como nota na meeting do Attio. Chave em Attio → Settings → Developers → API tokens.</p>
@@ -2641,6 +2638,74 @@ function ConfigScreen({
         </div>
         {testResult.attio && <TestLine text={testResult.attio} />}
       </div>
+
+        </>
+      )}
+
+      {cfgTab === "sistema" && (
+        <>
+      <div className="form-row">
+        <label>Idioma padrão</label>
+        <select value={defaultLanguage} onChange={(e) => setDefaultLanguage(e.target.value)}>
+          {LANGUAGES.map((l) => (
+            <option key={l.code} value={l.code}>
+              {l.label}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <div className="form-row">
+        <label>Tema</label>
+        <select
+          value={theme}
+          onChange={(e) => {
+            const t = e.target.value;
+            setTheme(t);
+            // Prévia imediata (persiste ao Salvar).
+            if (t === "system") delete document.documentElement.dataset.theme;
+            else document.documentElement.dataset.theme = t;
+          }}
+        >
+          <option value="system">Automático (sistema)</option>
+          <option value="light">Claro</option>
+          <option value="dark">Escuro</option>
+        </select>
+      </div>
+
+      <h3 className="cfg-section">Gravação</h3>
+      <p className="hint">Evita gravações esquecidas ligadas por muito tempo.</p>
+      <label className="chk">
+        <input
+          type="checkbox"
+          checked={autoStopMinutes > 0}
+          onChange={(e) => setAutoStopMinutes(e.target.checked ? 120 : 0)}
+        />
+        Parar a gravação automaticamente após
+        <select
+          value={autoStopMinutes > 0 ? autoStopMinutes : 120}
+          disabled={autoStopMinutes === 0}
+          onChange={(e) => setAutoStopMinutes(Number(e.target.value))}
+        >
+          {AUTO_STOP_OPTIONS.map((o) => (
+            <option key={o.min} value={o.min}>
+              {o.label}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label className="chk">
+        <input
+          type="checkbox"
+          checked={autostart}
+          onChange={(e) => toggleAutostart(e.target.checked)}
+        />
+        Iniciar o Hicorder junto com o sistema (recomendado, para gravar reuniões
+        automaticamente)
+      </label>
+
+      <h3 className="cfg-section">Dicionário (melhora a transcrição)</h3>
+      <VocabEditor terms={vocab} onChange={setVocab} />
 
       <h3 className="cfg-section">Logs (troubleshooting)</h3>
       <p className="hint">Registro persistente dos erros de API para diagnóstico.</p>
@@ -2678,6 +2743,8 @@ function ConfigScreen({
         )}
       </div>
       {updateStatus && <p className="hint">{updateStatus}</p>}
+        </>
+      )}
 
       <div className="actions">
         <button onClick={save}>Salvar</button>
@@ -2690,6 +2757,120 @@ function ConfigScreen({
 }
 
 // Mostra o resultado de um teste de API; verde se "OK", senão vermelho.
+/// Dicionário de termos enviados ao Whisper como `prompt`: melhora o
+/// reconhecimento de nomes próprios, siglas e jargão.
+function VocabEditor({
+  terms,
+  onChange,
+}: {
+  terms: string[];
+  onChange: (next: string[]) => void;
+}) {
+  const [query, setQuery] = useState("");
+  const [draft, setDraft] = useState("");
+  const [warn, setWarn] = useState<string | null>(null);
+
+  const tokens = estimateTokens(terms);
+  const overTokens = tokens > VOCAB_TOKEN_LIMIT;
+  const q = query.trim().toLowerCase();
+  const shown = q
+    ? terms.filter((t) => t.toLowerCase().includes(q))
+    : terms;
+
+  function add() {
+    const novos = parseVocab(draft);
+    if (novos.length === 0) return;
+    const existentes = new Set(terms.map((t) => t.toLowerCase()));
+    const livres = novos.filter((t) => !existentes.has(t.toLowerCase()));
+    const cabe = VOCAB_MAX - terms.length;
+    if (cabe <= 0) {
+      setWarn(`Limite de ${VOCAB_MAX} palavras atingido. Remova alguma para adicionar outra.`);
+      return;
+    }
+    const aceitos = livres.slice(0, cabe);
+    if (livres.length > aceitos.length) {
+      setWarn(`Só cabiam ${aceitos.length}: o limite é de ${VOCAB_MAX} palavras.`);
+    } else {
+      setWarn(null);
+    }
+    onChange(sortVocab([...terms, ...aceitos]));
+    setDraft("");
+  }
+
+  async function restaurar() {
+    try {
+      const padrao = await invoke<string>("default_vocabulary");
+      onChange(parseVocab(padrao));
+      setWarn(null);
+    } catch (e) {
+      logClient("config", e);
+    }
+  }
+
+  return (
+    <>
+      <p className="hint">
+        Termos que ajudam a IA a acertar nomes, siglas e jargão (ex.: nomes de fundos e
+        empresas). Máximo de {VOCAB_MAX} palavras. Digite separando por vírgula para
+        adicionar várias de uma vez; clique no × para remover.
+      </p>
+      <div className="vocab-add">
+        <input
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), add())}
+          placeholder="cap table, dry powder, Nome da Empresa"
+        />
+        <button type="button" className="secondary" onClick={add} disabled={!draft.trim()}>
+          Adicionar
+        </button>
+      </div>
+      <div className="vocab-bar">
+        <input
+          type="search"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Buscar no dicionário..."
+        />
+        <span className={terms.length >= VOCAB_MAX ? "vocab-count full" : "vocab-count"}>
+          {terms.length}/{VOCAB_MAX} palavras
+        </span>
+        <button type="button" className="secondary" onClick={restaurar}>
+          Restaurar padrão
+        </button>
+      </div>
+      {warn && <p className="error">{warn}</p>}
+      {overTokens && (
+        <p className="error">
+          O dicionário está longo (~{tokens} de {VOCAB_TOKEN_LIMIT} tokens): a IA ignora o
+          excedente. Prefira menos termos, priorizando os mais importantes.
+        </p>
+      )}
+      {terms.length === 0 ? (
+        <p className="hint">Dicionário vazio.</p>
+      ) : shown.length === 0 ? (
+        <p className="hint">Nenhum termo encontrado.</p>
+      ) : (
+        <div className="vocab-chips">
+          {shown.map((t) => (
+            <span key={t} className="vocab-chip">
+              {t}
+              <button
+                type="button"
+                aria-label={`Remover ${t}`}
+                title={`Remover ${t}`}
+                onClick={() => onChange(terms.filter((x) => x !== t))}
+              >
+                ×
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+    </>
+  );
+}
+
 function TestLine({ text }: { text: string }) {
   const ok = /\bOK\b/.test(text);
   return <span className={ok ? "test-ok" : "test-err"}>{text}</span>;
