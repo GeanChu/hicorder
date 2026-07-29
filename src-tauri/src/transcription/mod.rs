@@ -99,28 +99,41 @@ fn word_count(text: &str) -> usize {
     text.split_whitespace().filter(|w| !w.is_empty()).count()
 }
 
+/// Primeiras `n` palavras do texto normalizado (chave para agrupar variantes).
+fn prefix_key(text: &str, n: usize) -> String {
+    normalized(text)
+        .split_whitespace()
+        .take(n)
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
 /// Remove alucinações do Whisper de uma lista de segmentos de UMA faixa.
 ///
 /// Sinais (combinados, para não apagar fala real):
 /// 1. Substring de artefato de legenda → sempre descarta.
-/// 2. Repetição: uma frase curta (≤6 palavras) que aparece ≥3 vezes E ocupa
-///    ≥40% dos segmentos da faixa é o modelo "preenchendo" silêncio — descarta
-///    todas as ocorrências. Fala real numa reunião é variada.
+/// 2. Repetição: o modelo repete a mesma frase em quase todo o silêncio, mas
+///    com pequenas variações no fim ("Legenda Adriana Zanotto", "Legenda
+///    Adriana Zanotto E a"). Por isso a contagem é feita pelo PREFIXO (3
+///    primeiras palavras): prefixo com ≥3 ocorrências ocupando ≥30% dos
+///    segmentos da faixa é ruído — descarta todas as variantes dele. Fala real
+///    numa reunião não repete o mesmo começo de frase a esse ponto.
 /// 3. Confiança: indício de silêncio (no_speech_prob) + baixa confiança
 ///    (avg_logprob), quando o provedor manda essas métricas.
 fn filter_hallucinations(raw: Vec<RawSeg>) -> Vec<TranscriptSegment> {
     let total = raw.len();
-    // Frequência das frases curtas normalizadas.
+    // Frequência por prefixo — agrupa as variantes da mesma alucinação.
     let mut freq: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
     for s in &raw {
         let n = normalized(&s.text);
-        if word_count(&n) <= 6 {
-            *freq.entry(n).or_insert(0) += 1;
+        // Frases longas são fala real; só prefixos de trechos curtos contam.
+        if word_count(&n) <= 8 {
+            *freq.entry(prefix_key(&s.text, 3)).or_insert(0) += 1;
         }
     }
-    let repeated = |n: &str| -> bool {
-        let c = freq.get(n).copied().unwrap_or(0);
-        c >= 3 && total > 0 && c * 100 >= total * 40
+    let repeated = |text: &str| -> bool {
+        let c = freq.get(&prefix_key(text, 3)).copied().unwrap_or(0);
+        c >= 3 && total > 0 && c * 100 >= total * 30
     };
 
     raw.into_iter()
@@ -131,8 +144,15 @@ fn filter_hallucinations(raw: Vec<RawSeg>) -> Vec<TranscriptSegment> {
             if ARTIFACT_SUBSTRINGS.iter().any(|a| lower.contains(a)) {
                 return false;
             }
-            // 2. Frase curta repetida dominando a faixa.
-            if word_count(&n) <= 6 && repeated(&n) {
+            // 2. Prefixo repetido dominando a faixa (pega as variantes).
+            if word_count(&n) <= 8 && repeated(&s.text) {
+                return false;
+            }
+            // 2b. Crédito de legenda curto ("Legenda Fulano de Tal"), mesmo
+            // isolado. Trecho longo que apenas cita a palavra é preservado.
+            if (n.starts_with("legenda ") || n.starts_with("legendas "))
+                && word_count(&n) <= 5
+            {
                 return false;
             }
             // 3. Silêncio + baixa confiança (métricas do provedor).
@@ -177,6 +197,33 @@ mod tests {
     fn descarta_artefato_amara_mesmo_sem_repetir() {
         let raw = vec![seg("Legendas pela comunidade Amara.org")];
         assert!(filter_hallucinations(raw).is_empty());
+    }
+
+    #[test]
+    fn descarta_variantes_do_mesmo_ruido() {
+        // O modelo repete a frase com pequenas variações no fim — todas caem.
+        let mut raw: Vec<RawSeg> = (0..4).map(|_| seg("Legenda Adriana Zanotto")).collect();
+        raw.push(seg("Legenda Adriana Zanotto E a"));
+        raw.push(seg("Legenda Adriana Zanotto E aí"));
+        assert!(filter_hallucinations(raw).is_empty());
+    }
+
+    #[test]
+    fn descarta_credito_de_legenda_isolado() {
+        let raw = vec![
+            seg("Legenda Adriana Zanotto"),
+            seg("precisamos revisar o contrato antes de assinar"),
+        ];
+        let out = filter_hallucinations(raw);
+        assert_eq!(out.len(), 1);
+        assert!(out[0].text.starts_with("precisamos"));
+    }
+
+    #[test]
+    fn mantem_frase_longa_que_cita_legenda() {
+        // "legenda" em fala real (frase longa) não pode ser descartada.
+        let raw = vec![seg("a legenda do gráfico ficou errada na página três")];
+        assert_eq!(filter_hallucinations(raw).len(), 1);
     }
 
     #[test]
