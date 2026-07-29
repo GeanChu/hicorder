@@ -71,6 +71,8 @@ struct RawSeg {
 /// Substrings que só aparecem por contaminação do treino do Whisper (créditos
 /// de legenda de YouTube etc.) — nunca são fala real de reunião. Case-insensitive.
 const ARTIFACT_SUBSTRINGS: &[&str] = &[
+    // Nomes de legendadores que o Whisper cospe em silêncio (vistos em uso).
+    "adriana zanotto",
     "amara.org",
     "legendas pela comunidade",
     "legendado pela comunidade",
@@ -196,6 +198,17 @@ mod tests {
     #[test]
     fn descarta_artefato_amara_mesmo_sem_repetir() {
         let raw = vec![seg("Legendas pela comunidade Amara.org")];
+        assert!(filter_hallucinations(raw).is_empty());
+    }
+
+    #[test]
+    fn descarta_zanotto_em_qualquer_variante() {
+        // Match direto pelo nome: cobre qualquer sufixo, sem depender de repetição.
+        let raw = vec![
+            seg("Legenda Adriana Zanotto"),
+            seg("Legenda Adriana Zanotto E a"),
+            seg("legendas: adriana zanotto e aí"),
+        ];
         assert!(filter_hallucinations(raw).is_empty());
     }
 
