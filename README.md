@@ -4,22 +4,26 @@
   <img src="src-tauri/icons/128x128.png" alt="Hicorder" width="96" height="96" />
 </p>
 
-Gravador de reuniões para times. Grava o áudio do **microfone** e do **sistema** (a voz dos outros participantes), transcreve com IA, gera resumo e envia notas para o CRM (Attio). Foco em UX simples para usuários não técnicos. Desktop **Windows, macOS e Linux** (Tauri 2).
+Gravador de reuniões para times. Grava o áudio do **microfone** e do **sistema** (a voz dos outros participantes), transcreve com IA, gera resumo e envia notas para o CRM (**Attio** ou **Affinity**). Foco em UX simples para usuários não técnicos. Desktop **Windows, macOS e Linux** (Tauri 2).
 
-> *Hicorder is a meeting recorder for teams: it captures mic + system audio, transcribes with AI, summarizes, and pushes notes to the Attio CRM. Open source (MIT), built with Tauri 2 (Rust + React).*
+> *Hicorder is a meeting recorder for teams: it captures mic + system audio, transcribes with AI, summarizes, and pushes notes to your CRM (Attio or Affinity). Open source (MIT), built with Tauri 2 (Rust + React).*
 
 ## O que faz
 
 - **Gravar reuniões** (mic + áudio do sistema) com um botão, medidor de nível e player embutido.
-- **Áudio leve**: Opus ~32 kbps em `.webm` (~7–15 MB/hora).
-- **Transcrever via IA** com provedor selecionável (Groq Whisper por padrão; OpenAI, Fireworks ou endpoint próprio), idioma por transcrição (padrão pt-BR). As faixas viram um **chat**: "Você" à direita, "Participantes" à esquerda.
-- **Resumo da reunião** (opcional) com provedor selecionável (OpenAI, Claude, Gemini, MiniMax ou endpoint próprio).
-- **Exportar áudio** em MP3, WAV ou OGG.
-- **Agenda (ICS)** na tela principal: próximas reuniões com participantes, local e **link da call**; destaque da reunião que está acontecendo; **Iniciar Gravação** por reunião ou **Agendar Gravação** (auto-start no horário, alerta no fim, auto-stop em fim+1h) ou "gravar todas".
+- **Áudio leve**: Opus ~32 kbps em `.ogg` (~7–15 MB/hora), codificado **durante** a reunião — travamento não perde a gravação e parar é instantâneo.
+- **Anotações manuais ao vivo**: painel lateral na tela principal durante a gravação, salvo sozinho e usado depois para enriquecer o resumo.
+- **Transcrever via IA** com provedor selecionável (Groq Whisper por padrão; OpenAI, Fireworks ou endpoint próprio), idioma por transcrição (padrão pt-BR). As faixas viram um **chat**: "Você" à direita, "Participantes" à esquerda. Inclui **dicionário de termos** (nomes, siglas, jargão) e filtro das alucinações que o Whisper produz em silêncio.
+- **Resumo da reunião** (opcional) com provedor selecionável (OpenAI, Claude, Gemini, MiniMax, NVIDIA NIM ou endpoint próprio), **prompt base editável** e **biblioteca de prompts** nomeados — dá para escolher o prompt por reunião.
+- **Busca** dentro da transcrição e do resumo.
+- **Exportar áudio** em MP3, WAV ou OGG. Também dá para **enviar um áudio** já existente e transcrevê-lo.
+- **Agenda (ICS)** na tela principal: próximas reuniões (inclusive **recorrentes**) com participantes, local e **link da call**; destaque da reunião que está acontecendo; **Iniciar Gravação** por reunião ou **Agendar Gravação** (auto-start no horário, alerta no fim) ou "gravar todas".
+- **Gravação esquecida ligada**: lembrete de hora em hora com botão Parar e **auto-stop configurável** (padrão 2h).
 - **Autoinicialização** com o sistema (ligada por padrão; abre minimizada na bandeja para gravar sozinha) e **ícone na bandeja** com start/stop e bolinha vermelha.
-- **Attio (CRM)**: encontra a reunião pelo horário da gravação, sugere os participantes e sobe a transcrição/resumo como nota em cada pessoa, vinculada à meeting.
+- **CRM (Attio ou Affinity)**: encontra a reunião pelo horário da gravação, sugere os participantes e as empresas deles, e sobe transcrição, resumo ou anotações como nota.
+- **Atualização automática** (verifica no boot e a cada 24h) e botão "Buscar atualização".
 - **Tema** claro, escuro ou automático (segue o sistema).
-- **Teste de chave** por provedor, mensagens de erro em linguagem simples e **log persistente** (Configurações → Ver logs) para troubleshooting.
+- **Teste de chave** por provedor, mensagens de erro em linguagem simples e **log persistente** (Configurações → Sistema → Ver logs) para troubleshooting.
 - Renomear, apagar e copiar transcrição/resumo.
 
 ## Download e instalação
@@ -61,7 +65,7 @@ sudo apt install ./Hicorder_*_amd64.deb
 sudo dnf install ./Hicorder-*.x86_64.rpm
 ```
 
-> Áudio do sistema (a voz dos outros participantes) é capturado por enquanto **só no Windows**. No macOS e Linux a versão atual grava apenas o **microfone** — as demais funções (agenda, transcrição, resumo, CRM) funcionam normalmente.
+> Áudio do sistema (a voz dos outros participantes) funciona no **Windows** (WASAPI loopback) e no **macOS** (ScreenCaptureKit, exige permissão de Gravação de Tela). No **Linux** a versão atual grava apenas o **microfone** — as demais funções (agenda, transcrição, resumo, CRM) funcionam normalmente.
 
 ### Aviso do antivírus / SmartScreen
 
@@ -82,10 +86,10 @@ Cada etapa de IA usa um provedor à sua escolha (Configurações → selects de 
 | Etapa | Provedores | Custo típico |
 |---|---|---|
 | Transcrição | Groq (padrão), OpenAI, Fireworks, personalizado | Groq tem free tier |
-| Resumo | OpenAI, Claude, Gemini, MiniMax (API ou Subscription), personalizado | conforme o plano |
-| CRM | Attio (Settings → Developers → API tokens) | — |
+| Resumo | OpenAI, Claude, Gemini, MiniMax, NVIDIA NIM, personalizado | conforme o plano |
+| CRM | Attio (Settings → Developers → API tokens) ou Affinity (Settings → API) | — |
 
-As chaves ficam no **keychain do sistema operacional**, nunca em texto puro.
+Cada provedor guarda a **própria** chave: trocar de provedor não apaga a anterior. As chaves ficam no **keychain do sistema operacional** (arquivo protegido no macOS), nunca em texto puro, e nunca são exibidas de volta na tela.
 
 ## Como rodar (dev)
 
@@ -101,9 +105,9 @@ Verificação sem gerar binário (útil com antivírus agressivo): `cargo check`
 ## Stack
 
 - **Tauri 2** (backend Rust) + **Vite + React + TypeScript** (UI)
-- **cpal** (mic) e **WASAPI loopback** (áudio do sistema no Windows); macOS/Linux no roadmap
+- **cpal** (mic), **WASAPI loopback** (Windows) e **ScreenCaptureKit** (macOS) para o áudio do sistema; Linux no roadmap
 - **ffmpeg** embutido como resource (mix/encode Opus)
-- **SQLite** (gravações, transcrições, resumos, agenda) · **keyring** (chaves no keychain)
+- **SQLite** (gravações, transcrições, resumos, anotações, prompts, agenda) · **keyring** (chaves no keychain)
 - Captura de áudio referenciada do projeto **meetily** (MIT) — veja [NOTICE](NOTICE)
 
 ## Documentação
@@ -117,7 +121,7 @@ Verificação sem gerar binário (útil com antivírus agressivo): `cargo check`
 
 ## Privacidade
 
-Áudio, transcrições e resumos ficam **locais** no computador do usuário (SQLite + arquivos). A transcrição/resumo envia o áudio/texto **apenas** para o provedor de IA que você configurar. O upload ao Attio só acontece quando você confirma. Nenhuma telemetria.
+Áudio, transcrições e resumos ficam **locais** no computador do usuário (SQLite + arquivos). A transcrição/resumo envia o áudio/texto **apenas** para o provedor de IA que você configurar. O upload ao CRM só acontece quando você confirma. Nenhuma telemetria.
 
 ## Segurança
 

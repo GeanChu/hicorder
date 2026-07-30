@@ -198,13 +198,23 @@ mod tests {
     }
 }
 
-// Attio (CRM).
-pub fn set_attio_key(key: &str) -> Result<()> {
-    set_key(ATTIO_KEY, key)
+// CRM: uma chave por provedor, guardadas em paralelo. Trocar de CRM nas
+// Configurações não apaga a chave do outro. `attio_api_key` é o nome antigo,
+// mantido para quem já tinha a chave salva.
+fn crm_key_name(crm: &str) -> String {
+    if crm == "affinity" {
+        "affinity_api_key".to_string()
+    } else {
+        ATTIO_KEY.to_string()
+    }
 }
-pub fn get_attio_key() -> Result<Option<String>> {
-    get_key(ATTIO_KEY)
+
+pub fn set_crm_key(crm: &str, key: &str) -> Result<()> {
+    set_key(&crm_key_name(crm), key)
 }
-pub fn has_attio_key() -> bool {
-    matches!(get_attio_key(), Ok(Some(_)))
+pub fn get_crm_key(crm: &str) -> Result<Option<String>> {
+    get_key(&crm_key_name(crm))
+}
+pub fn has_crm_key(crm: &str) -> bool {
+    matches!(get_crm_key(crm), Ok(Some(_)))
 }

@@ -43,3 +43,18 @@
 **Decisão**: produto/identifier renomeados para Hicorder / `com.hicapital.hicorder` (v0.2.0). Migração única: copia a pasta de dados antiga, corrige paths absolutos no DB copiado e replica as chaves do keychain do serviço antigo na primeira leitura. Nada é apagado do lado antigo.
 **Por quê**: novo nome de produto; cópia (não move) permite rollback trivial.
 **Custo**: dados duplicados em disco até o usuário apagar a pasta antiga manualmente.
+
+## ADR-010 — Chaves de API por escopo (provedor), sem fallback
+**Decisão**: cada chave é guardada sob `"<tipo>:<host>"` (tipo = `stt` | `summary`). Trocar de provedor não apaga a chave anterior; escopo sem valor significa **sem chave**, sem cair em nenhuma chave antiga.
+**Por quê**: com uma chave única por etapa, trocar de provedor sobrescrevia a anterior. O fallback que existia na primeira versão do escopo era pior: mandava a credencial de um provedor para outro (chave MiniMax indo ao endpoint da NVIDIA) e ainda fazia a UI mostrar "chave salva" em provedor nunca configurado.
+**Custo**: quem tinha a chave única precisa informá-la uma vez no provedor certo. Não migramos automaticamente porque não há registro de a qual provedor ela pertencia.
+
+## ADR-011 — Suporte a dois CRMs com modelos de nota diferentes
+**Decisão**: Attio e Affinity coexistem; o usuário escolhe nas Configurações e cada um guarda a própria chave. A UI de envio é a mesma, mas o backend despacha para o módulo do CRM ativo.
+**Por quê**: o modelo de dados difere. No **Attio** uma nota tem um único pai, então é criada uma nota por pessoa e por empresa, ligada à meeting. No **Affinity** uma nota aceita `person_ids` e `organization_ids`, então **uma nota só** cobre todos os vínculos. Além disso o Affinity não tem endpoint de meetings — a etapa "escolha a reunião" usa a agenda local (ICS) apenas para sugerir participantes.
+**Custo**: a mensagem de resultado e o passo 1 do fluxo variam por CRM; dois caminhos de código para manter.
+
+## ADR-012 — Dicionário do Whisper limitado a 65 palavras
+**Decisão**: o campo `prompt` do Whisper recebe um dicionário editável, com 40 termos de fábrica e teto de 65 palavras na UI.
+**Por quê**: o `prompt` melhora nomes próprios, siglas e jargão, mas a API corta em **224 tokens** e descarta o excedente **em silêncio**. 40 termos ocupam ~133 tokens, deixando ~91 para os 25 que o usuário pode acrescentar — o limite de 65 é o que cabe de fato. A UI estima os tokens e avisa antes do corte.
+**Custo**: estimativa de tokens é aproximada (~4 chars/token); o aviso pode disparar um pouco antes ou depois do limite real.

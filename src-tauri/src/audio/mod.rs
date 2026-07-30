@@ -78,7 +78,7 @@ mod tests {
     #[test]
     #[ignore]
     fn system_probe() {
-        use wasapi::{initialize_mta, DeviceEnumerator, Direction, SampleType, StreamMode, WaveFormat};
+        use wasapi::{initialize_mta, DeviceEnumerator, Direction, SampleType, StreamMode};
 
         let t0 = std::time::Instant::now();
         let step = |name: &str| println!("[{:>6.2}s] {name}", t0.elapsed().as_secs_f64());

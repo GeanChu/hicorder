@@ -1,3 +1,4 @@
+mod affinity;
 mod attio;
 mod audio;
 mod commands;
@@ -105,18 +106,18 @@ pub fn run() {
             commands::refresh_meetings,
             commands::list_meetings,
             commands::set_meeting_record,
-            commands::set_attio_key,
+            commands::set_crm_key,
             commands::test_transcription_api,
             commands::test_summary_api,
-            commands::test_attio_api,
+            commands::test_crm_api,
             commands::get_logs,
             commands::clear_logs,
             commands::log_client,
             commands::get_autostart,
             commands::set_autostart,
-            commands::attio_find_meetings,
-            commands::attio_meeting_companies,
-            commands::attio_upload,
+            commands::crm_find_meetings,
+            commands::crm_meeting_companies,
+            commands::crm_upload,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

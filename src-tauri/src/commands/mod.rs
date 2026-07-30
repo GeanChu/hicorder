@@ -7,6 +7,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager, State};
 
+use crate::affinity;
 use crate::attio::{self, AttioCompany, AttioMeeting};
 use crate::audio::recorder::{Recorder, RecordingInfo};
 use crate::storage::{self, MeetingRow, RecordingRow, SummaryRow, TranscriptRow};
@@ -30,6 +31,8 @@ pub struct AppSettings {
     pub ics_url: String,
     pub record_all: bool,
     // Attio (CRM).
+    /// CRM em uso: "attio" | "affinity".
+    pub crm: String,
     pub has_attio_key: bool,
     /// Email do usuário no Attio — filtra reuniões sugeridas às que ele participa.
     pub attio_user_email: String,
@@ -393,6 +396,7 @@ pub fn get_settings(app: AppHandle) -> Result<AppSettings, String> {
     let vocabulary = storage::get_setting(&conn, "vocabulary")
         .map_err(|e| e.to_string())?
         .unwrap_or_else(transcription::default_vocabulary);
+    let crm = crm_provider(&conn);
     // Presença da chave é por escopo (host, ou host+modelo na NVIDIA), então
     // depende do endpoint/modelo salvos — calcula antes de mover para o struct.
     let has_api_key = settings::has_api_key(&cfg.endpoint_url, &cfg.model);
@@ -408,7 +412,8 @@ pub fn get_settings(app: AppHandle) -> Result<AppSettings, String> {
         summary_prompt,
         ics_url,
         record_all,
-        has_attio_key: settings::has_attio_key(),
+        has_attio_key: settings::has_crm_key(&crm),
+        crm,
         attio_user_email,
         theme,
         auto_sync_agenda,
@@ -435,6 +440,7 @@ pub fn save_settings(
     ics_url: String,
     record_all: bool,
     attio_user_email: String,
+    crm: String,
     theme: String,
     auto_sync_agenda: bool,
     auto_stop_minutes: i64,
@@ -452,6 +458,8 @@ pub fn save_settings(
     storage::set_setting(&conn, "record_all", if record_all { "1" } else { "0" })
         .map_err(|e| e.to_string())?;
     storage::set_setting(&conn, "attio_user_email", attio_user_email.trim())
+        .map_err(|e| e.to_string())?;
+    storage::set_setting(&conn, "crm", if crm == "affinity" { "affinity" } else { "attio" })
         .map_err(|e| e.to_string())?;
     storage::set_setting(&conn, "theme", &theme).map_err(|e| e.to_string())?;
     storage::set_setting(&conn, "auto_sync_agenda", if auto_sync_agenda { "1" } else { "0" })
@@ -487,8 +495,8 @@ pub fn has_provider_key(kind: String, endpoint_url: String, model: String) -> bo
 }
 
 #[tauri::command]
-pub fn set_attio_key(key: String) -> Result<(), String> {
-    settings::set_attio_key(&key).map_err(|e| e.to_string())
+pub fn set_crm_key(crm: String, key: String) -> Result<(), String> {
+    settings::set_crm_key(&crm, &key).map_err(|e| e.to_string())
 }
 
 /// Registra o erro cru no log e devolve uma mensagem amigável ao usuário.
@@ -550,20 +558,32 @@ pub async fn test_summary_api(
         .map_err(|e| fail(&app, "resumo", e.to_string()))
 }
 
-/// Testa a chave do Attio. `key` opcional (usa o keychain se vazio).
+/// Testa a chave do CRM informado. `key` opcional (usa a guardada se vazio).
 #[tauri::command]
-pub async fn test_attio_api(app: AppHandle, key: Option<String>) -> Result<String, String> {
+pub async fn test_crm_api(
+    app: AppHandle,
+    crm: String,
+    key: Option<String>,
+) -> Result<String, String> {
+    let nome = if crm == "affinity" { "Affinity" } else { "Attio" };
     let api_key = match key.filter(|k| !k.trim().is_empty()) {
         Some(k) => k,
-        None => settings::get_attio_key()
+        None => settings::get_crm_key(&crm)
             .map_err(|e| e.to_string())?
-            .ok_or_else(|| "Nenhuma chave do Attio configurada.".to_string())?,
+            .ok_or_else(|| format!("Nenhuma chave do {nome} configurada."))?,
     };
-    tauri::async_runtime::spawn_blocking(move || attio::test_key(&api_key))
-        .await
-        .map_err(|e| e.to_string())?
-        .map(|_| "Attio: conexão e chave OK.".to_string())
-        .map_err(|e| fail(&app, "attio", e.to_string()))
+    let is_affinity = crm == "affinity";
+    tauri::async_runtime::spawn_blocking(move || {
+        if is_affinity {
+            affinity::test_key(&api_key)
+        } else {
+            attio::test_key(&api_key)
+        }
+    })
+    .await
+    .map_err(|e| e.to_string())?
+    .map(|_| format!("{nome}: conexão e chave OK."))
+    .map_err(|e| fail(&app, "crm", e.to_string()))
 }
 
 /// Liga a autoinicialização por padrão na primeira execução (uma única vez).
@@ -641,18 +661,45 @@ pub fn clear_logs(app: AppHandle) -> Result<(), String> {
     Ok(())
 }
 
-/// Lista meetings do Attio numa janela de tempo, casando emails no cliente.
+/// CRM configurado: "attio" (padrão) ou "affinity".
+fn crm_provider(conn: &rusqlite::Connection) -> String {
+    storage::get_setting(conn, "crm")
+        .ok()
+        .flatten()
+        .filter(|v| v == "affinity")
+        .unwrap_or_else(|| "attio".to_string())
+}
+
+/// (CRM, chave). Erro amigável quando a chave do CRM ativo não está configurada.
+fn crm_and_key(app: &AppHandle) -> Result<(String, String), String> {
+    let crm = {
+        let conn = open_db(app)?;
+        crm_provider(&conn)
+    };
+    let nome = if crm == "affinity" { "Affinity" } else { "Attio" };
+    let key = settings::get_crm_key(&crm)
+        .map_err(|e| e.to_string())?
+        .ok_or_else(|| format!("configure a chave do {nome} nas Configurações"))?;
+    Ok((crm, key))
+}
+
+/// Reuniões candidatas para a nota, numa janela de tempo.
+///
+/// - Attio: consulta as meetings do próprio CRM.
+/// - Affinity: a API não tem equivalente de meetings, então usa a agenda local
+///   (ICS) — serve ao mesmo propósito, que é sugerir os participantes.
 #[tauri::command]
-pub async fn attio_find_meetings(
+pub async fn crm_find_meetings(
     app: AppHandle,
     ends_from: String,
     starts_before: String,
     timezone: String,
     emails: Vec<String>,
 ) -> Result<Vec<AttioMeeting>, String> {
-    let key = settings::get_attio_key()
-        .map_err(|e| e.to_string())?
-        .ok_or_else(|| "configure a chave do Attio nas Configurações".to_string())?;
+    let (crm, key) = crm_and_key(&app)?;
+    if crm == "affinity" {
+        return local_meetings_window(&app, &ends_from, &starts_before);
+    }
     let user_email = {
         let conn = open_db(&app)?;
         storage::get_setting(&conn, "attio_user_email")
@@ -669,29 +716,67 @@ pub async fn attio_find_meetings(
     })
     .await
     .map_err(|e| e.to_string())?
-    .map_err(|e| fail(&app, "attio", e.to_string()))
+    .map_err(|e| fail(&app, "crm", e.to_string()))
+}
+
+/// Reuniões da agenda local que se sobrepõem à janela (usado no Affinity).
+fn local_meetings_window(
+    app: &AppHandle,
+    ends_from: &str,
+    starts_before: &str,
+) -> Result<Vec<AttioMeeting>, String> {
+    let ms = |iso: &str| -> i64 {
+        chrono::DateTime::parse_from_rfc3339(iso)
+            .map(|d| d.timestamp_millis())
+            .unwrap_or(0)
+    };
+    let (de, ate) = (ms(ends_from), ms(starts_before));
+    let conn = open_db(app)?;
+    let todas = storage::list_meetings(&conn, de).map_err(|e| e.to_string())?;
+    Ok(todas
+        .into_iter()
+        .filter(|m| m.ends_at >= de && m.starts_at <= ate)
+        .map(|m| AttioMeeting {
+            meeting_id: m.uid,
+            title: m.title,
+            start: Some(chrono::DateTime::from_timestamp_millis(m.starts_at)
+                .map(|d| d.to_rfc3339())
+                .unwrap_or_default()),
+            end: Some(chrono::DateTime::from_timestamp_millis(m.ends_at)
+                .map(|d| d.to_rfc3339())
+                .unwrap_or_default()),
+            participants: m.participants,
+        })
+        .collect())
 }
 
 /// Empresas vinculadas aos participantes (por email) para o usuário escolher
 /// quais também recebem a nota.
 #[tauri::command]
-pub async fn attio_meeting_companies(
+pub async fn crm_meeting_companies(
     app: AppHandle,
     emails: Vec<String>,
 ) -> Result<Vec<AttioCompany>, String> {
-    let key = settings::get_attio_key()
-        .map_err(|e| e.to_string())?
-        .ok_or_else(|| "configure a chave do Attio nas Configurações".to_string())?;
-    tauri::async_runtime::spawn_blocking(move || attio::companies_for_emails(&key, &emails))
-        .await
-        .map_err(|e| e.to_string())?
-        .map_err(|e| fail(&app, "attio", e.to_string()))
+    let (crm, key) = crm_and_key(&app)?;
+    tauri::async_runtime::spawn_blocking(move || {
+        if crm == "affinity" {
+            affinity::companies_for_emails(&key, &emails)
+        } else {
+            attio::companies_for_emails(&key, &emails)
+        }
+    })
+    .await
+    .map_err(|e| e.to_string())?
+    .map_err(|e| fail(&app, "crm", e.to_string()))
 }
 
-/// Sobe a transcrição ou o resumo como nota em cada participante, linkando a meeting.
-/// Se `meeting_id` for None, faz find-or-create com título/horário/emails.
+/// Sobe transcrição/resumo/anotações como nota no CRM configurado.
+///
+/// - Attio: cria uma nota por pessoa e por empresa, ligada à meeting.
+/// - Affinity: cria UMA nota ligada a todas as pessoas e empresas (o modelo do
+///   Affinity aceita múltiplos vínculos numa nota só).
 #[tauri::command]
-pub async fn attio_upload(
+pub async fn crm_upload(
     app: AppHandle,
     recording_id: String,
     kind: String,
@@ -721,15 +806,23 @@ pub async fn attio_upload(
                 .ok_or_else(|| "transcreva antes de subir".to_string())?,
         }
     };
-    let key = settings::get_attio_key()
-        .map_err(|e| e.to_string())?
-        .ok_or_else(|| "configure a chave do Attio nas Configurações".to_string())?;
+    let (crm, key) = crm_and_key(&app)?;
     let kind_label = match kind.as_str() {
         "summary" => "Resumo",
         "notes" => "Anotações",
         _ => "Transcrição",
     };
     let note_title = format!("{title} — {kind_label} (Hicorder)");
+
+    if crm == "affinity" {
+        let app2 = app.clone();
+        return tauri::async_runtime::spawn_blocking(move || -> Result<AttioUploadResult, String> {
+            affinity_upload_core(&key, &emails, &company_ids, &company_names, &note_title, &content)
+        })
+        .await
+        .map_err(|e| e.to_string())?
+        .map_err(|raw| fail(&app2, "crm", raw));
+    }
 
     tauri::async_runtime::spawn_blocking(move || -> Result<AttioUploadResult, String> {
         let mid = match meeting_id {
@@ -779,7 +872,51 @@ pub async fn attio_upload(
     })
     .await
     .map_err(|e| e.to_string())?
-    .map_err(|raw| fail(&app, "attio", raw))
+    .map_err(|raw| fail(&app, "crm", raw))
+}
+
+/// Affinity: resolve pessoas/empresas e cria UMA nota com todos os vínculos.
+fn affinity_upload_core(
+    key: &str,
+    emails: &[String],
+    company_ids: &[String],
+    company_names: &[String],
+    note_title: &str,
+    content: &str,
+) -> Result<AttioUploadResult, String> {
+    let mut person_ids = Vec::new();
+    let mut missing_people = Vec::new();
+    for e in emails {
+        match affinity::find_person_by_email(key, e).map_err(|er| er.to_string())? {
+            Some(id) => person_ids.push(id),
+            None => missing_people.push(e.clone()),
+        }
+    }
+    // Empresas marcadas (id já resolvido na listagem) + digitadas por nome.
+    let mut org_ids: Vec<i64> = company_ids.iter().filter_map(|c| c.parse().ok()).collect();
+    let mut missing_companies = Vec::new();
+    for name in company_names.iter().filter(|n| !n.trim().is_empty()) {
+        match affinity::find_company_by_name(key, name.trim()).map_err(|er| er.to_string())? {
+            Some(id) => {
+                if !org_ids.contains(&id) {
+                    org_ids.push(id);
+                }
+            }
+            None => missing_companies.push(name.trim().to_string()),
+        }
+    }
+    if person_ids.is_empty() && org_ids.is_empty() {
+        return Err("nenhuma pessoa ou empresa encontrada no Affinity".to_string());
+    }
+    let note_id = affinity::create_note(key, &person_ids, &org_ids, note_title, content)
+        .map_err(|e| e.to_string())?;
+    Ok(AttioUploadResult {
+        meeting_id: note_id,
+        // Uma nota só, ligada a todos os vínculos.
+        notes_created: 1,
+        missing_people,
+        missing_companies,
+    })
 }
 
 #[tauri::command]

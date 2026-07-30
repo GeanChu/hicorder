@@ -61,6 +61,7 @@ type Settings = {
   summary_prompt: string;
   ics_url: string;
   record_all: boolean;
+  crm: string;
   has_attio_key: boolean;
   attio_user_email: string;
   theme: string;
@@ -523,6 +524,7 @@ function App() {
             hasApiKey={settings?.has_api_key ?? false}
             hasSummaryKey={settings?.has_summary_key ?? false}
             hasAttioKey={settings?.has_attio_key ?? false}
+            crm={settings?.crm ?? "attio"}
             attioUserEmail={settings?.attio_user_email ?? ""}
             baseSummaryPrompt={settings?.summary_prompt ?? ""}
             prompts={prompts}
@@ -1082,6 +1084,7 @@ function GravacoesScreen({
   hasApiKey,
   hasSummaryKey,
   hasAttioKey,
+  crm,
   attioUserEmail,
   baseSummaryPrompt,
   prompts,
@@ -1092,6 +1095,7 @@ function GravacoesScreen({
   hasApiKey: boolean;
   hasSummaryKey: boolean;
   hasAttioKey: boolean;
+  crm: string;
   attioUserEmail: string;
   baseSummaryPrompt: string;
   prompts: SummaryPrompt[];
@@ -1660,6 +1664,7 @@ function GravacoesScreen({
               hasSummary={!!summary}
               hasNotes={!!notes.trim()}
               hasAttioKey={hasAttioKey}
+              crm={crm}
               userEmail={attioUserEmail}
             />
           )}
@@ -1675,6 +1680,7 @@ function AttioUpload({
   hasSummary,
   hasNotes,
   hasAttioKey,
+  crm,
   userEmail,
 }: {
   recording: Recording | null;
@@ -1682,8 +1688,11 @@ function AttioUpload({
   hasSummary: boolean;
   hasNotes: boolean;
   hasAttioKey: boolean;
+  crm: string;
   userEmail: string;
 }) {
+  const crmNome = crm === "affinity" ? "Affinity" : "Attio";
+  const isAffinity = crm === "affinity";
   const [kind, setKind] = useState<"transcript" | "summary" | "notes" | null>(null);
   const [title, setTitle] = useState("");
   const [candidates, setCandidates] = useState<AttioMeeting[] | null>(null);
@@ -1763,7 +1772,7 @@ function AttioUpload({
     }
     let cancelled = false;
     setLoadingCompanies(true);
-    invoke<AttioCompany[]>("attio_meeting_companies", { emails: m.participants })
+    invoke<AttioCompany[]>("crm_meeting_companies", { emails: m.participants })
       .then((cs) => {
         if (cancelled) return;
         setCompanies(cs);
@@ -1807,7 +1816,7 @@ function AttioUpload({
     const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
     setBusy(true);
     try {
-      const found = await invoke<AttioMeeting[]>("attio_find_meetings", {
+      const found = await invoke<AttioMeeting[]>("crm_find_meetings", {
         endsFrom,
         startsBefore,
         timezone,
@@ -1844,7 +1853,7 @@ function AttioUpload({
         notes_created: number;
         missing_people: string[];
         missing_companies: string[];
-      }>("attio_upload", {
+      }>("crm_upload", {
         recordingId: recording.id,
         kind,
         meetingId: selected === "new" ? null : selected,
@@ -1856,10 +1865,13 @@ function AttioUpload({
         companyIds,
         companyNames,
       });
-      let msg = `${r.notes_created} nota(s) criada(s) na meeting ${r.meeting_id}.`;
-      if (r.missing_people.length > 0) msg += ` Sem pessoa no Attio: ${r.missing_people.join(", ")}.`;
+      let msg = isAffinity
+        ? `Nota criada no Affinity e vinculada aos selecionados.`
+        : `${r.notes_created} nota(s) criada(s) na meeting ${r.meeting_id}.`;
+      if (r.missing_people.length > 0)
+        msg += ` Sem pessoa no ${crmNome}: ${r.missing_people.join(", ")}.`;
       if (r.missing_companies.length > 0)
-        msg += ` Sem empresa no Attio: ${r.missing_companies.join(", ")}.`;
+        msg += ` Sem empresa no ${crmNome}: ${r.missing_companies.join(", ")}.`;
       setResult(msg);
     } catch (e) {
       setError(String(e));
@@ -1873,8 +1885,10 @@ function AttioUpload({
 
   return (
     <div className="summary-block">
-      <h3>Subir ao Attio</h3>
-      {!hasAttioKey && <p className="hint">Configure a chave do Attio em Configurações.</p>}
+      <h3>Subir ao {crmNome}</h3>
+      {!hasAttioKey && (
+        <p className="hint">Configure a chave do {crmNome} em Configurações.</p>
+      )}
 
       <div className="actions">
         <button
@@ -1904,7 +1918,11 @@ function AttioUpload({
 
       {candidates && (
         <div className="attio-candidates">
-          <p className="hint">1. Escolha a reunião (buscada pelo horário da gravação):</p>
+          <p className="hint">
+            1. Escolha a reunião (
+            {isAffinity ? "da sua agenda, pelo horário da gravação" : "buscada pelo horário da gravação"}
+            ):
+          </p>
           {candidates.map((m) => (
             <label key={m.meeting_id} className="chk">
               <input
@@ -1920,19 +1938,27 @@ function AttioUpload({
             </label>
           ))}
           {candidates.length === 0 && (
-            <p className="hint">Nenhuma reunião nesse horário. Crie uma nova abaixo.</p>
+            <p className="hint">
+              {isAffinity
+                ? "Nenhuma reunião na agenda nesse horário. Informe os emails abaixo."
+                : "Nenhuma reunião nesse horário. Crie uma nova abaixo."}
+            </p>
           )}
-          <label className="chk">
-            <input
-              type="radio"
-              name="attio-meeting"
-              checked={selected === "new"}
-              onChange={() => pick("new")}
-            />
-            <span>➕ Criar nova reunião</span>
-          </label>
+          {/* O Affinity não tem meetings na API: a nota liga direto a pessoas
+              e empresas, então não há "criar reunião". */}
+          {!isAffinity && (
+            <label className="chk">
+              <input
+                type="radio"
+                name="attio-meeting"
+                checked={selected === "new"}
+                onChange={() => pick("new")}
+              />
+              <span>➕ Criar nova reunião</span>
+            </label>
+          )}
 
-          {selected === "new" && (
+          {!isAffinity && selected === "new" && (
             <div className="form-row">
               <label>Nome da nova reunião</label>
               <input
@@ -2160,6 +2186,7 @@ function ConfigScreen({
   const [summaryPrompt, setSummaryPrompt] = useState("");
   const [attioKey, setAttioKey] = useState("");
   const [attioUserEmail, setAttioUserEmail] = useState("");
+  const [crm, setCrm] = useState("attio");
   const [testResult, setTestResult] = useState<Record<string, string>>({});
   const [logText, setLogText] = useState<string | null>(null);
   const [icsUrl, setIcsUrl] = useState("");
@@ -2282,7 +2309,7 @@ function ConfigScreen({
           key: summaryKey.trim() || null,
         });
       } else {
-        res = await invoke<string>("test_attio_api", { key: attioKey.trim() || null });
+        res = await invoke<string>("test_crm_api", { crm, key: attioKey.trim() || null });
       }
       setTestResult((t) => ({ ...t, [which]: res }));
     } catch (e) {
@@ -2306,6 +2333,7 @@ function ConfigScreen({
       setAutoStopMinutes(settings.auto_stop_minutes);
       setVocab(parseVocab(settings.vocabulary));
       setAttioUserEmail(settings.attio_user_email);
+      setCrm(settings.crm);
       setTheme(settings.theme);
     }
   }, [settings]);
@@ -2339,6 +2367,7 @@ function ConfigScreen({
         icsUrl,
         recordAll,
         attioUserEmail,
+        crm,
         theme,
         autoSyncAgenda,
         autoStopMinutes,
@@ -2359,7 +2388,7 @@ function ConfigScreen({
         setSummaryKey("");
       }
       if (attioKey.trim()) {
-        await invoke("set_attio_key", { key: attioKey });
+        await invoke("set_crm_key", { crm, key: attioKey });
         setAttioKey("");
       }
       // Reavalia os indicadores: os efeitos só disparam quando muda o provedor,
@@ -2548,36 +2577,6 @@ function ConfigScreen({
         {testResult.summary && <TestLine text={testResult.summary} />}
       </div>
 
-      <div className="form-row" style={{ maxWidth: 760 }}>
-        <label>Prompt do resumo (base)</label>
-        <span className="hint">
-          Instrução enviada ao modelo em todos os resumos. Você pode ajustar um resumo específico na
-          aba Gravações.
-        </span>
-        <textarea
-          className="transcript"
-          style={{ minHeight: 160 }}
-          value={summaryPrompt}
-          onChange={(e) => setSummaryPrompt(e.target.value)}
-          placeholder="Instruções para o modelo gerar o resumo..."
-        />
-        <div className="actions">
-          <button
-            type="button"
-            className="secondary"
-            onClick={async () => {
-              try {
-                setSummaryPrompt(await invoke<string>("default_summary_prompt"));
-              } catch (e) {
-                logClient("resumo", e);
-              }
-            }}
-          >
-            Restaurar padrão
-          </button>
-        </div>
-      </div>
-
       <p className="hint">
         As chaves ficam no keychain do sistema, nunca em texto puro. Cada provedor
         guarda a sua: ao trocar de provedor, a chave anterior continua salva. A
@@ -2611,26 +2610,47 @@ function ConfigScreen({
         Sincronizar a agenda automaticamente ao abrir o app
       </label>
 
-      <h3 className="cfg-section">Attio (CRM)</h3>
-      <p className="hint">Sobe transcrição/resumo como nota na meeting do Attio. Chave em Attio → Settings → Developers → API tokens.</p>
+      <h3 className="cfg-section">CRM</h3>
+      <p className="hint">
+        Sobe transcrição, resumo e anotações como nota no seu CRM. Cada CRM guarda a
+        própria chave: trocar aqui não apaga a do outro.
+      </p>
       <div className="form-row">
-        <label>Seu email no Attio</label>
-        <input
-          type="email"
-          value={attioUserEmail}
-          onChange={(e) => setAttioUserEmail(e.target.value)}
-          placeholder="voce@hi.capital"
-        />
-        <span className="hint">Filtra as reuniões sugeridas às que você participa.</span>
+        <label>CRM</label>
+        <select value={crm} onChange={(e) => setCrm(e.target.value)}>
+          <option value="attio">Attio</option>
+          <option value="affinity">Affinity</option>
+        </select>
+        <span className="hint">
+          {crm === "affinity"
+            ? "Chave em Affinity → Settings → API. Uma única nota é criada e vinculada a todas as pessoas e empresas escolhidas."
+            : "Chave em Attio → Settings → Developers → API tokens. É criada uma nota por pessoa e por empresa, ligada à meeting."}
+        </span>
       </div>
+      {crm === "attio" && (
+        <div className="form-row">
+          <label>Seu email no Attio</label>
+          <input
+            type="email"
+            value={attioUserEmail}
+            onChange={(e) => setAttioUserEmail(e.target.value)}
+            placeholder="voce@hi.capital"
+          />
+          <span className="hint">Filtra as reuniões sugeridas às que você participa.</span>
+        </div>
+      )}
       <div className="form-row">
-        <label>Chave da API (Attio)</label>
+        <label>Chave da API ({crm === "affinity" ? "Affinity" : "Attio"})</label>
         <div className="key-row">
           <input
             type="password"
             value={attioKey}
             onChange={(e) => setAttioKey(e.target.value)}
-            placeholder={settings?.has_attio_key ? "•••••• (configurada)" : "cole a chave do Attio"}
+            placeholder={
+              settings?.has_attio_key && settings?.crm === crm
+                ? "•••••• (configurada)"
+                : "cole a chave do CRM"
+            }
           />
           <button type="button" className="secondary" onClick={() => testApi("attio")}>
             Testar
@@ -2704,6 +2724,36 @@ function ConfigScreen({
         automaticamente)
       </label>
 
+      <h3 className="cfg-section">Prompt do resumo (base)</h3>
+      <p className="hint">
+        Instrução enviada ao modelo em todos os resumos. Você pode ajustar um resumo
+        específico na aba Gravações.
+      </p>
+      <div className="form-row" style={{ maxWidth: 760 }}>
+        <textarea
+          className="transcript"
+          style={{ minHeight: 160 }}
+          value={summaryPrompt}
+          onChange={(e) => setSummaryPrompt(e.target.value)}
+          placeholder="Instruções para o modelo gerar o resumo..."
+        />
+        <div className="actions">
+          <button
+            type="button"
+            className="secondary"
+            onClick={async () => {
+              try {
+                setSummaryPrompt(await invoke<string>("default_summary_prompt"));
+              } catch (e) {
+                logClient("resumo", e);
+              }
+            }}
+          >
+            Restaurar padrão
+          </button>
+        </div>
+      </div>
+
       <h3 className="cfg-section">Dicionário (melhora a transcrição)</h3>
       <VocabEditor terms={vocab} onChange={setVocab} />
 
@@ -2766,16 +2816,11 @@ function VocabEditor({
   terms: string[];
   onChange: (next: string[]) => void;
 }) {
-  const [query, setQuery] = useState("");
   const [draft, setDraft] = useState("");
   const [warn, setWarn] = useState<string | null>(null);
 
   const tokens = estimateTokens(terms);
   const overTokens = tokens > VOCAB_TOKEN_LIMIT;
-  const q = query.trim().toLowerCase();
-  const shown = q
-    ? terms.filter((t) => t.toLowerCase().includes(q))
-    : terms;
 
   function add() {
     const novos = parseVocab(draft);
@@ -2826,12 +2871,6 @@ function VocabEditor({
         </button>
       </div>
       <div className="vocab-bar">
-        <input
-          type="search"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Buscar no dicionário..."
-        />
         <span className={terms.length >= VOCAB_MAX ? "vocab-count full" : "vocab-count"}>
           {terms.length}/{VOCAB_MAX} palavras
         </span>
@@ -2848,11 +2887,9 @@ function VocabEditor({
       )}
       {terms.length === 0 ? (
         <p className="hint">Dicionário vazio.</p>
-      ) : shown.length === 0 ? (
-        <p className="hint">Nenhum termo encontrado.</p>
       ) : (
         <div className="vocab-chips">
-          {shown.map((t) => (
+          {terms.map((t) => (
             <span key={t} className="vocab-chip">
               {t}
               <button
