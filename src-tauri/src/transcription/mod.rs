@@ -268,12 +268,13 @@ mod tests {
 /// Prioriza jargão que o modelo erra — palavras comuns do português ficam de
 /// fora porque ele já acerta.
 pub const DEFAULT_VOCABULARY: &[&str] = &[
-    "valuation", "cap table", "term sheet", "due diligence", "follow-on",
-    "LP", "GP", "carry", "runway", "burn rate", "MRR", "ARR", "churn", "CAC", "LTV",
-    "ticket médio", "unit economics", "EBITDA", "SAFE", "vesting", "cliff",
-    "stock options", "pro rata", "liquidation preference", "tag along", "drag along",
-    "earn-out", "M&A", "pre-seed", "venture capital", "deal flow", "fintech",
-    "open banking", "PIX", "adquirência", "KYC", "BACEN", "CVM", "SaaS", "GMV",
+    "valuation", "cap table", "term sheet", "due diligence", "follow-on", "carry",
+    "runway", "burn", "MRR", "ARR", "churn", "CAC", "LTV", "ticket médio",
+    "unit economics", "EBITDA", "SAFE", "vesting", "cliff", "stock options",
+    "pro rata", "liquidation preference", "tag along", "drag along", "earn-out",
+    "seed", "series A", "pre-seed", "venture capital", "VC", "deal flow", "fintech",
+    "PIX", "adquirência", "KYC", "BACEN", "CVM", "SaaS", "GMV", "PMF",
+    "product market fit",
 ];
 
 /// Vocabulário padrão como texto (uma linha, separado por vírgula).
