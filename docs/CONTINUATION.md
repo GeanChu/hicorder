@@ -2,7 +2,21 @@
 
 Documento para a próxima sessão saber exatamente onde paramos e como seguir.
 
-## Estado atual (2026-07-27, v0.2.44 publicada)
+## Estado atual (2026-08-04, v0.2.48)
+
+**Novo nesta sessão:**
+- **Resumo pelo Claude Code local** (ADR-013): provedor que executa o CLI `claude --print` da máquina em vez de HTTP; único sem chave de API. Botão "Testar instalação" valida binário + versão + chamada real. Testado pelo usuário no app compilado.
+- **Fix de segurança**: a URL do ICS (que é credencial — quem tem o link lê a agenda) caía crua no `callrec.log`. `redact()` agora mascara trechos de caminho de URL com 16+ caracteres, com teste travando os 7 endpoints legítimos.
+- **Ambiente de dev reinstalado do zero** nesta máquina: Node 24.18.1, Rust stable-MSVC, VS Build Tools 17.14 (MSVC 14.44 + Windows SDK 10.0.26100), ffmpeg 8.1.2, gh 2.97.
+
+**Armadilhas descobertas nesta sessão (não repetir):**
+- `cargo build --release` **não embute o frontend** — quem decide dev vs. produção é o CLI do Tauri. O binário sai apontando para `localhost:1420` e a janela mostra `ERR_CONNECTION_REFUSED`. Para gerar executável testável: `npm run tauri build -- --no-bundle`.
+- **Claude Desktop ≠ Claude Code**, e os dois executáveis se chamam `claude.exe`. O Desktop (Electron, em `AnthropicClaude/`) não embute o CLI — spawna um externo via `node-pty`. A busca do binário descarta caminhos sob `AnthropicClaude/` e exige que `--version` contenha "Claude Code".
+- Rodar o app de dev **compartilha banco, gravações e keychain** com o instalado (mesmo `identifier`). Fechar o da bandeja antes, e fazer backup do `callrec.db`.
+
+**Pendências abertas do usuário**: limpar os logs antigos e **rotacionar a URL privada do ICS** no Google Calendar — o link vazado continua nos logs já gravados e no histórico do Dropbox.
+
+## Estado anterior (2026-07-27, v0.2.44 publicada)
 
 **Funcional em produção (Windows e macOS testados pelo usuário):** gravação mic + sistema em faixas separadas, **codificadas ao vivo** em Opus/Ogg; player (MP3, por causa do WebKit no macOS); exportar áudio; **anotações manuais ao vivo** na Home; transcrição em duas faixas intercaladas em formato chat, com **dicionário** e **filtro de alucinação**; resumo com **prompt base editável + biblioteca de prompts** e override por reunião; **busca** em transcrição e resumo; agenda ICS com RRULE; auto-start por reunião, **lembrete horário** e **auto-stop configurável** (padrão 2h); upload ao **Attio ou Affinity** (pessoas + empresas); autoinicialização; tray; tema; auto-update; log persistente.
 
