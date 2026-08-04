@@ -58,8 +58,13 @@ const DISALLOWED_TOOLS: &[&str] = &[
 ];
 
 /// Este endpoint usa o Claude Code local?
+///
+/// Aceita o valor canônico e qualquer coisa no mesmo esquema — o que a UI
+/// grava é `ENDPOINT`, mas um banco antigo ou edição manual não deve virar
+/// chamada HTTP para uma URL que não existe.
 pub fn is_endpoint(endpoint_url: &str) -> bool {
-    endpoint_url.trim().starts_with("claude-code:")
+    let u = endpoint_url.trim();
+    u == ENDPOINT || u.starts_with("claude-code:")
 }
 
 /// O app **Claude Desktop** instala um `claude.exe` próprio (Electron, ~232 MB)
