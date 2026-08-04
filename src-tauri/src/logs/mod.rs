@@ -36,6 +36,88 @@ pub fn log(app: &AppHandle, level: &str, category: &str, msg: &str) {
 /// string, que aparece na URL do erro. Sem isto o log viraria um arquivo de
 /// texto puro com credenciais.
 fn redact(msg: &str) -> String {
+    redact_secrets(&redact_url_paths(msg))
+}
+
+/// Tamanho a partir do qual um trecho de caminho de URL é tratado como segredo.
+///
+/// 16 é o ponto que separa os dois mundos observados: o maior trecho legítimo
+/// dos endpoints que o app usa é `transcriptions` (15), enquanto segredos são
+/// bem maiores (o token do ICS do Google tem 40). Endpoint nenhum é mascarado;
+/// o segredo, sempre.
+const SECRET_SEGMENT_LEN: usize = 16;
+
+/// Mascara segredos embutidos no **caminho** de uma URL.
+///
+/// A URL do calendário (ICS) é uma credencial: quem tem o link lê a agenda
+/// inteira, sem login. E ela cai no log toda vez que o refresh da agenda falha
+/// (`falha ao buscar o ICS: ... /calendar/ical/<email>/private-<token>/basic.ics`).
+/// O mascaramento por prefixo/query não pega isso, porque o segredo não é
+/// parâmetro nem tem prefixo conhecido — é parte do caminho.
+///
+/// Host e trechos curtos ficam, para o log continuar servindo a diagnóstico.
+fn redact_url_paths(msg: &str) -> String {
+    let mut out = String::with_capacity(msg.len());
+    let mut rest = msg;
+
+    while let Some(pos) = find_url_start(rest) {
+        out.push_str(&rest[..pos]);
+        let tail = &rest[pos..];
+        // A URL termina no primeiro caractere que não pode fazer parte dela.
+        let end = tail
+            .find(|c: char| c.is_whitespace() || matches!(c, '"' | '\'' | '<' | '>' | ')' | ','))
+            .unwrap_or(tail.len());
+        let (url, after) = tail.split_at(end);
+        out.push_str(&mask_path(url));
+        rest = after;
+    }
+    out.push_str(rest);
+    out
+}
+
+fn find_url_start(s: &str) -> Option<usize> {
+    match (s.find("https://"), s.find("http://")) {
+        (Some(a), Some(b)) => Some(a.min(b)),
+        (Some(a), None) => Some(a),
+        (None, Some(b)) => Some(b),
+        (None, None) => None,
+    }
+}
+
+/// Reescreve só o caminho da URL; esquema, host e query seguem intactos (a
+/// query já é tratada pelo mascaramento por parâmetro).
+fn mask_path(url: &str) -> String {
+    let Some(scheme_end) = url.find("://") else {
+        return url.to_string();
+    };
+    let after_scheme = scheme_end + 3;
+    // Fim do host: primeira '/' depois do esquema.
+    let Some(host_len) = url[after_scheme..].find('/') else {
+        return url.to_string(); // sem caminho, nada a mascarar
+    };
+    let path_start = after_scheme + host_len;
+    // O caminho vai até a query/fragmento.
+    let path_end = url[path_start..]
+        .find(['?', '#'])
+        .map(|i| path_start + i)
+        .unwrap_or(url.len());
+
+    let masked: Vec<String> = url[path_start..path_end]
+        .split('/')
+        .map(|seg| {
+            if seg.chars().count() >= SECRET_SEGMENT_LEN {
+                "[REDACTED]".to_string()
+            } else {
+                seg.to_string()
+            }
+        })
+        .collect();
+
+    format!("{}{}{}", &url[..path_start], masked.join("/"), &url[path_end..])
+}
+
+/// Mascaramento por prefixo de chave e por parâmetro de query.
+fn redact_secrets(msg: &str) -> String {
     let mut out = String::with_capacity(msg.len());
     let bytes: Vec<char> = msg.chars().collect();
     let mut i = 0;
@@ -112,6 +194,70 @@ mod tests {
     fn nao_altera_mensagem_sem_segredo() {
         let raw = "ffmpeg falhou: Error opening input files: End of file";
         assert_eq!(redact(raw), raw);
+    }
+
+    #[test]
+    fn mascara_o_token_secreto_do_ics() {
+        // Caso real: o refresh da agenda falha e a URL inteira cai no log.
+        // Quem tem esse link lê a agenda toda, sem login.
+        let raw = "falha ao buscar o ICS: error sending request for url \
+                   (https://calendar.google.com/calendar/ical/gean%40hi.capital/private-d8f0f87151c6dadf6f0e507bca4883f9/basic.ics)";
+        let out = redact(raw);
+        assert!(!out.contains("d8f0f87151c6dadf6f0e507bca4883f9"), "token vazou: {out}");
+        assert!(!out.contains("gean%40hi.capital"), "email vazou: {out}");
+        // O que sobra ainda diagnostica: dá para ver que é o ICS do Google.
+        assert!(out.contains("calendar.google.com"), "host sumiu: {out}");
+        assert!(out.contains("basic.ics"), "arquivo sumiu: {out}");
+    }
+
+    #[test]
+    fn nao_mascara_endpoints_legitimos() {
+        // Nenhum endpoint que o app usa pode ser destruído pelo mascaramento,
+        // senão o log perde o valor de diagnóstico.
+        for url in [
+            "https://api.groq.com/openai/v1/audio/transcriptions",
+            "https://api.openai.com/v1/chat/completions",
+            "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
+            "https://integrate.api.nvidia.com/v1/chat/completions",
+            "https://api.attio.com/v2/objects/people/records/query",
+            "https://api.affinity.co/auth/whoami",
+            "https://api.attio.com/v2/meetings?limit=1",
+        ] {
+            let out = redact(&format!("provedor retornou 500 em {url}"));
+            assert!(out.contains(url), "endpoint foi mascarado: {out}");
+        }
+    }
+
+    #[test]
+    fn mascara_caminho_secreto_preservando_a_query() {
+        let raw = "erro em https://host.com/a/umsegredomuitolongoaqui123/b?model=abc";
+        let out = redact(raw);
+        assert!(!out.contains("umsegredomuitolongoaqui123"), "segredo vazou: {out}");
+        assert!(out.contains("model=abc"), "query destruída: {out}");
+        assert!(out.contains("host.com/a/"), "início do caminho destruído: {out}");
+    }
+
+    #[test]
+    fn url_sem_caminho_nao_quebra() {
+        let raw = "falha ao conectar em https://api.exemplo.com";
+        assert_eq!(redact(raw), raw);
+    }
+
+    #[test]
+    fn mascara_as_duas_urls_da_mesma_linha() {
+        let raw = "de https://a.com/tokensecretodemais0001/x para https://b.com/tokensecretodemais0002/y";
+        let out = redact(raw);
+        assert!(!out.contains("tokensecretodemais0001"), "1ª vazou: {out}");
+        assert!(!out.contains("tokensecretodemais0002"), "2ª vazou: {out}");
+    }
+
+    #[test]
+    fn segredo_no_caminho_e_chave_na_query_juntos() {
+        let raw = "https://h.com/umcaminhosecretolongo/x?api_key=SEGREDO123&m=1";
+        let out = redact(raw);
+        assert!(!out.contains("umcaminhosecretolongo"), "caminho vazou: {out}");
+        assert!(!out.contains("SEGREDO123"), "chave vazou: {out}");
+        assert!(out.contains("m=1"), "resto da query sumiu: {out}");
     }
 }
 
