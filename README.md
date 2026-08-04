@@ -14,7 +14,7 @@ Gravador de reuniões para times. Grava o áudio do **microfone** e do **sistema
 - **Áudio leve**: Opus ~32 kbps em `.ogg` (~7–15 MB/hora), codificado **durante** a reunião — travamento não perde a gravação e parar é instantâneo.
 - **Anotações manuais ao vivo**: painel lateral na tela principal durante a gravação, salvo sozinho e usado depois para enriquecer o resumo.
 - **Transcrever via IA** com provedor selecionável (Groq Whisper por padrão; OpenAI, Fireworks ou endpoint próprio), idioma por transcrição (padrão pt-BR). As faixas viram um **chat**: "Você" à direita, "Participantes" à esquerda. Inclui **dicionário de termos** (nomes, siglas, jargão) e filtro das alucinações que o Whisper produz em silêncio.
-- **Resumo da reunião** (opcional) com provedor selecionável (OpenAI, Claude, Gemini, MiniMax, NVIDIA NIM ou endpoint próprio), **prompt base editável** e **biblioteca de prompts** nomeados — dá para escolher o prompt por reunião.
+- **Resumo da reunião** (opcional) com provedor selecionável (OpenAI, Claude, Gemini, MiniMax, NVIDIA NIM, **Claude Code instalado na máquina** — sem chave de API — ou endpoint próprio), **prompt base editável** e **biblioteca de prompts** nomeados — dá para escolher o prompt por reunião.
 - **Busca** dentro da transcrição e do resumo.
 - **Exportar áudio** em MP3, WAV ou OGG. Também dá para **enviar um áudio** já existente e transcrevê-lo.
 - **Agenda (ICS)** na tela principal: próximas reuniões (inclusive **recorrentes**) com participantes, local e **link da call**; destaque da reunião que está acontecendo; **Iniciar Gravação** por reunião ou **Agendar Gravação** (auto-start no horário, alerta no fim) ou "gravar todas".
@@ -87,6 +87,7 @@ Cada etapa de IA usa um provedor à sua escolha (Configurações → selects de 
 |---|---|---|
 | Transcrição | Groq (padrão), OpenAI, Fireworks, personalizado | Groq tem free tier |
 | Resumo | OpenAI, Claude, Gemini, MiniMax, NVIDIA NIM, personalizado | conforme o plano |
+| Resumo (alternativa) | **Claude Code instalado na máquina** — sem chave, usa sua assinatura Claude | cota da assinatura |
 | CRM | Attio (Settings → Developers → API tokens) ou Affinity (Settings → API) | — |
 
 Cada provedor guarda a **própria** chave: trocar de provedor não apaga a anterior. As chaves ficam no **keychain do sistema operacional** (arquivo protegido no macOS), nunca em texto puro, e nunca são exibidas de volta na tela.

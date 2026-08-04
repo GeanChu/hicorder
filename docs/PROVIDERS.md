@@ -35,11 +35,22 @@ Protocolo: `POST <endpoint>` JSON chat completions (`model`, `messages`), `Autho
 | MiniMax (Subscription sk-cp) | `https://api.minimax.io/v1/chat/completions` | `MiniMax-M3`, `MiniMax-Text-01` | Subscription Key da conta |
 | MiniMax (API) | idem | idem | platform.minimax.io → API Keys |
 | **NVIDIA NIM** | `https://integrate.api.nvidia.com/v1/chat/completions` | `minimaxai/minimax-m3`, `deepseek-ai/deepseek-v4-pro`, `meta/llama-3.3-70b-instruct`, `deepseek-ai/deepseek-r1` | build.nvidia.com → API key (`nvapi-`) |
+| **Claude Code (local)** | `claude-code://local` (sentinela — processo, não HTTP) | `claude-sonnet-5`, `claude-opus-5`, `claude-haiku-4-5` | **nenhuma** (usa a assinatura Claude da máquina) |
 
 Notas da NVIDIA:
 - A `nvapi-` é **chave de conta**, não de modelo: vale para todo o catálogo. O botão "Get API Key" na página de um modelo entrega/rotaciona a mesma chave — gerar por lá invalida a anterior.
 - O NIM tem `max_tokens` padrão baixo, então o app envia um teto explícito **só nesse endpoint** (8192 no minimax-m3, 16384 nos demais).
 - Modelos de raciocínio devolvem `<think>`; o app remove antes de salvar.
+
+### Claude Code (local)
+Único provedor que **não é HTTP**: o app executa o CLI `claude` instalado na máquina (`--print`, transcrição via **stdin**) e a autenticação é a assinatura Claude do usuário — não há chave de API para cadastrar.
+
+- **Não é offline.** O Claude Code fala com a API da Anthropic como qualquer outro provedor. O ganho é não precisar de mais uma chave, não privacidade extra.
+- **Custo/cota**: cada chamada carrega ~14k tokens de contexto do próprio Claude Code (já com `--exclude-dynamic-system-prompt-sections`; sem a flag são ~27k). Em assinatura Pro/Max sai da cota.
+- **Exige instalação por máquina.** Claude Code e **Claude Desktop são programas diferentes com o mesmo nome de executável** (`claude.exe`): o Desktop não embute o CLI — ele o spawna via `node-pty`. Instalar o Desktop **não** dá o CLI.
+- **Busca do binário**: caminho informado nas Configurações → `PATH` → locais conhecidos (`~/.local/bin`, `~/.claude/local`, `%APPDATA%\npm`, `/usr/local/bin`, `/opt/homebrew/bin`). O PATH sozinho não basta: aberto pela bandeja/autostart o app herda um PATH mais pobre. Caminhos sob `AnthropicClaude/` são descartados (é o Desktop).
+- **Contenção**: `--max-turns 1` e `--disallowed-tools` impedem o CLI de virar agente e ler arquivos da máquina; roda numa pasta temporária, não no diretório do usuário.
+- Shims `.cmd`/`.bat` do npm são executados via `cmd.exe /C` (o CreateProcess do Windows não roda `.cmd` direto).
 
 ## CRM
 Escolhido em Configurações → Conexões → CRM. Cada CRM guarda a própria chave; trocar não apaga a do outro.
@@ -58,6 +69,7 @@ As chaves são guardadas por escopo `(tipo, host)` — a mesma chave da Groq ser
 Botão "Testar" ao lado de cada chave nas Configurações:
 - Transcrição: `GET <base>/models` (valida sem enviar áudio).
 - Resumo: chat completions mínimo com `max_tokens: 16` — 1 token quebrava modelos de raciocínio, que gastam tokens pensando antes de responder.
+- Resumo via **Claude Code local** ("Testar instalação"): acha o binário → `claude --version` (a resposta precisa conter "Claude Code", o que descarta o app Desktop homônimo) → chamada real mínima. Só a versão não bastaria: o caso mais provável na máquina de um usuário novo é CLI instalado e **não autenticado**.
 - Attio: `GET /v2/meetings?limit=1`. Affinity: `GET /auth/whoami`.
 
 Erros aparecem em linguagem simples; o erro cru fica no log persistente (Configurações → Sistema → Ver logs).

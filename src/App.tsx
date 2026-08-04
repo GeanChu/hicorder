@@ -58,6 +58,7 @@ type Settings = {
   summary_endpoint_url: string;
   summary_model: string;
   has_summary_key: boolean;
+  claude_code_path: string;
   summary_prompt: string;
   ics_url: string;
   record_all: boolean;
@@ -160,6 +161,11 @@ type Provider = {
   keyHelp: string;
 };
 
+/// Endpoint-sentinela do provedor "Claude Code local": não é URL de verdade,
+/// sinaliza ao backend que o resumo sai por processo local em vez de HTTP.
+/// Precisa bater com `summary::claude_code::ENDPOINT` no Rust.
+const CLAUDE_CODE_ENDPOINT = "claude-code://local";
+
 // Speech-to-text: compatíveis com a API OpenAI de transcrição (multipart Whisper).
 const STT_PROVIDERS: Provider[] = [
   {
@@ -255,6 +261,16 @@ const SUMMARY_PROVIDERS: Provider[] = [
       "deepseek-ai/deepseek-r1",
     ],
     keyHelp: "build.nvidia.com → API key (começa com nvapi-). Endpoint compatível com OpenAI.",
+  },
+  {
+    id: "claude_code",
+    label: "Claude Code (instalado nesta máquina)",
+    endpoint: CLAUDE_CODE_ENDPOINT,
+    model: "claude-sonnet-5",
+    models: ["claude-sonnet-5", "claude-opus-5", "claude-haiku-4-5"],
+    keyHelp:
+      "Usa o Claude Code já instalado no computador e a sua assinatura Claude — não precisa de chave de API. " +
+      "Clique em Testar para verificar a instalação. Atenção: não é offline, o Claude Code fala com a API da Anthropic.",
   },
   {
     id: "custom",
@@ -2184,6 +2200,8 @@ function ConfigScreen({
   const [summaryModel, setSummaryModel] = useState("");
   const [summaryKey, setSummaryKey] = useState("");
   const [summaryPrompt, setSummaryPrompt] = useState("");
+  // Caminho do executável do Claude Code. Vazio = o backend procura sozinho.
+  const [claudeCodePath, setClaudeCodePath] = useState("");
   const [attioKey, setAttioKey] = useState("");
   const [attioUserEmail, setAttioUserEmail] = useState("");
   const [crm, setCrm] = useState("attio");
@@ -2307,6 +2325,7 @@ function ConfigScreen({
           endpointUrl: summaryEndpointUrl,
           model: summaryModel,
           key: summaryKey.trim() || null,
+          claudeCodePath: claudeCodePath.trim() || null,
         });
       } else {
         res = await invoke<string>("test_crm_api", { crm, key: attioKey.trim() || null });
@@ -2326,6 +2345,7 @@ function ConfigScreen({
       setSummaryEndpointUrl(settings.summary_endpoint_url);
       setSummaryModel(settings.summary_model);
       setSummaryPrompt(settings.summary_prompt);
+      setClaudeCodePath(settings.claude_code_path);
       setSummaryProvider(providerFromEndpoint(SUMMARY_PROVIDERS, settings.summary_endpoint_url));
       setIcsUrl(settings.ics_url);
       setRecordAll(settings.record_all);
@@ -2364,6 +2384,7 @@ function ConfigScreen({
         summaryEndpointUrl,
         summaryModel,
         summaryPrompt,
+        claudeCodePath,
         icsUrl,
         recordAll,
         attioUserEmail,
@@ -2557,25 +2578,46 @@ function ConfigScreen({
           </select>
         )}
       </div>
-      <div className="form-row">
-        <label>Chave da API</label>
-        <div className="key-row">
-          <input
-            type="password"
-            value={summaryKey}
-            onChange={(e) => setSummaryKey(e.target.value)}
-            placeholder={
-              summaryKeySaved
-                ? "•••••• (chave salva para este provedor)"
-                : "cole a chave do resumo"
-            }
-          />
-          <button type="button" className="secondary" onClick={() => testApi("summary")}>
-            Testar
-          </button>
+      {summaryProvider === "claude_code" && <ClaudeCodeHelp />}
+      {summaryProvider === "claude_code" ? (
+        // Claude Code local: não há chave. O campo é o caminho do executável,
+        // necessário só quando a busca automática não acha (app aberto pela
+        // bandeja herda um PATH mais pobre que o do terminal, por exemplo).
+        <div className="form-row">
+          <label>Executável (opcional)</label>
+          <div className="key-row">
+            <input
+              value={claudeCodePath}
+              onChange={(e) => setClaudeCodePath(e.target.value)}
+              placeholder="deixe vazio para procurar sozinho (PATH e locais padrão)"
+            />
+            <button type="button" className="secondary" onClick={() => testApi("summary")}>
+              Testar instalação
+            </button>
+          </div>
+          {testResult.summary && <TestLine text={testResult.summary} />}
         </div>
-        {testResult.summary && <TestLine text={testResult.summary} />}
-      </div>
+      ) : (
+        <div className="form-row">
+          <label>Chave da API</label>
+          <div className="key-row">
+            <input
+              type="password"
+              value={summaryKey}
+              onChange={(e) => setSummaryKey(e.target.value)}
+              placeholder={
+                summaryKeySaved
+                  ? "•••••• (chave salva para este provedor)"
+                  : "cole a chave do resumo"
+              }
+            />
+            <button type="button" className="secondary" onClick={() => testApi("summary")}>
+              Testar
+            </button>
+          </div>
+          {testResult.summary && <TestLine text={testResult.summary} />}
+        </div>
+      )}
 
       <p className="hint">
         As chaves ficam no keychain do sistema, nunca em texto puro. Cada provedor
@@ -2905,6 +2947,47 @@ function VocabEditor({
         </div>
       )}
     </>
+  );
+}
+
+/// Instruções de instalação do Claude Code, mostradas só quando esse provedor
+/// está selecionado. O link leva à documentação oficial em vez de o app
+/// embutir os comandos de instalação: eles mudam por SO e por versão, e um
+/// comando desatualizado aqui manda o usuário para o lugar errado.
+function ClaudeCodeHelp() {
+  const DOCS = "https://docs.claude.com/en/docs/claude-code/setup";
+  return (
+    <div className="cc-help">
+      <p className="hint">
+        <strong>Usa o Claude Code instalado neste computador</strong> e a sua assinatura Claude —
+        não precisa de chave de API. Precisa estar instalado e autenticado em cada máquina.
+      </p>
+      <ol className="hint cc-steps">
+        <li>
+          Instale o Claude Code seguindo a documentação oficial:{" "}
+          <button
+            type="button"
+            className="linkish"
+            onClick={() => openUrl(DOCS).catch((e) => logClient("claude-code-docs", e))}
+          >
+            docs.claude.com → Claude Code → Set up
+          </button>
+        </li>
+        <li>
+          Abra o terminal, rode <code>claude</code> uma vez e faça login. Sem isso o Claude Code
+          fica instalado porém sem autenticação, e o resumo falha.
+        </li>
+        <li>
+          Volte aqui e clique em <strong>Testar instalação</strong>.
+        </li>
+      </ol>
+      <p className="hint">
+        <strong>Atenção:</strong> o app <em>Claude Desktop</em> não é o Claude Code — são programas
+        diferentes, com o mesmo nome de executável. Ter o Desktop instalado não basta. E o Claude
+        Code <strong>não roda offline</strong>: ele fala com a API da Anthropic como os outros
+        provedores, só que sem exigir chave.
+      </p>
+    </div>
   );
 }
 

@@ -54,6 +54,19 @@
 **Por quê**: o modelo de dados difere. No **Attio** uma nota tem um único pai, então é criada uma nota por pessoa e por empresa, ligada à meeting. No **Affinity** uma nota aceita `person_ids` e `organization_ids`, então **uma nota só** cobre todos os vínculos. Além disso o Affinity não tem endpoint de meetings — a etapa "escolha a reunião" usa a agenda local (ICS) apenas para sugerir participantes.
 **Custo**: a mensagem de resultado e o passo 1 do fluxo variam por CRM; dois caminhos de código para manter.
 
+## ADR-013 — Resumo pelo Claude Code local (processo, não HTTP)
+**Decisão**: adicionar "Claude Code (instalado nesta máquina)" como provedor de resumo. O endpoint é o sentinela `claude-code://local`; o backend detecta e executa o CLI `claude --print` com a transcrição pelo **stdin**, em vez de fazer POST.
+**Por quê**: é o único provedor que **dispensa cadastrar chave de API** — autentica pela assinatura Claude que o usuário já tem. Para quem já usa Claude Code, é o caminho de menor fricção.
+**Custo e limites** (medidos no CLI 2.1.220):
+- **Não é offline.** O Claude Code fala com a API da Anthropic; não há ganho de privacidade sobre os outros provedores.
+- ~14k tokens de contexto por chamada só de scaffolding do CLI (27k sem `--exclude-dynamic-system-prompt-sections`). Consome cota da assinatura.
+- Exige instalação **e autenticação** por máquina — barreira real para o público não técnico do produto. Por isso é opção avançada, nunca default.
+- Depende de flags de um CLI de terceiros, que não têm estabilidade de API. O teste valida a versão a cada uso.
+
+**Por que não usar o Claude Desktop no lugar**: são programas diferentes com o **mesmo nome de executável**. O Desktop (Electron, ~232 MB em `AnthropicClaude/`) não embute o CLI — ele spawna um `claude` externo via `node-pty` e não expõe `--print`. Instalar o Desktop não dá o CLI. Ler o token OAuth do Desktop para autenticar o Hicorder foi **descartado**: é uso indevido de credencial de outro app e quebraria no primeiro refresh.
+
+**Contenção**: `--max-turns 1` + `--disallowed-tools` (Bash/Read/Write/Edit/Glob/Grep/WebFetch/WebSearch/Task/NotebookEdit) impedem o CLI de virar agente com acesso ao disco; execução numa pasta temporária, não no diretório do usuário; transcrição por stdin porque reunião de 1h estoura o limite de ~32k caracteres da linha de comando no Windows.
+
 ## ADR-012 — Dicionário do Whisper limitado a 65 palavras
 **Decisão**: o campo `prompt` do Whisper recebe um dicionário editável, com 40 termos de fábrica e teto de 65 palavras na UI.
 **Por quê**: o `prompt` melhora nomes próprios, siglas e jargão, mas a API corta em **224 tokens** e descarta o excedente **em silêncio**. 40 termos ocupam ~133 tokens, deixando ~91 para os 25 que o usuário pode acrescentar — o limite de 65 é o que cabe de fato. A UI estima os tokens e avisa antes do corte.

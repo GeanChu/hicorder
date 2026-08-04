@@ -21,10 +21,13 @@ pub struct AppSettings {
     pub endpoint_url: String,
     pub model: String,
     pub has_api_key: bool,
-    // Resumo (MiniMax-M3) — opcional.
+    // Resumo (LLM) — opcional.
     pub summary_endpoint_url: String,
     pub summary_model: String,
     pub has_summary_key: bool,
+    /// Caminho do executável do Claude Code, quando o usuário precisa informar
+    /// à mão (vazio = o app procura sozinho no PATH e nos locais conhecidos).
+    pub claude_code_path: String,
     /// Prompt base usado em todos os resumos (editável nas Configurações).
     pub summary_prompt: String,
     // Calendário (ICS).
@@ -396,11 +399,20 @@ pub fn get_settings(app: AppHandle) -> Result<AppSettings, String> {
     let vocabulary = storage::get_setting(&conn, "vocabulary")
         .map_err(|e| e.to_string())?
         .unwrap_or_else(transcription::default_vocabulary);
+    let claude_code_path = storage::get_setting(&conn, "claude_code_path")
+        .map_err(|e| e.to_string())?
+        .unwrap_or_default();
     let crm = crm_provider(&conn);
     // Presença da chave é por escopo (host, ou host+modelo na NVIDIA), então
     // depende do endpoint/modelo salvos — calcula antes de mover para o struct.
     let has_api_key = settings::has_api_key(&cfg.endpoint_url, &cfg.model);
-    let has_summary_key = settings::has_summary_key(&scfg.endpoint_url, &scfg.model);
+    // O Claude Code local não usa chave de API: a UI não pode bloquear o botão
+    // "Gerar resumo" esperando uma chave que nunca vai existir.
+    let has_summary_key = if summary::claude_code::is_endpoint(&scfg.endpoint_url) {
+        true
+    } else {
+        settings::has_summary_key(&scfg.endpoint_url, &scfg.model)
+    };
     Ok(AppSettings {
         default_language,
         endpoint_url: cfg.endpoint_url,
@@ -409,6 +421,7 @@ pub fn get_settings(app: AppHandle) -> Result<AppSettings, String> {
         summary_endpoint_url: scfg.endpoint_url,
         summary_model: scfg.model,
         has_summary_key,
+        claude_code_path,
         summary_prompt,
         ics_url,
         record_all,
@@ -437,6 +450,7 @@ pub fn save_settings(
     summary_endpoint_url: String,
     summary_model: String,
     summary_prompt: String,
+    claude_code_path: String,
     ics_url: String,
     record_all: bool,
     attio_user_email: String,
@@ -454,6 +468,8 @@ pub fn save_settings(
         .map_err(|e| e.to_string())?;
     storage::set_setting(&conn, "summary_model", &summary_model).map_err(|e| e.to_string())?;
     storage::set_setting(&conn, "summary_prompt", summary_prompt.trim()).map_err(|e| e.to_string())?;
+    storage::set_setting(&conn, "claude_code_path", claude_code_path.trim())
+        .map_err(|e| e.to_string())?;
     storage::set_setting(&conn, "ics_url", &ics_url).map_err(|e| e.to_string())?;
     storage::set_setting(&conn, "record_all", if record_all { "1" } else { "0" })
         .map_err(|e| e.to_string())?;
@@ -505,6 +521,14 @@ fn fail(app: &AppHandle, category: &str, raw: String) -> String {
     logs::humanize(&raw)
 }
 
+/// Igual ao `fail`, mas devolve a mensagem original. Para erros que já nascem
+/// escritos para o usuário final (ex.: "Claude Code não encontrado, instale
+/// em ..."), onde o `humanize` só perderia a instrução útil.
+fn fail_raw(app: &AppHandle, category: &str, raw: String) -> String {
+    logs::log(app, "ERRO", category, &raw);
+    raw
+}
+
 /// Loga o erro (se houver) e devolve o Result inalterado. Usado no boundary
 /// dos comandos que já têm mensagem clara (gravação, agenda) para que tudo
 /// caia no callrec.log, não só os caminhos de IA/CRM.
@@ -543,7 +567,33 @@ pub async fn test_summary_api(
     endpoint_url: String,
     model: String,
     key: Option<String>,
+    claude_code_path: Option<String>,
 ) -> Result<String, String> {
+    // Claude Code local: o teste é "está instalado, é mesmo o CLI e responde?".
+    // Não há chave para validar.
+    if summary::claude_code::is_endpoint(&endpoint_url) {
+        // Usa o caminho que está na tela (ainda não salvo); só cai no salvo
+        // quando a UI não mandar nada.
+        let path = match claude_code_path.map(|p| p.trim().to_string()).filter(|p| !p.is_empty()) {
+            Some(p) => p,
+            None => {
+                let conn = open_db(&app)?;
+                storage::get_setting(&conn, "claude_code_path")
+                    .map_err(|e| e.to_string())?
+                    .unwrap_or_default()
+            }
+        };
+        return tauri::async_runtime::spawn_blocking(move || {
+            let p = if path.trim().is_empty() { None } else { Some(path.as_str()) };
+            summary::claude_code::test(p)
+        })
+        .await
+        .map_err(|e| e.to_string())?
+        // A mensagem do claude_code já é escrita para leigos: vai crua para a
+        // UI (o humanize genérico só falaria de "provedor").
+        .map_err(|e| fail_raw(&app, "resumo", e.to_string()));
+    }
+
     let api_key = match key.filter(|k| !k.trim().is_empty()) {
         Some(k) => k,
         None => settings::get_summary_key(&endpoint_url, &model)
@@ -1054,16 +1104,26 @@ pub async fn generate_summary(
     recording_id: String,
     prompt: Option<String>,
 ) -> Result<SummaryRow, String> {
-    let (transcript_text, notes, cfg, api_key, system_prompt) = {
+    let (transcript_text, notes, cfg, api_key, system_prompt, cc_path) = {
         let conn = open_db(&app)?;
         let t = storage::get_transcript(&conn, &recording_id)
             .map_err(|e| e.to_string())?
             .ok_or_else(|| "transcreva a gravação antes de resumir".to_string())?;
         let notes = storage::get_notes(&conn, &recording_id).map_err(|e| e.to_string())?;
         let cfg = load_summary_config(&conn).map_err(|e| e.to_string())?;
-        let api_key = settings::get_summary_key(&cfg.endpoint_url, &cfg.model)
+        let usa_claude_code = summary::claude_code::is_endpoint(&cfg.endpoint_url);
+        let cc_path = storage::get_setting(&conn, "claude_code_path")
             .map_err(|e| e.to_string())?
-            .ok_or_else(|| "configure a chave do Resumo nas Configurações".to_string())?;
+            .unwrap_or_default();
+        // O Claude Code local autentica pela assinatura da máquina; exigir
+        // chave aqui bloquearia o resumo sem motivo.
+        let api_key = if usa_claude_code {
+            String::new()
+        } else {
+            settings::get_summary_key(&cfg.endpoint_url, &cfg.model)
+                .map_err(|e| e.to_string())?
+                .ok_or_else(|| "configure a chave do Resumo nas Configurações".to_string())?
+        };
         let system_prompt = prompt
             .map(|p| p.trim().to_string())
             .filter(|p| !p.is_empty())
@@ -1074,15 +1134,32 @@ pub async fn generate_summary(
                     .filter(|s| !s.trim().is_empty())
             })
             .unwrap_or_else(|| summary::default_prompt().to_string());
-        (t.text, notes, cfg, api_key, system_prompt)
+        (t.text, notes, cfg, api_key, system_prompt, cc_path)
     };
 
+    let usa_claude_code = summary::claude_code::is_endpoint(&cfg.endpoint_url);
     let text = tauri::async_runtime::spawn_blocking(move || {
-        summary::summarize(&cfg, &api_key, &transcript_text, notes.as_deref(), &system_prompt)
+        let cc = if cc_path.trim().is_empty() { None } else { Some(cc_path.as_str()) };
+        summary::summarize(
+            &cfg,
+            &api_key,
+            &transcript_text,
+            notes.as_deref(),
+            &system_prompt,
+            cc,
+        )
     })
     .await
     .map_err(|e| e.to_string())?
-    .map_err(|e| fail(&app, "resumo", e.to_string()))?;
+    // Erros do Claude Code já vêm escritos para o usuário (instalação,
+    // autenticação); o humanize os trocaria por "erro no provedor".
+    .map_err(|e| {
+        if usa_claude_code {
+            fail_raw(&app, "resumo", e.to_string())
+        } else {
+            fail(&app, "resumo", e.to_string())
+        }
+    })?;
 
     let row = SummaryRow {
         recording_id,

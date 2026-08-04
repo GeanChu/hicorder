@@ -15,7 +15,7 @@ Aplicativo desktop único (Tauri 2). UI web (React) conversa com o backend Rust 
 │  audio/         mic (cpal) + sistema (por SO)   │
 │  encode/        ffmpeg (resource): mix/export   │
 │  transcription/ Whisper + filtro de alucinação  │
-│  summary/       chat completions (OpenAI-like)  │
+│  summary/       chat completions + Claude Code  │
 │  attio/         meetings + people + notes       │
 │  affinity/      persons + orgs + notes          │
 │  meetings/      ICS fetch/parse + RRULE         │
@@ -54,7 +54,7 @@ Provedor `OpenAiCompatible`: multipart `file`+`model`+`language`+`response_forma
 - **Filtro de alucinação**: em silêncio o Whisper "preenche" com muletas. `filter_hallucinations` combina (1) substrings de artefato de legenda, (2) prefixo repetido dominando a faixa — pega variantes como "Legenda X" / "Legenda X E a" — e (3) `no_speech_prob` + `avg_logprob` quando o provedor os envia.
 
 ### summary/
-Chat completions estilo OpenAI. O prompt base é editável nas Configurações e há uma biblioteca de prompts nomeados (aba "Prompts de resumo"), com override por resumo. As anotações manuais entram no payload para enriquecer o resumo. `max_tokens` é enviado só no endpoint da NVIDIA (que tem default baixo) e `finish_reason: "length"` vira aviso de resumo truncado.
+Chat completions estilo OpenAI — com uma exceção: `claude_code.rs` (endpoint sentinela `claude-code://local`) não faz HTTP, executa o CLI `claude --print` instalado na máquina, com a transcrição pelo stdin e sem chave de API (ADR-013). O prompt base é editável nas Configurações e há uma biblioteca de prompts nomeados (aba "Prompts de resumo"), com override por resumo. As anotações manuais entram no payload para enriquecer o resumo. `max_tokens` é enviado só no endpoint da NVIDIA (que tem default baixo) e `finish_reason: "length"` vira aviso de resumo truncado.
 
 ### attio/ e affinity/
 Dois CRMs, escolhidos nas Configurações; cada um guarda a própria chave.
@@ -85,7 +85,7 @@ Onde ficam: **keychain do SO** (Windows/Linux, crate `keyring`) ou **arquivo 060
 Client `reqwest` compartilhado: TLS nativo do SO (compatível com inspeção HTTPS de antivírus), sem proxy do sistema, timeout explícito e **resolver DNS custom IPv4-only** — redes com IPv6 anunciado mas sem rota travavam a conexão até o timeout (ADR-008).
 
 ### logs/
-Log persistente em `app_data/callrec.log` (rotação ~1MB): erros crus de API com timestamp/categoria — nunca chaves. `humanize()` converte o erro cru em mensagem para leigos; a UI tem "Ver logs"/"Limpar logs". Toda parada de gravação registra o tamanho de cada faixa (`parada: Xs, mic N bytes, sistema M bytes`), o que diagnostica captura vazia sem reproduzir o problema.
+Log persistente em `app_data/callrec.log` (rotação ~1MB): erros crus de API com timestamp/categoria — nunca segredos. `redact()` mascara em três frentes: prefixos de chave (`sk-`, `gsk_`, `nvapi-`, `Bearer …`), parâmetros de query (`key=`, `token=`, …) e **trechos longos do caminho de URLs** (≥16 caracteres). A terceira existe porque a URL do ICS é ela própria uma credencial — quem tem o link lê a agenda inteira sem login — e caía crua no log a cada falha de refresh. O limite de 16 fica acima do maior trecho legítimo dos endpoints usados (`transcriptions`, 15), então nenhum endpoint é mascarado. `humanize()` converte o erro cru em mensagem para leigos; a UI tem "Ver logs"/"Limpar logs". Toda parada de gravação registra o tamanho de cada faixa (`parada: Xs, mic N bytes, sistema M bytes`), o que diagnostica captura vazia sem reproduzir o problema.
 
 ### migrate.rs
 Migração única e não destrutiva do identifier antigo (`com.hicapital.callrecorder`): copia a pasta de dados e corrige os paths absolutos das gravações. A pasta antiga permanece como backup.

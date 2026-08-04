@@ -5,6 +5,8 @@
 use anyhow::{anyhow, bail, Result};
 use serde::{Deserialize, Serialize};
 
+pub mod claude_code;
+
 #[derive(Serialize, Deserialize, Clone)]
 pub struct SummaryConfig {
     pub endpoint_url: String,
@@ -64,6 +66,7 @@ pub fn summarize(
     transcript: &str,
     notes: Option<&str>,
     system_prompt: &str,
+    claude_code_path: Option<&str>,
 ) -> Result<String> {
     let system_prompt = if system_prompt.trim().is_empty() {
         DEFAULT_SUMMARY_PROMPT
@@ -76,6 +79,12 @@ pub fn summarize(
         ),
         None => transcript.to_string(),
     };
+
+    // Claude Code local: processo, não HTTP. Sem chave de API — a autenticação
+    // é a assinatura Claude que o usuário já tem na máquina.
+    if claude_code::is_endpoint(&cfg.endpoint_url) {
+        return claude_code::summarize(claude_code_path, &cfg.model, system_prompt, &user_content);
+    }
     let mut body = serde_json::json!({
         "model": cfg.model,
         "messages": [
