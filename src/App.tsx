@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { convertFileSrc, invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { openUrl } from "@tauri-apps/plugin-opener";
@@ -627,13 +627,18 @@ function Highlight({ text, query }: { text: string; query: string }) {
   return <>{parts}</>;
 }
 
-/// Janela-toast. Dois tipos: `meeting` (reunião começando → iniciar gravação)
-/// e `recording` (lembrete horário de gravação em andamento → parar).
+/// Janela-toast: o **único** canal de alerta do app (a notificação nativa foi
+/// removida — avisava a mesma coisa em duplicidade e sem botão confiável).
+///
+/// Tipos: `meeting` (reunião começando), `recording-started` (auto-gravação
+/// começou), `recording` (lembrete horário), `meeting-end` (passou do fim
+/// previsto) e `stopped` (encerrada automaticamente, só informa).
 function MeetingAlert() {
   const params = new URLSearchParams(window.location.search);
   const kind = params.get("kind") ?? "meeting";
   const title = params.get("title") ?? "Reunião";
   const endMs = Number(params.get("end") ?? 0);
+  const link = params.get("link") ?? "";
   const [busy, setBusy] = useState(false);
 
   async function close() {
@@ -676,50 +681,104 @@ function MeetingAlert() {
     }
   }
 
-  // `end` carrega as horas gravadas quando kind = recording.
-  if (kind === "recording") {
-    const hours = endMs;
-    return (
-      <div className="meeting-toast">
-        <div className="meeting-toast-body">
-          <img src="/icon.png" alt="" width={32} height={32} />
-          <div>
-            <strong>Gravação em andamento</strong>
-            <p>
-              Gravando há {hours}h. Esqueceu de parar?
-            </p>
-          </div>
-        </div>
-        <div className="meeting-toast-actions">
-          <button onClick={stop} disabled={busy}>
-            {busy ? "Parando..." : "Parar gravação"}
-          </button>
-          <button className="secondary" onClick={close}>
-            Continuar gravando
-          </button>
+  // Entra na call sem fechar o toast: quem clica aqui normalmente ainda quer
+  // apertar "Iniciar gravação" em seguida.
+  function join() {
+    openUrl(link).catch((e) => logClient("agenda", `toast: falha ao abrir a call: ${String(e)}`));
+  }
+
+  const JoinButton = () =>
+    link ? (
+      <button className="secondary" onClick={join}>
+        Entrar na call
+      </button>
+    ) : null;
+
+  /// `frase`: o corpo é uma frase (motivo, aviso) e não um título de reunião —
+  /// quebra em 2 linhas em vez de truncar, senão o usuário perde a informação.
+  ///
+  /// O × é a única forma de dispensar: a janela não tem decoração nem entra na
+  /// barra de tarefas, então sem ele um toast sem ação ficaria preso na tela
+  /// (sempre no topo) até o auto-dispensa. Só botão que *faz* alguma coisa vai
+  /// na linha de ações.
+  const Toast = ({
+    titulo,
+    corpo,
+    frase = false,
+    children,
+  }: {
+    titulo: string;
+    corpo: string;
+    frase?: boolean;
+    children?: ReactNode;
+  }) => (
+    <div className="meeting-toast">
+      <button className="toast-close" onClick={close} aria-label="Fechar" title="Fechar">
+        ×
+      </button>
+      <div className="meeting-toast-body">
+        <img src="/icon.png" alt="" width={32} height={32} />
+        <div>
+          <strong>{titulo}</strong>
+          <p className={frase ? "multiline" : undefined}>{corpo}</p>
         </div>
       </div>
+      {children && <div className="meeting-toast-actions">{children}</div>}
+    </div>
+  );
+
+  // `end` carrega as horas gravadas quando kind = recording.
+  if (kind === "recording") {
+    return (
+      <Toast titulo="Gravação em andamento" corpo={`Gravando há ${endMs}h. Esqueceu de parar?`} frase>
+        <button onClick={stop} disabled={busy}>
+          {busy ? "Parando..." : "Parar gravação"}
+        </button>
+      </Toast>
+    );
+  }
+
+  if (kind === "meeting-end") {
+    return (
+      <Toast
+        titulo="Reunião terminou"
+        corpo="Chegou ao fim do horário marcado, mas a gravação continua."
+        frase
+      >
+        <button onClick={stop} disabled={busy}>
+          {busy ? "Parando..." : "Parar gravação"}
+        </button>
+      </Toast>
+    );
+  }
+
+  // Encerrada sozinha (auto-stop): não há ação a tomar, só informar. O motivo
+  // vem no `title` porque muda conforme a regra que disparou.
+  if (kind === "stopped") {
+    return (
+      // Nada a fazer: a gravação já parou. Só informa; dispensa no ×.
+      <Toast titulo="Gravação encerrada" corpo={title} frase />
+    );
+  }
+
+  if (kind === "recording-started") {
+    return (
+      <Toast titulo="Gravando automaticamente" corpo={title}>
+        <JoinButton />
+        <button className="secondary" onClick={stop} disabled={busy}>
+          {busy ? "Parando..." : "Parar gravação"}
+        </button>
+      </Toast>
     );
   }
 
   return (
-    <div className="meeting-toast">
-      <div className="meeting-toast-body">
-        <img src="/icon.png" alt="" width={32} height={32} />
-        <div>
-          <strong>Reunião começando</strong>
-          <p>{title}</p>
-        </div>
-      </div>
-      <div className="meeting-toast-actions">
-        <button onClick={record} disabled={busy}>
-          {busy ? "Iniciando..." : "Iniciar gravação"}
-        </button>
-        <button className="secondary" onClick={close}>
-          Dispensar
-        </button>
-      </div>
-    </div>
+    <Toast titulo="Reunião começando" corpo={title}>
+      <button onClick={record} disabled={busy}>
+        {busy ? "Iniciando..." : "Iniciar gravação"}
+      </button>
+      <JoinButton />
+    </Toast>
   );
 }
 

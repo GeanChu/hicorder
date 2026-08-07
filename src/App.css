@@ -1172,6 +1172,32 @@ mark.hl {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
+  /* Âncora do × de fechar. */
+  position: relative;
+}
+
+/* Único jeito de dispensar o toast: a janela não tem decoração nem barra de
+   tarefas. Sem isto um alerta sem ação ficaria preso na tela, sempre no topo,
+   até o auto-dispensa de 60s. */
+.toast-close {
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--text-muted);
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+}
+
+.toast-close:hover {
+  background: var(--surface-2);
+  color: var(--text);
 }
 
 .meeting-toast-body {
@@ -1184,6 +1210,8 @@ mark.hl {
   border-radius: 8px;
 }
 
+/* Título de reunião: uma linha só, com reticências — título longo não pode
+   empurrar os botões para fora da janela de tamanho fixo. */
 .meeting-toast-body p {
   margin: 2px 0 0;
   font-size: 13px;
@@ -1194,10 +1222,23 @@ mark.hl {
   max-width: 300px;
 }
 
+/* Alertas cujo corpo é uma frase (motivo do auto-stop, fim de reunião): aqui
+   truncar esconderia a informação que importa, então quebra em até 2 linhas. */
+.meeting-toast-body p.multiline {
+  white-space: normal;
+  text-overflow: clip;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
 .meeting-toast-actions {
   display: flex;
   gap: 8px;
   justify-content: flex-end;
+  /* Até três botões (ex.: gravar + entrar na call + dispensar) numa janela de
+     380px: sem a quebra o último sai fora da área visível. */
+  flex-wrap: wrap;
 }
 
 .meeting-toast-actions button {

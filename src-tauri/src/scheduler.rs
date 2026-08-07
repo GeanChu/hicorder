@@ -4,13 +4,17 @@
 //! - auto-INICIA quando uma reunião habilitada está em andamento (uma vez por reunião);
 //! - alerta no horário de FIM previsto (recomenda parar — parada é manual);
 //! - AUTO-STOP se passar 1h do fim previsto.
+//!
+//! **Um canal só de alerta**: a janela-toast. Antes cada evento disparava também
+//! uma notificação nativa, o que avisava a mesma coisa duas vezes e ainda por
+//! cima no canal sem botão — a notificação nativa do Windows não leva ação
+//! confiável, que é justamente por que o toast existe.
 
 use std::collections::HashSet;
 use std::thread;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use tauri::{AppHandle, Emitter, Manager};
-use tauri_plugin_notification::NotificationExt;
 
 use crate::audio::recorder::Recorder;
 use crate::{commands, logs, meetings, storage};
@@ -22,13 +26,6 @@ const REFRESH_EVERY_TICKS: u32 = 10;
 
 pub fn spawn(app: AppHandle) {
     thread::spawn(move || {
-        // Pede permissão de notificação uma vez (main thread — exigência macOS).
-        {
-            let handle = app.clone();
-            let _ = app.run_on_main_thread(move || {
-                let _ = handle.notification().request_permission();
-            });
-        }
         let mut triggered: HashSet<String> = HashSet::new();
         let mut ticks: u32 = 0;
         loop {
@@ -97,26 +94,20 @@ fn tick(app: &AppHandle, triggered: &mut HashSet<String>) {
         // Lembrete de hora em hora: a gravação pode ter sido esquecida ligada.
         if let Some(hours) = recorder.should_alert_running() {
             logs::log(app, "INFO", "gravacao", &format!("lembrete: gravando há {hours}h"));
-            notify(
-                app,
-                "Gravação em andamento",
-                &format!("O Hicorder está gravando há {hours}h. Pare se a reunião já terminou."),
-            );
-            show_recording_toast(app, hours);
+            show_toast(app, "recording", "", hours as i64, None);
         }
         if recorder.should_alert_end(now) {
-            notify(
-                app,
-                "Reunião terminou",
-                "A reunião marcada chegou ao fim. Recomendado parar a gravação.",
-            );
+            logs::log(app, "INFO", "agenda", "fim previsto da reunião");
+            show_toast(app, "meeting-end", "", 0, None);
         }
         if recorder.should_auto_stop(now) {
             let _ = commands::stop_recording_core(app);
-            notify(
+            show_toast(
                 app,
-                "Gravação encerrada",
+                "stopped",
                 "Passou 1h do fim da reunião — a gravação foi parada automaticamente.",
+                0,
+                None,
             );
             return;
         }
@@ -130,10 +121,12 @@ fn tick(app: &AppHandle, triggered: &mut HashSet<String>) {
             let _ = commands::stop_recording_core(app);
             let label = fmt_duration(limit_min);
             logs::log(app, "INFO", "gravacao", &format!("auto-stop por tempo: {label}"));
-            notify(
+            show_toast(
                 app,
-                "Gravação encerrada",
+                "stopped",
                 &format!("Limite de {label} atingido — a gravação foi parada automaticamente."),
+                0,
+                None,
             );
         }
         return;
@@ -158,55 +151,49 @@ fn tick(app: &AppHandle, triggered: &mut HashSet<String>) {
             if record_all || m.record_enabled {
                 if commands::start_recording_for_meeting_core(app, m.ends_at, &m.title).is_ok() {
                     logs::log(app, "INFO", "agenda", &format!("auto-gravação: {}", m.title));
-                    notify(
-                        app,
-                        "Gravação iniciada automaticamente",
-                        &format!("Reunião \"{}\" começou — gravação automática habilitada.", m.title),
-                    );
+                    // Já está gravando: o toast serve para avisar e dar o
+                    // atalho de entrar na call.
+                    show_toast(app, "recording-started", &m.title, m.ends_at, m.link.as_deref());
                 }
             } else {
-                // Sem auto-gravação: notifica e abre a janela-toast com botão.
                 logs::log(app, "INFO", "agenda", &format!("alerta de reunião: {}", m.title));
-                notify(
-                    app,
-                    "Reunião começando",
-                    &format!("\"{}\" está começando. Clique para gravar.", m.title),
-                );
-                show_meeting_toast(app, &m.title, m.ends_at);
+                show_toast(app, "meeting", &m.title, m.ends_at, m.link.as_deref());
             }
             break;
         }
     }
 }
 
-/// Janela pequena no canto inferior direito com botão "Iniciar gravação".
-/// (Notificação nativa com botão não é confiável no Windows; janela própria é.)
+/// Janela pequena no canto inferior direito — o **único** canal de alerta do
+/// app. Notificação nativa com botão não é confiável no Windows, e é o botão
+/// que importa aqui (gravar, parar, entrar na call).
 ///
 /// A criação da janela/WebView precisa acontecer na thread principal — o
 /// scheduler roda numa thread própria, então despacha via run_on_main_thread
 /// (criar WebView2 fora da main thread falha com 0x80070057 / E_INVALIDARG).
-fn show_meeting_toast(app: &AppHandle, title: &str, end_ms: i64) {
+///
+/// `kind`:
+/// - `meeting`           — reunião começando, sem auto-gravação
+/// - `recording-started` — auto-gravação começou
+/// - `recording`         — lembrete horário de gravação em andamento
+/// - `meeting-end`       — passou do fim previsto e ainda está gravando
+/// - `stopped`           — gravação encerrada automaticamente (só informa)
+///
+/// `value`: fim previsto (unix ms) nos alertas de reunião; horas gravadas em
+/// `recording`. `link`: URL da call, quando a agenda tiver uma.
+fn show_toast(app: &AppHandle, kind: &str, title: &str, value: i64, link: Option<&str>) {
     let app_main = app.clone();
+    let kind = kind.to_string();
     let title = title.to_string();
-    if let Err(e) = app.run_on_main_thread(move || build_toast(&app_main, "meeting", &title, end_ms))
+    let link = link.unwrap_or_default().to_string();
+    if let Err(e) =
+        app.run_on_main_thread(move || build_toast(&app_main, &kind, &title, value, &link))
     {
         logs::log(app, "ERRO", "agenda", &format!("run_on_main_thread falhou: {e}"));
     }
 }
 
-/// Lembrete de gravação longa, com botão de parar direto do toast.
-fn show_recording_toast(app: &AppHandle, hours: u32) {
-    let app_main = app.clone();
-    if let Err(e) =
-        app.run_on_main_thread(move || build_toast(&app_main, "recording", "", hours as i64))
-    {
-        logs::log(app, "ERRO", "gravacao", &format!("run_on_main_thread falhou: {e}"));
-    }
-}
-
-/// `kind`: "meeting" (reunião começando) ou "recording" (lembrete de gravação).
-/// `value`: fim previsto em unix ms para "meeting", horas gravadas para "recording".
-fn build_toast(app: &AppHandle, kind: &str, title: &str, value: i64) {
+fn build_toast(app: &AppHandle, kind: &str, title: &str, value: i64, link: &str) {
     // Uma por vez: destrói toasts anteriores ainda abertos. `close()` é
     // assíncrono e o label continuava vivo, colidindo na criação seguinte
     // ("a webview with label `meeting-alert` already exists"); destroy() é
@@ -217,9 +204,12 @@ fn build_toast(app: &AppHandle, kind: &str, title: &str, value: i64) {
         }
     }
     let url = format!(
-        "index.html?alert=1&kind={kind}&title={}&end={value}",
+        "index.html?alert=1&kind={kind}&title={}&end={value}&link={}",
         urlencode(title),
+        urlencode(link),
     );
+    // Altura fixa: nenhum toast passa de dois botões, e o corpo de duas linhas
+    // (motivo do auto-stop) cabe nesses 140px — os dois casos foram medidos.
     let (w, h) = (380.0, 140.0);
     let label = format!("meeting-alert-{}", now_ms());
     let mut builder = tauri::WebviewWindowBuilder::new(
@@ -271,17 +261,6 @@ fn urlencode(s: &str) -> String {
         }
     }
     out
-}
-
-/// Envia uma notificação nativa. Despacha para a thread principal — no macOS
-/// o centro de notificações exige main thread (o scheduler roda em outra).
-fn notify(app: &AppHandle, title: &str, body: &str) {
-    let handle = app.clone();
-    let title = title.to_string();
-    let body = body.to_string();
-    let _ = app.run_on_main_thread(move || {
-        let _ = handle.notification().builder().title(title).body(body).show();
-    });
 }
 
 /// "45min", "2h", "1h30" para o texto do aviso.
