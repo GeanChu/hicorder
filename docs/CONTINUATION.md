@@ -2,9 +2,13 @@
 
 Documento para a próxima sessão saber exatamente onde paramos e como seguir.
 
-## Estado atual (2026-08-04, v0.2.48)
+## Estado atual (2026-08-07, v0.2.50)
 
 **Novo nesta sessão:**
+- **Alerta em um canal só** (v0.2.49): a notificação nativa foi removida (plugin inclusive) e todo aviso virou janela-toast, que é a que tem botão. Cinco tipos, novo botão "Entrar na call", e um × para dispensar — a janela não tem decoração nem barra de tarefas, então sem o × um toast sem ação ficaria preso na tela.
+- **Agenda deixa de mostrar reunião fantasma** (v0.2.50): reunião apagada no Google continuava listada, e se estivesse marcada para gravar o scheduler iniciava a gravação de uma reunião inexistente. Duas causas: a sincronização era só aditiva (a única remoção era por tempo) e `STATUS:CANCELLED` era ignorado. Agora o ICS é autoritativo — com as travas de não apagar em falha de fetch nem em feed vazio — e eventos cancelados/recusados-por-mim são descartados no parser.
+
+**Da sessão anterior (v0.2.48):**
 - **Resumo pelo Claude Code local** (ADR-013): provedor que executa o CLI `claude --print` da máquina em vez de HTTP; único sem chave de API. Botão "Testar instalação" valida binário + versão + chamada real. Testado pelo usuário no app compilado.
 - **Fix de segurança**: a URL do ICS (que é credencial — quem tem o link lê a agenda) caía crua no `callrec.log`. `redact()` agora mascara trechos de caminho de URL com 16+ caracteres, com teste travando os 7 endpoints legítimos.
 - **Ambiente de dev reinstalado do zero** nesta máquina: Node 24.18.1, Rust stable-MSVC, VS Build Tools 17.14 (MSVC 14.44 + Windows SDK 10.0.26100), ffmpeg 8.1.2, gh 2.97.

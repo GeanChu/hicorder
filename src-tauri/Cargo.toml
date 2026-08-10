@@ -1,6 +1,6 @@
 [package]
 name = "hicorder"
-version = "0.2.49"
+version = "0.2.50"
 description = "Hicorder — gravador de reuniões com transcrição por IA"
 authors = ["hi.capital"]
 license = "MIT"
