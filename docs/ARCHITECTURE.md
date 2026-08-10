@@ -64,6 +64,8 @@ Dois CRMs, escolhidos nas Configurações; cada um guarda a própria chave.
 
 ### meetings/ + scheduler/
 - `meetings/` — busca a URL ICS secreta e parseia VEVENTs (`ical`, `chrono-tz`). Expande **RRULE** em 60 dias (crate `rrule`), respeita EXDATE e trata overrides `RECURRENCE-ID` (parse em duas passadas + dedup). `pick_call_link` prefere `X-GOOGLE-CONFERENCE` e domínios de reunião conhecidos.
+  - **Descarta** eventos com `STATUS:CANCELLED` (dos três valores do RFC 5545 — TENTATIVE, CONFIRMED, CANCELLED — só esse tira a reunião da agenda) e os que **eu** recusei (`ATTENDEE;PARTSTAT=DECLINED`). Recusa de outro participante não conta: a reunião continua acontecendo. O "eu" sai do `X-WR-CALNAME` do próprio feed, com o email das Configurações como reserva.
+  - **A sincronização é autoritativa**: `prune_missing_meetings` remove as reuniões futuras que não vieram no feed. Sem isso a agenda só crescia — o upsert adicionava e a única remoção era por tempo, então reunião apagada no Google ficava no banco até passar da hora, e se estivesse marcada para gravar o scheduler iniciava a gravação de uma reunião inexistente. Duas travas: a reconciliação só roda **depois de um fetch bem-sucedido**, e feed vazio não apaga nada (ambíguo entre agenda vazia e resposta truncada).
 - `scheduler/` — loop de 30s: inicia gravação de reunião habilitada, avisa no fim previsto, **lembra de hora em hora** que há gravação em andamento (toast com botão Parar) e aplica o **auto-stop configurável** (padrão 2h).
 
 ### storage/

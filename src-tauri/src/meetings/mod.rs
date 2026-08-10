@@ -55,7 +55,8 @@ pub struct Meeting {
     pub link: Option<String>,
 }
 
-pub fn fetch_and_parse(ics_url: &str) -> Result<Vec<Meeting>> {
+/// `user_email`: só é usado se o feed não trouxer o dono em X-WR-CALNAME.
+pub fn fetch_and_parse(ics_url: &str, user_email: Option<&str>) -> Result<Vec<Meeting>> {
     let body = crate::net::client(30)
         .get(ics_url)
         .send()
@@ -64,7 +65,7 @@ pub fn fetch_and_parse(ics_url: &str) -> Result<Vec<Meeting>> {
         .map_err(|e| anyhow!("o ICS retornou erro HTTP: {e}"))?
         .text()
         .map_err(|e| anyhow!("falha ao ler o ICS: {e}"))?;
-    parse_ics(&body)
+    parse_ics(&body, user_email)
 }
 
 /// Evento já parseado (dados próprios, sem borrows) — permite duas passadas.
@@ -83,7 +84,7 @@ struct ParsedEvent {
     recurrence_id: Option<i64>,
 }
 
-pub fn parse_ics(body: &str) -> Result<Vec<Meeting>> {
+pub fn parse_ics(body: &str, user_email: Option<&str>) -> Result<Vec<Meeting>> {
     let now = Utc::now().timestamp_millis();
     let horizon = now + HORIZON_DAYS * 86_400_000;
     let parser = IcalParser::new(BufReader::new(body.as_bytes()));
@@ -92,6 +93,19 @@ pub fn parse_ics(body: &str) -> Result<Vec<Meeting>> {
     let mut events: Vec<ParsedEvent> = Vec::new();
     for cal in parser {
         let cal = cal.map_err(|e| anyhow!("ICS inválido: {e}"))?;
+        // De quem é esta agenda? Serve para saber se **eu** recusei o convite
+        // (recusa de outro participante não cancela a reunião). O Google põe o
+        // email do dono em X-WR-CALNAME; sem isso, cai no email configurado.
+        let dono = cal
+            .properties
+            .iter()
+            .find(|p| p.name.eq_ignore_ascii_case("X-WR-CALNAME"))
+            .and_then(|p| p.value.as_deref())
+            .map(|v| v.trim().to_lowercase())
+            .filter(|v| v.contains('@'))
+            .or_else(|| user_email.map(|e| e.trim().to_lowercase()))
+            .filter(|v| !v.is_empty());
+
         for ev in cal.events {
             let mut uid = None;
             let mut title = None;
@@ -106,10 +120,24 @@ pub fn parse_ics(body: &str) -> Result<Vec<Meeting>> {
             let mut rrule = None;
             let mut exdates: Vec<String> = Vec::new();
             let mut recurrence_id = None;
+            let mut cancelado = false;
+            // Emails que recusaram o convite (PARTSTAT=DECLINED).
+            let mut recusaram: Vec<String> = Vec::new();
             for p in &ev.properties {
                 match p.name.as_str() {
                     "UID" => uid = p.value.clone(),
                     "SUMMARY" => title = p.value.clone(),
+                    // STATUS do evento: TENTATIVE | CONFIRMED | CANCELLED.
+                    // O Google costuma manter o evento no feed marcado como
+                    // CANCELLED em vez de removê-lo — sem esta checagem ele
+                    // reaparecia como reunião normal a cada sincronização.
+                    "STATUS" => {
+                        cancelado = p
+                            .value
+                            .as_deref()
+                            .map(|v| v.trim().eq_ignore_ascii_case("CANCELLED"))
+                            .unwrap_or(false);
+                    }
                     "DTSTART" => {
                         dtstart_line = dtstart_line_of(p);
                         start = parse_dt(p);
@@ -118,6 +146,9 @@ pub fn parse_ics(body: &str) -> Result<Vec<Meeting>> {
                     "RECURRENCE-ID" => recurrence_id = parse_dt(p),
                     "ATTENDEE" => {
                         if let Some(email) = attendee_email(p) {
+                            if attendee_declined(p) {
+                                recusaram.push(email.clone());
+                            }
                             participants.push(email);
                         }
                     }
@@ -137,6 +168,17 @@ pub fn parse_ics(body: &str) -> Result<Vec<Meeting>> {
             let (Some(uid), Some(starts_at)) = (uid, start) else {
                 continue;
             };
+            // Cancelado pelo organizador.
+            if cancelado {
+                continue;
+            }
+            // Recusado por mim. Recusa de outro participante não tira a
+            // reunião da agenda — ela continua acontecendo.
+            if let Some(me) = dono.as_deref() {
+                if recusaram.iter().any(|e| e == me) {
+                    continue;
+                }
+            }
             let ends_at = end.unwrap_or(starts_at + 3_600_000); // default 1h
             events.push(ParsedEvent {
                 uid,
@@ -345,6 +387,25 @@ fn parse_dt(p: &Property) -> Option<i64> {
 }
 
 /// Extrai o email de um ATTENDEE ("mailto:x@y.com", case-insensitive).
+/// Valor de um parâmetro da propriedade (ex.: `PARTSTAT` em `ATTENDEE`).
+fn param(p: &Property, name: &str) -> Option<String> {
+    let params = p.params.as_ref()?;
+    params
+        .iter()
+        .find(|(k, _)| k.eq_ignore_ascii_case(name))
+        .and_then(|(_, v)| v.first().cloned())
+}
+
+/// O convite foi recusado por este participante?
+///
+/// `PARTSTAT` (RFC 5545) vale NEEDS-ACTION, ACCEPTED, DECLINED, TENTATIVE ou
+/// DELEGATED. Só DECLINED significa "não vou".
+fn attendee_declined(p: &Property) -> bool {
+    param(p, "PARTSTAT")
+        .map(|v| v.trim().eq_ignore_ascii_case("DECLINED"))
+        .unwrap_or(false)
+}
+
 fn attendee_email(p: &Property) -> Option<String> {
     let v = p.value.as_ref()?;
     let lower = v.to_lowercase();
@@ -398,12 +459,79 @@ mod tests {
         let ics = "BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:rec1\r\nSUMMARY:Semanal\r\n\
 DTSTART:20200106T130000Z\r\nDTEND:20200106T140000Z\r\nRRULE:FREQ=WEEKLY;BYDAY=MO\r\n\
 END:VEVENT\r\nEND:VCALENDAR\r\n";
-        let ms = parse_ics(ics).unwrap();
+        let ms = parse_ics(ics, None).unwrap();
         assert!(ms.len() > 1, "esperava várias ocorrências, veio {}", ms.len());
         let now = Utc::now().timestamp_millis();
         assert!(ms.iter().all(|m| m.ends_at >= now - 3_600_000));
         // Duração preservada (1h).
         assert!(ms.iter().all(|m| m.ends_at - m.starts_at == 3_600_000));
+    }
+
+    /// Monta um VEVENT futuro com as propriedades extras informadas.
+    fn ics_futuro(extra: &str) -> String {
+        let inicio = Utc::now() + chrono::Duration::days(2);
+        format!(
+            "BEGIN:VCALENDAR\r\nX-WR-CALNAME:gean@hi.capital\r\nBEGIN:VEVENT\r\nUID:e1\r\n\
+SUMMARY:Comitê\r\nDTSTART:{}\r\nDTEND:{}\r\n{extra}END:VEVENT\r\nEND:VCALENDAR\r\n",
+            inicio.format("%Y%m%dT%H%M%SZ"),
+            (inicio + chrono::Duration::hours(1)).format("%Y%m%dT%H%M%SZ"),
+        )
+    }
+
+    #[test]
+    fn descarta_evento_cancelado_pelo_organizador() {
+        // O Google mantém o evento no feed marcado como CANCELLED em vez de
+        // removê-lo — sem o filtro ele reaparecia a cada sincronização.
+        let ics = ics_futuro("STATUS:CANCELLED\r\n");
+        assert!(parse_ics(&ics, None).unwrap().is_empty());
+    }
+
+    #[test]
+    fn mantem_evento_confirmado_e_tentativo() {
+        // Dos três valores de STATUS, só CANCELLED tira a reunião da agenda.
+        for s in ["STATUS:CONFIRMED\r\n", "STATUS:TENTATIVE\r\n", ""] {
+            let ics = ics_futuro(s);
+            assert_eq!(parse_ics(&ics, None).unwrap().len(), 1, "STATUS {s:?} sumiu");
+        }
+    }
+
+    #[test]
+    fn descarta_evento_que_eu_recusei() {
+        let ics = ics_futuro(
+            "ATTENDEE;PARTSTAT=DECLINED:mailto:gean@hi.capital\r\n\
+             ATTENDEE;PARTSTAT=ACCEPTED:mailto:outro@hi.capital\r\n",
+        );
+        // Dono vem do X-WR-CALNAME do próprio feed, sem depender de config.
+        assert!(parse_ics(&ics, None).unwrap().is_empty());
+    }
+
+    #[test]
+    fn mantem_evento_recusado_por_outro_participante() {
+        // Recusa de terceiro não cancela a reunião — ela continua acontecendo.
+        let ics = ics_futuro(
+            "ATTENDEE;PARTSTAT=ACCEPTED:mailto:gean@hi.capital\r\n\
+             ATTENDEE;PARTSTAT=DECLINED:mailto:outro@hi.capital\r\n",
+        );
+        let ms = parse_ics(&ics, None).unwrap();
+        assert_eq!(ms.len(), 1);
+        // O recusante segue na lista de participantes (some só da decisão).
+        assert_eq!(ms[0].participants.len(), 2);
+    }
+
+    #[test]
+    fn usa_o_email_configurado_quando_o_feed_nao_diz_o_dono() {
+        let ics = "BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:e1\r\nSUMMARY:X\r\n\
+DTSTART:20990101T130000Z\r\nDTEND:20990101T140000Z\r\n\
+ATTENDEE;PARTSTAT=DECLINED:mailto:gean@hi.capital\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n";
+        assert!(parse_ics(ics, Some("gean@hi.capital")).unwrap().is_empty());
+        // Sem saber quem sou eu, não dá para decidir: mantém.
+        assert_eq!(parse_ics(ics, None).unwrap().len(), 1);
+    }
+
+    #[test]
+    fn partstat_e_case_insensitive() {
+        let ics = ics_futuro("ATTENDEE;partstat=declined:mailto:GEAN@hi.capital\r\n");
+        assert!(parse_ics(&ics, None).unwrap().is_empty());
     }
 
     #[test]
@@ -437,7 +565,7 @@ END:VEVENT\r\nEND:VCALENDAR\r\n";
 BEGIN:VEVENT\r\nUID:rec\r\nSUMMARY:Comite\r\nDTSTART:20200106T130000Z\r\nDTEND:20200106T140000Z\r\nRRULE:FREQ=WEEKLY;BYDAY=MO\r\nEND:VEVENT\r\n\
 BEGIN:VEVENT\r\nUID:rec\r\nSUMMARY:Comite\r\nRECURRENCE-ID:20200113T130000Z\r\nDTSTART:20200113T130000Z\r\nDTEND:20200113T140000Z\r\nEND:VEVENT\r\n\
 END:VCALENDAR\r\n";
-        let ms = parse_ics(ics).unwrap();
+        let ms = parse_ics(ics, None).unwrap();
         // Nenhuma tripla (start,end,title) repetida.
         let mut keys: Vec<_> = ms.iter().map(|m| (m.starts_at, m.ends_at, &m.title)).collect();
         let total = keys.len();

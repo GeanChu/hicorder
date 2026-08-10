@@ -407,7 +407,105 @@ pub fn set_meeting_record(conn: &Connection, uid: &str, enabled: bool) -> Result
     Ok(())
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const HORA: i64 = 3_600_000;
+
+    fn db() -> Connection {
+        open(Path::new(":memory:")).unwrap()
+    }
+
+    fn add(conn: &Connection, uid: &str, starts_at: i64, gravar: bool) {
+        upsert_meeting(conn, uid, "R", starts_at, starts_at + HORA, gravar, &[], None, None).unwrap();
+    }
+
+    fn uids(conn: &Connection, from: i64) -> Vec<String> {
+        list_meetings(conn, from).unwrap().into_iter().map(|m| m.uid).collect()
+    }
+
+    #[test]
+    fn remove_a_reuniao_que_sumiu_do_feed() {
+        let c = db();
+        let agora = 1_000 * HORA;
+        add(&c, "fica", agora + 24 * HORA, false);
+        add(&c, "apagada-no-google", agora + 48 * HORA, false);
+
+        let n = prune_missing_meetings(&c, &["fica".to_string()], agora).unwrap();
+        assert_eq!(n, 1);
+        assert_eq!(uids(&c, agora), vec!["fica"]);
+    }
+
+    #[test]
+    fn feed_vazio_nao_apaga_nada() {
+        // Armadilha 1: fetch que falhou ou veio truncado não pode limpar a
+        // agenda — o usuário perderia as reuniões marcadas para gravar.
+        let c = db();
+        let agora = 1_000 * HORA;
+        add(&c, "a", agora + 24 * HORA, true);
+        add(&c, "b", agora + 48 * HORA, false);
+
+        assert_eq!(prune_missing_meetings(&c, &[], agora).unwrap(), 0);
+        assert_eq!(uids(&c, agora).len(), 2);
+    }
+
+    #[test]
+    fn nao_mexe_em_reuniao_ja_encerrada() {
+        // Armadilha 2: o passado não está no feed (o ICS só expande o futuro).
+        // Reconciliar sobre ele apagaria histórico legítimo.
+        let c = db();
+        let agora = 1_000 * HORA;
+        add(&c, "antiga", agora - 48 * HORA, false);
+        add(&c, "futura", agora + 24 * HORA, false);
+
+        prune_missing_meetings(&c, &["futura".to_string()], agora).unwrap();
+        // A antiga continua no banco (quem a remove é o prune por tempo).
+        assert_eq!(uids(&c, 0), vec!["antiga", "futura"]);
+    }
+
+    #[test]
+    fn preserva_o_agendamento_de_gravacao_de_quem_fica() {
+        let c = db();
+        let agora = 1_000 * HORA;
+        add(&c, "marcada", agora + 24 * HORA, false);
+        set_meeting_record(&c, "marcada", true).unwrap();
+        add(&c, "sumiu", agora + 48 * HORA, false);
+
+        prune_missing_meetings(&c, &["marcada".to_string()], agora).unwrap();
+        let ms = list_meetings(&c, agora).unwrap();
+        assert_eq!(ms.len(), 1);
+        assert!(ms[0].record_enabled, "perdeu o 'Agendar Gravação'");
+    }
+}
+
 pub fn prune_meetings(conn: &Connection, before_ms: i64) -> Result<()> {
     conn.execute("DELETE FROM meetings WHERE ends_at < ?1", params![before_ms])?;
     Ok(())
+}
+
+/// Remove as reuniões **ainda não encerradas** que não vieram na sincronização.
+///
+/// Sem isto a agenda só crescia: o upsert adicionava, e a única remoção era por
+/// tempo (`prune_meetings`). Reunião apagada no Google sumia do feed mas ficava
+/// no banco até passar da hora — e, se estivesse marcada para gravar, o
+/// scheduler iniciava a gravação de uma reunião que não existe mais.
+///
+/// **Quem chama precisa garantir que a sincronização deu certo**: reconciliar
+/// com resultado de um fetch que falhou apagaria a agenda inteira. Por isso
+/// `uids` vazio é tratado como "não sei", e nada é removido.
+///
+/// Devolve quantas linhas foram apagadas.
+pub fn prune_missing_meetings(conn: &Connection, uids: &[String], from_ms: i64) -> Result<usize> {
+    if uids.is_empty() {
+        return Ok(0);
+    }
+    let marcadores = std::iter::repeat("?").take(uids.len()).collect::<Vec<_>>().join(",");
+    let sql = format!("DELETE FROM meetings WHERE ends_at >= ? AND uid NOT IN ({marcadores})");
+    let mut valores: Vec<&dyn rusqlite::ToSql> = Vec::with_capacity(uids.len() + 1);
+    valores.push(&from_ms);
+    for u in uids {
+        valores.push(u);
+    }
+    Ok(conn.execute(&sql, valores.as_slice())?)
 }

@@ -1222,7 +1222,7 @@ pub fn get_summary(app: AppHandle, recording_id: String) -> Result<Option<Summar
 
 #[tauri::command]
 pub async fn refresh_meetings(app: AppHandle) -> Result<Vec<MeetingRow>, String> {
-    let (ics_url, record_all) = {
+    let (ics_url, record_all, user_email) = {
         let conn = open_db(&app)?;
         let url = storage::get_setting(&conn, "ics_url")
             .map_err(|e| e.to_string())?
@@ -1231,7 +1231,11 @@ pub async fn refresh_meetings(app: AppHandle) -> Result<Vec<MeetingRow>, String>
             .map_err(|e| e.to_string())?
             .map(|v| v == "1")
             .unwrap_or(false);
-        (url, ra)
+        // Só usado se o feed não disser de quem é a agenda (X-WR-CALNAME).
+        let email = storage::get_setting(&conn, "attio_user_email")
+            .map_err(|e| e.to_string())?
+            .unwrap_or_default();
+        (url, ra, email)
     };
     if ics_url.trim().is_empty() {
         // Config faltando, não é erro de execução — não vai pro log.
@@ -1239,11 +1243,17 @@ pub async fn refresh_meetings(app: AppHandle) -> Result<Vec<MeetingRow>, String>
     }
 
     let work = async {
-        let parsed =
-            tauri::async_runtime::spawn_blocking(move || meetings::fetch_and_parse(&ics_url))
-                .await
-                .map_err(|e| e.to_string())?
-                .map_err(|e| e.to_string())?;
+        let parsed = tauri::async_runtime::spawn_blocking(move || {
+            let me = if user_email.trim().is_empty() {
+                None
+            } else {
+                Some(user_email.trim())
+            };
+            meetings::fetch_and_parse(&ics_url, me)
+        })
+        .await
+        .map_err(|e| e.to_string())?
+        .map_err(|e| e.to_string())?;
 
         let conn = open_db(&app)?;
         for m in &parsed {
@@ -1262,6 +1272,20 @@ pub async fn refresh_meetings(app: AppHandle) -> Result<Vec<MeetingRow>, String>
         }
         let cutoff = now_ms() - 3_600_000; // mantém até 1h após o fim
         storage::prune_meetings(&conn, cutoff).map_err(|e| e.to_string())?;
+        // O ICS é a fonte de verdade: reunião apagada no calendário some daqui.
+        // Só reconcilia com feed não-vazio — o fetch acima já garantiu sucesso,
+        // e feed vazio é ambíguo demais (agenda vazia ou resposta truncada).
+        let uids: Vec<String> = parsed.iter().map(|m| m.uid.clone()).collect();
+        match storage::prune_missing_meetings(&conn, &uids, cutoff) {
+            Ok(n) if n > 0 => logs::log(
+                &app,
+                "INFO",
+                "agenda",
+                &format!("{n} reunião(ões) removida(s): não estão mais no calendário"),
+            ),
+            Err(e) => return Err(e.to_string()),
+            _ => {}
+        }
         storage::list_meetings(&conn, cutoff).map_err(|e| e.to_string())
     }
     .await;

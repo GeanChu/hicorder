@@ -59,7 +59,18 @@ fn refresh_ics(app: &AppHandle) {
         .flatten()
         .map(|v| v == "1")
         .unwrap_or(false);
-    let parsed = match meetings::fetch_and_parse(&ics) {
+    let user_email = storage::get_setting(&conn, "attio_user_email")
+        .ok()
+        .flatten()
+        .unwrap_or_default();
+    let me = if user_email.trim().is_empty() {
+        None
+    } else {
+        Some(user_email.trim())
+    };
+    // Falha de rede/servidor sai aqui, ANTES da reconciliação: apagar a agenda
+    // por causa de um ICS que respondeu 500 seria pior que a reunião fantasma.
+    let parsed = match meetings::fetch_and_parse(&ics, me) {
         Ok(p) => p,
         Err(e) => {
             logs::log(app, "INFO", "agenda", &format!("refresh automático falhou: {e}"));
@@ -81,6 +92,18 @@ fn refresh_ics(app: &AppHandle) {
     }
     let cutoff = now_ms() - 3_600_000;
     let _ = storage::prune_meetings(&conn, cutoff);
+    // Reunião apagada no calendário sai daqui também no refresh automático.
+    let uids: Vec<String> = parsed.iter().map(|m| m.uid.clone()).collect();
+    if let Ok(n) = storage::prune_missing_meetings(&conn, &uids, cutoff) {
+        if n > 0 {
+            logs::log(
+                app,
+                "INFO",
+                "agenda",
+                &format!("{n} reunião(ões) removida(s): não estão mais no calendário"),
+            );
+        }
+    }
     if let Ok(list) = storage::list_meetings(&conn, cutoff) {
         let _ = app.emit("meetings-refreshed", list);
     }
