@@ -71,13 +71,13 @@ pub fn is_endpoint(endpoint_url: &str) -> bool {
 /// em `AnthropicClaude/` — nome idêntico ao do CLI, programa completamente
 /// diferente. Se essa pasta estiver no PATH, a busca acharia o Desktop e
 /// tentaria rodar uma GUI com `--print`. Descarta esses caminhos.
+/// Compara sobre o caminho como texto, não por componentes: `components()` só
+/// reconhece `\` como separador no Windows, então um caminho do Windows
+/// avaliado no macOS/Linux virava um componente único e escapava do filtro.
 fn is_desktop_app(path: &Path) -> bool {
-    path.components().any(|c| {
-        c.as_os_str()
-            .to_str()
-            .map(|s| s.eq_ignore_ascii_case("AnthropicClaude"))
-            .unwrap_or(false)
-    })
+    let p = path.to_string_lossy().to_lowercase();
+    // Windows: .../AppData/Local/AnthropicClaude/... · macOS: .../Claude.app/...
+    p.contains("anthropicclaude") || p.contains("claude.app")
 }
 
 /// Nomes possíveis do executável, por SO.
@@ -410,15 +410,26 @@ mod tests {
 
     #[test]
     fn nao_confunde_o_claude_desktop_com_o_cli() {
-        // Mesmo nome de executável, programa diferente.
-        assert!(is_desktop_app(Path::new(
-            r"C:\Users\x\AppData\Local\AnthropicClaude\app-1.24012.11\claude.exe"
-        )));
-        assert!(is_desktop_app(Path::new(
-            r"C:\Users\x\AppData\Local\anthropicclaude\claude.exe"
-        )));
-        assert!(!is_desktop_app(Path::new(r"C:\Users\x\.local\bin\claude.exe")));
-        assert!(!is_desktop_app(Path::new("/usr/local/bin/claude")));
+        // Mesmo nome de executável, programa diferente. O teste roda nos três
+        // SOs, então cobre os caminhos de todos eles — a comparação é textual
+        // justamente para não depender do separador da plataforma que executa.
+        for desktop in [
+            r"C:\Users\x\AppData\Local\AnthropicClaude\app-1.24012.11\claude.exe",
+            r"C:\Users\x\AppData\Local\anthropicclaude\claude.exe",
+            "/Applications/Claude.app/Contents/MacOS/claude",
+            "/Users/x/Applications/claude.app/Contents/MacOS/claude",
+        ] {
+            assert!(is_desktop_app(Path::new(desktop)), "não filtrou: {desktop}");
+        }
+        for cli in [
+            r"C:\Users\x\.local\bin\claude.exe",
+            r"C:\Users\x\AppData\Roaming\npm\claude.cmd",
+            "/usr/local/bin/claude",
+            "/Users/x/.local/bin/claude",
+            "/opt/homebrew/bin/claude",
+        ] {
+            assert!(!is_desktop_app(Path::new(cli)), "filtrou o CLI: {cli}");
+        }
     }
 
     #[test]
