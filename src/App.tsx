@@ -445,24 +445,38 @@ function App() {
     };
   }, [refreshRecordings]);
 
-  // Verifica atualização no início e uma vez por dia. Falha silenciosa
-  // (offline, sem manifesto) — só avisa quando há versão nova.
+  // Verifica atualização no início, com re-tentativas, e depois uma vez por dia.
+  //
+  // O app tem autoinicialização e sobe junto com o login do Windows, quando a
+  // rede quase nunca está pronta. Antes, a falha era engolida em silêncio e a
+  // próxima checagem só aconteceria 24h depois — na prática o usuário ficava um
+  // dia inteiro sem receber a versão nova, sem nada no log para explicar.
   useEffect(() => {
     if (isAlert) return;
     let cancelled = false;
-    const run = async () => {
+    const timers: number[] = [];
+
+    const run = async (tentativa = 1) => {
+      if (cancelled) return;
       try {
         const u = await check();
         if (u && !cancelled) setUpdate({ version: u.version });
-      } catch {
-        /* offline ou sem update */
+      } catch (e) {
+        logClient("updater", `verificação falhou (tentativa ${tentativa}): ${String(e)}`);
+        // 30s, 60s, 90s, 120s: cobre os ~5 min em que a rede costuma
+        // estabilizar depois do login.
+        if (!cancelled && tentativa < 5) {
+          timers.push(window.setTimeout(() => run(tentativa + 1), tentativa * 30_000));
+        }
       }
     };
+
     run();
-    const id = window.setInterval(run, 24 * 60 * 60 * 1000);
+    const diario = window.setInterval(() => run(), 24 * 60 * 60 * 1000);
     return () => {
       cancelled = true;
-      window.clearInterval(id);
+      window.clearInterval(diario);
+      timers.forEach(clearTimeout);
     };
   }, [isAlert]);
 
