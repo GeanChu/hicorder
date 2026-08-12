@@ -219,8 +219,21 @@ pub fn find_or_create_meeting(
     timezone: &str,
     emails: &[String],
 ) -> Result<String> {
+    // A busca vem antes da validação de propósito: se a reunião já existe, dá
+    // para anexar a nota mesmo sem informar participante nenhum (caso de subir
+    // só para uma empresa).
     if let Ok(Some(id)) = find_existing_meeting(key, title, start_iso, end_iso, timezone) {
         return Ok(id);
+    }
+
+    // Criar exige participante — o Attio recusa com 400 "No participants were
+    // provided". Falhar aqui dá uma mensagem que diz o que fazer, em vez de
+    // vazar o erro cru da API para o usuário.
+    if emails.is_empty() {
+        bail!(
+            "para criar uma reunião nova no Attio é preciso ao menos um participante. \
+             Marque um participante sugerido ou digite um email antes de subir."
+        );
     }
     let participants: Vec<serde_json::Value> = emails
         .iter()
