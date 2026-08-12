@@ -6,6 +6,11 @@ Documento para a próxima sessão saber exatamente onde paramos e como seguir.
 
 **Mudou o fluxo de trabalho.** O **Smart App Control** do Windows 11 ligou nesta máquina (é irreversível uma vez desligado, então ficou ligado) e bloqueia qualquer executável recém-compilado sem assinatura — `cargo build`, `cargo test` e `tauri dev` não rodam mais localmente (`os error 4551`). O ciclo agora é: branch → push → PR → a **CI compila e testa** nos 3 SOs → merge. O `npm run build` do frontend continua funcionando local (é TypeScript, não gera executável), então UI ainda dá para inspecionar no navegador.
 
+**v0.2.52 — entrega de atualizações estava quebrada para todo o time:**
+- A verificação de nova versão era `catch { }` silencioso, com re-tentativa só em **24h**. Como o app tem autoinicialização e sobe junto com o login do Windows, a rede quase nunca está pronta nesse instante — então a checagem falhava no boot de qualquer máquina, sem rastro no log, e a pessoa ficava um dia inteiro sem receber. Comprovado no log: app iniciou 22:17:49, release estava no ar desde 22:15:50, ICS falhando 22:18:24. Agora re-tenta em 30/60/90/120s e registra as falhas.
+- ICS: timeout 30s → 120s (no reqwest ele cobre a **leitura do corpo**, não só a conexão — agenda cheia estourava no meio e o erro `error decoding response body` parecia corrupção), 3 tentativas, e passa a usar `net::describe()` para mostrar a causa raiz.
+- Attio: criar reunião exige participante. A guarda da UI aceitava "pessoa **ou** empresa", então só-empresa passava e quebrava com 400 "No participants were provided".
+
 **v0.2.51:**
 - **`cargo test` na CI** — antes ela só compilava. Na primeira execução já achou um bug publicado: o filtro que separa o Claude Desktop do Claude Code só funcionava no Windows (`path.components()` não reconhece `\` fora dele, e no macOS o Desktop mora em `Claude.app`). Estava nas v0.2.48–0.2.50.
 - **Áudio longo é dividido em partes** — reunião acima de ~1h45 dava `413 Payload Too Large` (Opus 32 kbps ≈ 14,4 MB/h contra o teto de 25 MB dos provedores). Divide preventivamente acima de 20 MB e reativamente em qualquer 413; timestamps deslocados para a linha do tempo da reunião; parte que falha vira marcador visível em vez de derrubar tudo.
