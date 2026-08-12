@@ -58,3 +58,17 @@ jobs:
           else
             cargo build --manifest-path src-tauri/Cargo.toml
           fi
+
+      # Os testes cobrem filtro de alucinação, redação de segredos no log,
+      # escopo de chaves, parse de ICS e reconciliação da agenda. Rodavam só na
+      # máquina do dev — e desde que o Smart App Control passou a bloquear
+      # binário recém-compilado lá, a CI é o único lugar onde rodam.
+      # Os testes marcados #[ignore] exigem hardware (mic/loopback) ou rede.
+      - name: Test Rust
+        shell: bash
+        run: |
+          if [ "${{ runner.os }}" = "macOS" ]; then
+            cargo test --manifest-path src-tauri/Cargo.toml --features macos-system-audio
+          else
+            cargo test --manifest-path src-tauri/Cargo.toml
+          fi

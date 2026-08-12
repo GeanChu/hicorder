@@ -12,7 +12,10 @@ use crate::attio::{self, AttioCompany, AttioMeeting};
 use crate::audio::recorder::{Recorder, RecordingInfo};
 use crate::storage::{self, MeetingRow, RecordingRow, SummaryRow, TranscriptRow};
 use crate::summary::{self, SummaryConfig};
-use crate::transcription::{self, OpenAiCompatible, Transcriber, TranscriptionConfig};
+// O trait `Transcriber` saiu daqui: quem chama o provedor agora é
+// `transcription::transcribe_file`, que decide entre uma requisição só e a
+// divisão em pedaços.
+use crate::transcription::{self, OpenAiCompatible, TranscriptionConfig};
 use crate::{audio, encode, logs, meetings, settings};
 
 #[derive(Serialize, Clone)]
@@ -1006,12 +1009,16 @@ pub async fn transcribe(
         )
     };
 
+    // ffmpeg é necessário para dividir áudio longo demais para o provedor.
+    let ffmpeg = resolve_ffmpeg(&app);
+
     // "Você" = microfone. HTTP bloqueante em thread de blocking (não trava a UI).
     let p_mic = provider.clone();
     let mic_for_http = mic_path.clone();
     let lang_mic = lang.clone();
+    let ffmpeg_mic = ffmpeg.clone();
     let mic_segs = tauri::async_runtime::spawn_blocking(move || {
-        p_mic.transcribe(Path::new(&mic_for_http), &lang_mic)
+        transcription::transcribe_file(&p_mic, &ffmpeg_mic, Path::new(&mic_for_http), &lang_mic)
     })
     .await
     .map_err(|e| e.to_string())?
@@ -1021,8 +1028,9 @@ pub async fn transcribe(
     let sys_segs = if let Some(sp) = system_path {
         let p_sys = provider.clone();
         let lang_sys = lang.clone();
+        let ffmpeg_sys = ffmpeg.clone();
         match tauri::async_runtime::spawn_blocking(move || {
-            p_sys.transcribe(Path::new(&sp), &lang_sys)
+            transcription::transcribe_file(&p_sys, &ffmpeg_sys, Path::new(&sp), &lang_sys)
         })
         .await
         {
