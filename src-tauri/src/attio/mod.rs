@@ -11,6 +11,11 @@
 //! Nota: o filtro `participants` do GET /v2/meetings (endpoint beta) trava no
 //! server do Attio. Filtramos por janela de tempo (que funciona) e casamos os
 //! emails no cliente, sobre o campo `participants` de cada meeting.
+//!
+//! Nota 2: o `external_ref` foi deprecado (comunicado do Attio em 08/2026) e o
+//! POST de meetings passou a criar uma nova a cada chamada. A deduplicação é
+//! feita aqui (`find_existing_meeting`). Os endpoints de call recordings e de
+//! transcript que mudaram no mesmo comunicado não são usados por este app.
 
 use anyhow::{anyhow, bail, Result};
 use serde::Serialize;
@@ -173,7 +178,39 @@ pub fn list_meetings(
     Ok(if matched.is_empty() { all } else { matched })
 }
 
+/// Título normalizado para comparação (sem espaços nas bordas, minúsculas).
+fn titulo_igual(a: &str, b: &str) -> bool {
+    a.trim().to_lowercase() == b.trim().to_lowercase()
+}
+
+/// Procura uma meeting já existente com este título na janela do horário.
+///
+/// Existe porque o Attio **deprecou o `external_ref`**: antes, repetir o POST
+/// com o mesmo `external_ref` reaproveitava a meeting; agora cada chamada cria
+/// uma nova. Sem esta busca, subir transcrição e depois resumo da mesma
+/// gravação criaria duas reuniões duplicadas no CRM.
+fn find_existing_meeting(
+    key: &str,
+    title: &str,
+    start_iso: &str,
+    end_iso: &str,
+    timezone: &str,
+) -> Result<Option<String>> {
+    // Janela = o próprio horário da reunião, então só entram as que se
+    // sobrepõem a ela. Isso já separa ocorrências diferentes de uma recorrente.
+    let candidatas = list_meetings(key, start_iso, end_iso, timezone, None, &[])?;
+    Ok(candidatas
+        .into_iter()
+        .find(|m| titulo_igual(&m.title, title))
+        .map(|m| m.meeting_id))
+}
+
 /// Acha ou cria uma meeting a partir de título/horário/participantes. Retorna o meeting_id.
+///
+/// A deduplicação é **nossa** desde que o Attio deprecou o `external_ref`
+/// (comunicado de 08/2026): o endpoint passou a criar uma meeting nova a cada
+/// chamada. Falha na busca não bloqueia o upload — cria assim mesmo, porque
+/// subir a nota importa mais que o risco de uma duplicata.
 pub fn find_or_create_meeting(
     key: &str,
     title: &str,
@@ -182,6 +219,9 @@ pub fn find_or_create_meeting(
     timezone: &str,
     emails: &[String],
 ) -> Result<String> {
+    if let Ok(Some(id)) = find_existing_meeting(key, title, start_iso, end_iso, timezone) {
+        return Ok(id);
+    }
     let participants: Vec<serde_json::Value> = emails
         .iter()
         .enumerate()
@@ -189,9 +229,11 @@ pub fn find_or_create_meeting(
             json!({ "email_address": e, "is_organizer": i == 0, "status": "accepted" })
         })
         .collect();
-    // A API de meetings (beta) exige `description` (string) e `external_ref`
-    // (referência externa única). O external_ref é estável por (início+título),
-    // então re-subir a mesma reunião reaproveita a existente em vez de duplicar.
+    // `external_ref` continua sendo enviado de propósito, mesmo deprecado: a
+    // versão da API em produção ainda o exige como campo obrigatório, e campo
+    // obsoleto é ignorado, não rejeitado. Assim o mesmo código funciona antes e
+    // depois da migração do Attio. Quem garante a não-duplicação agora é o
+    // find_existing_meeting acima, não este campo.
     let external_ref = format!("hicorder:{start_iso}|{title}");
     let body = json!({
         "data": {
@@ -298,6 +340,46 @@ pub fn companies_for_emails(key: &str, emails: &[String]) -> Result<Vec<AttioCom
         out.push(AttioCompany { record_id: id, name });
     }
     Ok(out)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{meeting_from_value, titulo_igual};
+    use serde_json::json;
+
+    #[test]
+    fn titulo_ignora_caixa_e_espacos() {
+        assert!(titulo_igual("Comitê Real Estate", "comitê real estate"));
+        assert!(titulo_igual("  Sync Gean  ", "Sync Gean"));
+    }
+
+    #[test]
+    fn titulos_diferentes_nao_casam() {
+        // Duas reuniões no mesmo horário não podem virar uma só.
+        assert!(!titulo_igual("Comitê Real Estate", "Comitê Investimentos"));
+        assert!(!titulo_igual("Sync", "Sync 2"));
+    }
+
+    #[test]
+    fn le_o_id_e_o_titulo_da_resposta_do_attio() {
+        // Garante que a busca por duplicata enxerga os campos certos.
+        let v = json!({
+            "id": { "meeting_id": "m-123" },
+            "title": "Comitê Real Estate",
+            "start": { "datetime": "2026-08-10T14:00:00Z" },
+            "participants": [{ "email_address": "gean@hi.capital" }]
+        });
+        let m = meeting_from_value(&v).expect("deveria parsear");
+        assert_eq!(m.meeting_id, "m-123");
+        assert!(titulo_igual(&m.title, "comitê real estate"));
+        assert_eq!(m.participants, vec!["gean@hi.capital"]);
+    }
+
+    #[test]
+    fn resposta_sem_meeting_id_e_descartada() {
+        let v = json!({ "title": "Sem id" });
+        assert!(meeting_from_value(&v).is_none());
+    }
 }
 
 /// Cria uma nota num record pai, linkando a meeting.
