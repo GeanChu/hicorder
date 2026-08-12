@@ -54,6 +54,17 @@
 **Por quê**: o modelo de dados difere. No **Attio** uma nota tem um único pai, então é criada uma nota por pessoa e por empresa, ligada à meeting. No **Affinity** uma nota aceita `person_ids` e `organization_ids`, então **uma nota só** cobre todos os vínculos. Além disso o Affinity não tem endpoint de meetings — a etapa "escolha a reunião" usa a agenda local (ICS) apenas para sugerir participantes.
 **Custo**: a mensagem de resultado e o passo 1 do fluxo variam por CRM; dois caminhos de código para manter.
 
+## ADR-014 — Deduplicação de meetings no Attio passa a ser nossa
+**Contexto**: em 08/2026 o Attio comunicou que tira Meetings/Call Recordings do alpha e **deprecia o `external_ref`** — cada `POST /v2/meetings` passa a criar uma meeting nova, mesmo com o mesmo `external_ref`. Antes, esse campo é que garantia o reaproveitamento.
+
+**Decisão**: antes de criar, consultar `GET /v2/meetings` na janela do horário da reunião e reusar a que tiver o mesmo título (`find_existing_meeting`). **E continuar enviando `external_ref`.**
+
+**Por que continuar enviando um campo deprecado**: a versão da API em produção ainda o exige como obrigatório. Removê-lo agora quebraria as chamadas; mantê-lo é inofensivo depois da migração, porque campo obsoleto é ignorado e não rejeitado. O mesmo binário funciona nos dois lados da mudança — e o app é distribuído, então não dá para sincronizar o deploy com a data do Attio.
+
+**Custo**: uma requisição a mais por upload que cria reunião. Falha na busca não bloqueia: cria assim mesmo, porque subir a nota importa mais que o risco de uma duplicata.
+
+**Sem impacto**: os outros dois itens do comunicado (call recordings passam a exigir transcript em 14/10/2026; transcript volta junto do call recording) tocam endpoints que este app nunca chamou.
+
 ## ADR-013 — Resumo pelo Claude Code local (processo, não HTTP)
 **Decisão**: adicionar "Claude Code (instalado nesta máquina)" como provedor de resumo. O endpoint é o sentinela `claude-code://local`; o backend detecta e executa o CLI `claude --print` com a transcrição pelo **stdin**, em vez de fazer POST.
 **Por quê**: é o único provedor que **dispensa cadastrar chave de API** — autentica pela assinatura Claude que o usuário já tem. Para quem já usa Claude Code, é o caminho de menor fricção.
