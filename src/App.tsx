@@ -1916,6 +1916,16 @@ function AttioUpload({
       setError("Marque ou informe ao menos 1 pessoa ou empresa para receber a nota.");
       return;
     }
+    // Criar reunião nova exige participante: o Attio recusa uma reunião sem
+    // nenhum. Só empresa passava na guarda acima e quebrava lá na API. Quando
+    // a reunião já existe (selected != "new") não há esse limite.
+    if (selected === "new" && list.length === 0) {
+      setError(
+        "Para criar uma reunião nova é preciso ao menos 1 participante. " +
+          "Marque um sugerido ou digite um email.",
+      );
+      return;
+    }
     setError(null);
     setResult(null);
     setBusy(true);
