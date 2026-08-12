@@ -2,9 +2,16 @@
 
 Documento para a próxima sessão saber exatamente onde paramos e como seguir.
 
-## Estado atual (2026-08-07, v0.2.50)
+## Estado atual (2026-08-11, v0.2.51)
 
-**Novo nesta sessão:**
+**Mudou o fluxo de trabalho.** O **Smart App Control** do Windows 11 ligou nesta máquina (é irreversível uma vez desligado, então ficou ligado) e bloqueia qualquer executável recém-compilado sem assinatura — `cargo build`, `cargo test` e `tauri dev` não rodam mais localmente (`os error 4551`). O ciclo agora é: branch → push → PR → a **CI compila e testa** nos 3 SOs → merge. O `npm run build` do frontend continua funcionando local (é TypeScript, não gera executável), então UI ainda dá para inspecionar no navegador.
+
+**v0.2.51:**
+- **`cargo test` na CI** — antes ela só compilava. Na primeira execução já achou um bug publicado: o filtro que separa o Claude Desktop do Claude Code só funcionava no Windows (`path.components()` não reconhece `\` fora dele, e no macOS o Desktop mora em `Claude.app`). Estava nas v0.2.48–0.2.50.
+- **Áudio longo é dividido em partes** — reunião acima de ~1h45 dava `413 Payload Too Large` (Opus 32 kbps ≈ 14,4 MB/h contra o teto de 25 MB dos provedores). Divide preventivamente acima de 20 MB e reativamente em qualquer 413; timestamps deslocados para a linha do tempo da reunião; parte que falha vira marcador visível em vez de derrubar tudo.
+- **Attio: deduplicação passou a ser nossa** (ADR-014) — o `external_ref` foi deprecado e o POST passou a criar sempre uma meeting nova. Os outros dois itens do comunicado (call recordings) não nos tocam.
+
+**Novo na sessão anterior (v0.2.48–0.2.50):**
 - **Alerta em um canal só** (v0.2.49): a notificação nativa foi removida (plugin inclusive) e todo aviso virou janela-toast, que é a que tem botão. Cinco tipos, novo botão "Entrar na call", e um × para dispensar — a janela não tem decoração nem barra de tarefas, então sem o × um toast sem ação ficaria preso na tela.
 - **Agenda deixa de mostrar reunião fantasma** (v0.2.50): reunião apagada no Google continuava listada, e se estivesse marcada para gravar o scheduler iniciava a gravação de uma reunião inexistente. Duas causas: a sincronização era só aditiva (a única remoção era por tempo) e `STATUS:CANCELLED` era ignorado. Agora o ICS é autoritativo — com as travas de não apagar em falha de fetch nem em feed vazio — e eventos cancelados/recusados-por-mim são descartados no parser.
 
