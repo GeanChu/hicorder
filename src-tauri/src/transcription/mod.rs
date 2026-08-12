@@ -249,6 +249,76 @@ mod tests {
         assert_eq!(filter_hallucinations(raw).len(), 3);
     }
 
+    // ---- Divisão de áudio longo ----
+
+    use super::{chunk_seconds, erro_de_tamanho, offset_segments, TranscriptSegment};
+
+    const MB: u64 = 1024 * 1024;
+
+    #[test]
+    fn reconhece_o_erro_de_payload_grande() {
+        // Mensagem real que o usuário recebeu.
+        assert!(erro_de_tamanho(
+            "provedor retornou 413 Payload Too Large: {\"error\":{\"code\":\"request_too_large\"}}"
+        ));
+        assert!(erro_de_tamanho("Request Entity Too Large"));
+        // Não pode confundir com outros erros — dividir não resolveria 401/429.
+        assert!(!erro_de_tamanho("provedor retornou 401: invalid api key"));
+        assert!(!erro_de_tamanho("provedor retornou 429: rate limit"));
+    }
+
+    #[test]
+    fn calcula_o_pedaco_pela_taxa_de_bits_real() {
+        // 2h de Opus 32 kbps ≈ 28,8 MB → ~1h por pedaço de 15 MB.
+        let duracao = 7200.0;
+        let tamanho = 28 * MB;
+        let s = chunk_seconds(tamanho, duracao, 15 * MB);
+        assert!((3400..=3900).contains(&s), "esperava ~1h, veio {s}s");
+    }
+
+    #[test]
+    fn audio_mais_pesado_gera_pedaco_mais_curto() {
+        // Mesma duração, o dobro do tamanho → metade do tempo por pedaço.
+        let leve = chunk_seconds(28 * MB, 7200.0, 15 * MB);
+        let pesado = chunk_seconds(56 * MB, 7200.0, 15 * MB);
+        assert!(pesado < leve, "leve={leve} pesado={pesado}");
+    }
+
+    #[test]
+    fn sem_duracao_usa_o_padrao() {
+        // probe_duration falhou: não dá para estimar, cai no valor fixo.
+        assert_eq!(chunk_seconds(28 * MB, 0.0, 15 * MB), 30 * 60);
+        assert_eq!(chunk_seconds(0, 7200.0, 15 * MB), 30 * 60);
+    }
+
+    #[test]
+    fn duracao_do_pedaco_fica_dentro_dos_limites() {
+        // Bitrate altíssimo não pode gerar centenas de pedaços...
+        assert_eq!(chunk_seconds(10_000 * MB, 3600.0, 15 * MB), 60);
+        // ...nem bitrate baixíssimo um pedaço gigante.
+        assert_eq!(chunk_seconds(1, 100_000.0, 15 * MB), 3600);
+    }
+
+    #[test]
+    fn desloca_os_tempos_para_a_linha_do_tempo_da_reuniao() {
+        // O provedor devolve tempos relativos ao pedaço; o segundo pedaço
+        // começa aos 30min, então 12s dele são 30min12s da reunião.
+        let segs = vec![
+            TranscriptSegment { start: 0.0, text: "a".into() },
+            TranscriptSegment { start: 12.5, text: "b".into() },
+        ];
+        let out = offset_segments(segs, 1800.0);
+        assert_eq!(out[0].start, 1800.0);
+        assert_eq!(out[1].start, 1812.5);
+        assert_eq!(out[1].text, "b");
+    }
+
+    #[test]
+    fn deslocamento_zero_nao_altera_nada() {
+        let segs = vec![TranscriptSegment { start: 7.0, text: "x".into() }];
+        assert_eq!(offset_segments(segs, 0.0)[0].start, 7.0);
+    }
+
     #[test]
     fn descarta_silencio_baixa_confianca() {
         let raw = vec![RawSeg {
@@ -259,6 +329,148 @@ mod tests {
         }];
         assert!(filter_hallucinations(raw).is_empty());
     }
+}
+
+// ---- Reunião longa: divide, transcreve em partes e remonta ----
+
+/// Acima disso o áudio é dividido antes de subir. OpenAI e Groq recusam em
+/// 25 MB (`413 Payload Too Large`); 20 MB deixa margem para o overhead do
+/// multipart. Provedor com teto menor cai no retry reativo de `transcribe_file`.
+const MAX_UPLOAD_BYTES: u64 = 20 * 1024 * 1024;
+
+/// Alvo de cada pedaço. Menor que o teto de propósito: a taxa de bits do Opus
+/// é variável, então um pedaço pode sair maior que a estimativa.
+const CHUNK_TARGET_BYTES: u64 = 15 * 1024 * 1024;
+
+/// Usado quando não dá para medir a duração do arquivo (probe falhou).
+const CHUNK_FALLBACK_SECS: u64 = 30 * 60;
+
+/// O erro do provedor é de tamanho de payload?
+fn erro_de_tamanho(e: &str) -> bool {
+    let l = e.to_lowercase();
+    l.contains("413") || l.contains("too large") || l.contains("request_too_large")
+}
+
+/// Duração de cada pedaço para caber em `target_bytes`, a partir do tamanho e
+/// da duração reais do arquivo (ou seja, da taxa de bits medida, não suposta).
+fn chunk_seconds(size_bytes: u64, duration_s: f64, target_bytes: u64) -> u64 {
+    if duration_s <= 0.0 || size_bytes == 0 {
+        return CHUNK_FALLBACK_SECS;
+    }
+    let bytes_por_s = size_bytes as f64 / duration_s;
+    if bytes_por_s <= 0.0 {
+        return CHUNK_FALLBACK_SECS;
+    }
+    let secs = (target_bytes as f64 / bytes_por_s) as u64;
+    // Piso de 1 min evita gerar centenas de pedaços com áudio de bitrate alto;
+    // teto de 1h evita um pedaço único grande demais se a conta der errado.
+    secs.clamp(60, 3600)
+}
+
+/// Soma `offset_s` ao início de cada segmento — o provedor devolve tempos
+/// relativos ao pedaço, e o transcrito final precisa da linha de tempo da
+/// reunião inteira.
+fn offset_segments(segs: Vec<TranscriptSegment>, offset_s: f64) -> Vec<TranscriptSegment> {
+    segs.into_iter()
+        .map(|s| TranscriptSegment {
+            start: s.start + offset_s,
+            text: s.text,
+        })
+        .collect()
+}
+
+/// Transcreve um arquivo, dividindo-o quando for grande demais para o provedor.
+///
+/// Duas portas de entrada para a divisão:
+/// 1. **preventiva** — arquivo acima de `MAX_UPLOAD_BYTES`;
+/// 2. **reativa** — o provedor respondeu 413 mesmo abaixo do limite (endpoint
+///    personalizado pode ter teto menor).
+///
+/// Falha num pedaço não descarta os demais: entra um marcador visível no lugar.
+/// Perder três horas de reunião porque o pedaço 4 de 6 falhou seria pior.
+pub fn transcribe_file(
+    provider: &OpenAiCompatible,
+    ffmpeg: &str,
+    audio_path: &Path,
+    language: &str,
+) -> Result<Vec<TranscriptSegment>> {
+    let size = std::fs::metadata(audio_path).map(|m| m.len()).unwrap_or(0);
+
+    if size <= MAX_UPLOAD_BYTES {
+        match provider.transcribe(audio_path, language) {
+            Ok(segs) => return Ok(segs),
+            Err(e) if erro_de_tamanho(&e.to_string()) => {
+                // Teto do provedor é menor que o nosso: divide e tenta de novo.
+            }
+            Err(e) => return Err(e),
+        }
+    }
+
+    let duracao = crate::encode::probe_duration(ffmpeg, &audio_path.to_string_lossy()).unwrap_or(0.0);
+    let chunk_secs = chunk_seconds(size, duracao, CHUNK_TARGET_BYTES);
+
+    // Pasta temporária própria, apagada ao final. O nome inclui a gravação
+    // (pasta-mãe) além da faixa: sem isso, transcrever duas gravações ao mesmo
+    // tempo daria colisão — as duas faixas se chamam sempre "mic" e "system".
+    let faixa = audio_path
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or("audio");
+    let gravacao = audio_path
+        .parent()
+        .and_then(|p| p.file_name())
+        .and_then(|s| s.to_str())
+        .unwrap_or("rec");
+    let dir = std::env::temp_dir().join(format!("hicorder-chunks-{gravacao}-{faixa}"));
+    let _ = std::fs::remove_dir_all(&dir);
+
+    let resultado = transcribe_em_partes(provider, ffmpeg, audio_path, language, &dir, chunk_secs);
+    let _ = std::fs::remove_dir_all(&dir);
+    resultado
+}
+
+fn transcribe_em_partes(
+    provider: &OpenAiCompatible,
+    ffmpeg: &str,
+    audio_path: &Path,
+    language: &str,
+    dir: &Path,
+    chunk_secs: u64,
+) -> Result<Vec<TranscriptSegment>> {
+    let partes = crate::encode::split_audio(ffmpeg, audio_path, dir, chunk_secs)?;
+
+    let mut todos: Vec<TranscriptSegment> = Vec::new();
+    let mut offset = 0.0f64;
+    for (i, parte) in partes.iter().enumerate() {
+        // Mede o pedaço em vez de assumir `chunk_secs`: com `-c copy` o corte
+        // cai na borda de pacote, então a duração real varia alguns décimos.
+        // Assumir o valor nominal acumularia erro a cada pedaço.
+        let dur = crate::encode::probe_duration(ffmpeg, &parte.to_string_lossy())
+            .unwrap_or(chunk_secs as f64);
+
+        match provider.transcribe(parte, language) {
+            Ok(segs) => todos.extend(offset_segments(segs, offset)),
+            Err(e) => {
+                // Marcador visível: melhor um buraco assinalado do que perder
+                // a reunião inteira ou fingir que o trecho não existia.
+                todos.push(TranscriptSegment {
+                    start: offset,
+                    text: format!(
+                        "[trecho {} de {} não transcrito: {}]",
+                        i + 1,
+                        partes.len(),
+                        e
+                    ),
+                });
+            }
+        }
+        offset += dur;
+    }
+
+    if todos.is_empty() {
+        bail!("nenhum trecho do áudio pôde ser transcrito");
+    }
+    Ok(todos)
 }
 
 /// Vocabulário de fábrica: jargão de VC/investimentos/fintech. Vira o campo
