@@ -55,17 +55,62 @@ pub struct Meeting {
     pub link: Option<String>,
 }
 
+/// Teto de tempo do download do ICS.
+///
+/// No reqwest o timeout vale para a requisição **inteira, incluindo a leitura
+/// do corpo** — não só para conectar. Com 30s, agenda cheia (muitas reuniões,
+/// recorrentes, vários participantes) estourava durante o download e falhava
+/// com "error decoding response body", que parece corrupção mas é tempo.
+const ICS_TIMEOUT_SECS: u64 = 120;
+
+/// Quantas vezes tentar. O ICS do Google falha de forma intermitente, e uma
+/// falha isolada deixava o botão "Atualizar" inútil até o usuário clicar de
+/// novo — o refresh automático até se recuperava sozinho em 5 min, o manual não.
+const ICS_TENTATIVAS: u32 = 3;
+
 /// `user_email`: só é usado se o feed não trouxer o dono em X-WR-CALNAME.
 pub fn fetch_and_parse(ics_url: &str, user_email: Option<&str>) -> Result<Vec<Meeting>> {
-    let body = crate::net::client(30)
+    let mut ultimo_erro = None;
+    for tentativa in 1..=ICS_TENTATIVAS {
+        match fetch_ics(ics_url) {
+            Ok(body) => return parse_ics(&body, user_email),
+            Err(e) => {
+                ultimo_erro = Some(e);
+                if tentativa < ICS_TENTATIVAS {
+                    std::thread::sleep(std::time::Duration::from_secs(2));
+                }
+            }
+        }
+    }
+    Err(ultimo_erro.unwrap_or_else(|| anyhow!("falha ao buscar o ICS")))
+}
+
+/// Uma tentativa de baixar o ICS.
+///
+/// Usa `net::describe` para preservar a cadeia de causas: a mensagem de topo do
+/// reqwest ("error decoding response body") não diz se foi timeout, conexão
+/// fechada ou DNS — e é justamente isso que se precisa saber no log.
+fn fetch_ics(ics_url: &str) -> Result<String> {
+    let resp = crate::net::client(ICS_TIMEOUT_SECS)
         .get(ics_url)
         .send()
-        .map_err(|e| anyhow!("falha ao buscar o ICS: {e}"))?
+        .map_err(|e| anyhow!("falha ao buscar o ICS: {}", crate::net::describe(&e)))?
         .error_for_status()
-        .map_err(|e| anyhow!("o ICS retornou erro HTTP: {e}"))?
-        .text()
-        .map_err(|e| anyhow!("falha ao ler o ICS: {e}"))?;
-    parse_ics(&body, user_email)
+        .map_err(|e| anyhow!("o ICS retornou erro HTTP: {}", crate::net::describe(&e)))?;
+
+    resp.text().map_err(|e| {
+        let causa = crate::net::describe(&e);
+        // Timeout na leitura do corpo é o caso comum em agenda grande; a
+        // mensagem crua ("error decoding response body") sugeriria corrupção.
+        if causa.to_lowercase().contains("timed out") {
+            anyhow!(
+                "o calendário demorou mais de {ICS_TIMEOUT_SECS}s para responder \
+                 (agenda muito grande ou internet lenta): {causa}"
+            )
+        } else {
+            anyhow!("falha ao ler o ICS: {causa}")
+        }
+    })
 }
 
 /// Evento já parseado (dados próprios, sem borrows) — permite duas passadas.
