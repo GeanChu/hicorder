@@ -157,8 +157,8 @@ pub fn resolve(explicit: Option<&str>) -> Result<PathBuf> {
     }
     bail!(
         "Claude Code não encontrado nesta máquina. Instale seguindo \
-         docs.claude.com/en/docs/claude-code/setup e rode `claude` uma vez no terminal para \
-         autenticar (ter o app Claude Desktop instalado não basta — é outro programa). \
+         docs.claude.com/en/docs/claude-code/setup e rode `claude auth login` no terminal \
+         para autenticar (ter o app Claude Desktop instalado não basta — é outro programa). \
          Se já estiver instalado, informe o caminho do executável nas Configurações."
     )
 }
@@ -389,7 +389,7 @@ pub fn test(explicit_path: Option<&str>) -> Result<String> {
     if !ok {
         bail!(
             "Claude Code {ver} encontrado em {}, mas a chamada falhou: {}. \
-             Rode `claude` no terminal uma vez para autenticar.",
+             Rode `claude auth login` no terminal (abrir o `claude` e ver o prompt NAO significa estar autenticado — confira com `claude auth status`).",
             bin.display(),
             motivo_da_falha(&stdout, &stderr)
         );
@@ -397,7 +397,7 @@ pub fn test(explicit_path: Option<&str>) -> Result<String> {
     text_from_json(&stdout).map_err(|e| {
         anyhow!(
             "Claude Code {ver} encontrado em {}, mas não respondeu: {e}. \
-             Rode `claude` no terminal uma vez para autenticar.",
+             Rode `claude auth login` no terminal (abrir o `claude` e ver o prompt NAO significa estar autenticado — confira com `claude auth status`).",
             bin.display()
         )
     })?;
