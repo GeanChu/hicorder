@@ -389,7 +389,7 @@ pub fn test(explicit_path: Option<&str>) -> Result<String> {
     if !ok {
         bail!(
             "Claude Code {ver} encontrado em {}, mas a chamada falhou: {}. \
-             Rode `claude auth login` no terminal (abrir o `claude` e ver o prompt NAO significa estar autenticado — confira com `claude auth status`).",
+             Rode `claude auth login` no terminal (abrir o `claude` e ver o prompt NAO significa estar autenticado — confira com `claude auth status`). Para não repetir quando a sessão expirar, use `claude setup-token`.",
             bin.display(),
             motivo_da_falha(&stdout, &stderr)
         );
@@ -397,7 +397,7 @@ pub fn test(explicit_path: Option<&str>) -> Result<String> {
     text_from_json(&stdout).map_err(|e| {
         anyhow!(
             "Claude Code {ver} encontrado em {}, mas não respondeu: {e}. \
-             Rode `claude auth login` no terminal (abrir o `claude` e ver o prompt NAO significa estar autenticado — confira com `claude auth status`).",
+             Rode `claude auth login` no terminal (abrir o `claude` e ver o prompt NAO significa estar autenticado — confira com `claude auth status`). Para não repetir quando a sessão expirar, use `claude setup-token`.",
             bin.display()
         )
     })?;
