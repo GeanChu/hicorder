@@ -270,7 +270,6 @@ See [ROADMAP.md](docs/ROADMAP.md) for planned features and [CONTRIBUTING.md](CON
 - **Linux system audio** (PulseAudio monitor source)
 - **New CRM integrations** (see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the integration interface)
 - **New AI providers** (OpenAI-compatible endpoints are drop-in)
-- **Translations** (currently English and Portuguese; UI is localizable)
 - **macOS notarization** (requires Apple Developer account)
 - **Documentation improvements**
 - **Bug reports and feature requests**
