@@ -58,7 +58,6 @@ We welcome pull requests for:
 - Performance optimizations
 - New AI provider integrations
 - New CRM integrations
-- Translations
 
 ## Development Setup
 
@@ -152,8 +151,7 @@ hicorder/
 │   └── tauri.conf.json    # Tauri configuration
 ├── docs/                  # Documentation
 ├── .github/               # GitHub templates and workflows
-├── README.md              # English documentation
-├── README.pt-BR.md        # Portuguese documentation
+├── README.md              # Project documentation
 ├── CONTRIBUTING.md        # This file
 ├── CODE_OF_CONDUCT.md     # Code of conduct
 ├── SECURITY.md            # Security policy
