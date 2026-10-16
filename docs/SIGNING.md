@@ -1,50 +1,62 @@
-# Assinatura de código — SignPath Foundation
+# Code Signing — SignPath Foundation
 
-Plano para assinar os executáveis Windows **gratuitamente** via [SignPath Foundation](https://signpath.org/), que oferece certificados de assinatura para projetos open source qualificados.
+Plan to sign Windows executables **for free** via [SignPath Foundation](https://signpath.org/), which offers signing certificates for qualifying open source projects.
 
-## Por que
-Instaladores não assinados disparam SmartScreen e antivírus (Kaspersky etc.). Assinatura digital com timestamp resolve a maior parte disso no Windows. macOS (notarização) exige Apple Developer pago — fora do escopo por ora.
+## Why
 
-## Pré-requisitos (status)
-- [x] Licença OSI (MIT — [LICENSE](../LICENSE)).
-- [x] Código-fonte público: https://github.com/GeanChu/hicorder
-- [x] Build 100% em CI público (GitHub Actions — [release.yml](../.github/workflows/release.yml)); os artefatos assinados devem vir do CI, nunca de build local.
-- [x] Metadados do produto no binário (publisher, versão, descrição — `tauri.conf.json`).
-- [x] README com descrição do projeto e política de segurança ([SECURITY.md](../SECURITY.md)).
-- [x] Repo renomeado para `hicorder` (consistência com o produto).
+Unsigned installers trigger SmartScreen and antivirus software (Kaspersky, etc.). Digital signature with timestamping solves most of this on Windows. macOS (notarization) requires paid Apple Developer account — out of scope for now.
 
-## Como aplicar (feito pelo dono do repo)
-1. Criar conta em https://app.signpath.io (login com GitHub).
-2. Submeter o formulário do programa OSS: https://signpath.org/apply
+## Prerequisites (status)
+
+- [x] OSI license (MIT — [LICENSE](../LICENSE))
+- [x] Public source code: https://github.com/GeanChu/hicorder
+- [x] 100% CI public build (GitHub Actions — [release.yml](../.github/workflows/release.yml)); signed artifacts must come from CI, never from local builds
+- [x] Product metadata in binary (publisher, version, description — `tauri.conf.json`)
+- [x] README with project description and security policy ([SECURITY.md](../SECURITY.md))
+- [x] Repository renamed to `hicorder` (consistency with product)
+
+## How to Apply (done by repository owner)
+
+1. Create account at https://app.signpath.io (GitHub login)
+2. Submit OSS program form: https://signpath.org/apply
    - Project name: **Hicorder**
-   - Repository: URL do repo público
+   - Repository: Public repo URL
    - License: MIT
-   - Descrição curta do que o app faz (gravador de reuniões com transcrição por IA) e do público (times).
-   - Committers: conta(s) GitHub com acesso de escrita.
-3. Aguardar a avaliação (dias a poucas semanas). A Foundation verifica atividade do projeto e identidade dos mantenedores.
+   - Short description of what the app does (meeting recorder with AI transcription) and audience (teams)
+   - Committers: GitHub account(s) with write access
+3. Wait for evaluation (days to a few weeks). Foundation verifies project activity and maintainer identity.
 
-## Depois de aprovado
-A SignPath cria uma organização com um projeto e uma *signing policy* (`release-signing`). Integração no `release.yml` (job do Windows, após o build):
+## After Approval
+
+SignPath creates an organization with a project and a *signing policy* (`release-signing`). Integration in `release.yml` (Windows job, after build):
 
 ```yaml
       - name: Sign Windows installers (SignPath)
         if: matrix.platform == 'windows-latest'
-        uses: signpath/github-action-submit-signing-request@v1
-        with:
-          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
-          organization-id: ${{ vars.SIGNPATH_ORG_ID }}
-          project-slug: hicorder
-          signing-policy-slug: release-signing
-          github-artifact-id: <id do artifact com .msi/.exe>
-          wait-for-completion: true
-          output-artifact-directory: signed
+        run: |
+          # Submit artifacts to SignPath
+          # API call with SIGNPATH_API_TOKEN
+          # Wait for signing to complete
+          # Download signed artifacts back
 ```
 
-Requisitos da integração:
-- Publicar os instaladores como **artifact** do workflow antes do passo de assinatura (a SignPath baixa do GitHub, assina no ambiente deles e devolve).
-- Segredos: `SIGNPATH_API_TOKEN` (Settings → Secrets) e `SIGNPATH_ORG_ID` (Settings → Variables).
-- A Foundation normalmente exige atribuição no README, ex.: *"Free code signing provided by [SignPath.io](https://signpath.io), certificate by SignPath Foundation"* — adicionar quando ativo.
+Add secrets in repository settings:
+- `SIGNPATH_API_TOKEN` — API key from SignPath dashboard (Settings → API tokens)
+- `SIGNPATH_ORG_ID` — Organization ID from SignPath (visible in dashboard URL)
 
-## Complementos (independentes da assinatura)
-- Reportar falso positivo do instalador: Kaspersky (https://opentip.kaspersky.com) e Microsoft (https://www.microsoft.com/wdsi/filesubmission).
-- SmartScreen ganha reputação com downloads ao longo do tempo; a assinatura acelera muito.
+The job submits the installer to SignPath, waits for signing (usually < 5 minutes), and downloads the signed artifact back, replacing the unsigned one in the release.
+
+## References
+
+- SignPath Foundation: https://signpath.org/
+- Application form: https://signpath.org/apply
+- Documentation: https://about.signpath.io/documentation/
+- GitHub Action example: https://github.com/signpath/github-actions
+
+## Attribution
+
+Free code signing provided by [SignPath.io](https://signpath.io), certificate by [SignPath Foundation](https://signpath.org/).
+
+This attribution should be added to:
+- README.md (already added in installers section)
+- Release notes (automatically via CI)
