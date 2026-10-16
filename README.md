@@ -21,7 +21,7 @@
 </p>
 
 <p align="center">
-  <a href="README.pt-BR.md">Português (Brasil)</a> · <a href="#documentation">Documentation</a> · <a href="CONTRIBUTING.md">Contributing</a>
+  <a href="#documentation">Documentation</a> · <a href="CONTRIBUTING.md">Contributing</a> · <a href="#quick-start">Quick Start</a>
 </p>
 
 ---
