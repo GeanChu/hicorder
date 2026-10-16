@@ -1,158 +1,158 @@
-# Relatório de Preparação para Open Source - Hicorder
+# Open Source Preparation Report - Hicorder
 
-**Data:** 16 de outubro de 2026  
+**Date:** October 16, 2026  
 **Branch:** cursor/open-source-prep-8994  
-**Autor da auditoria:** Cloud Agent (Cursor)  
-**Solicitante:** Gean Chu (GeanChu), Hi Capital
+**Audit Author:** Cloud Agent (Cursor)  
+**Requester:** Gean Chu (GeanChu), Hi Capital
 
 ---
 
-## Sumário Executivo
+## Executive Summary
 
-O projeto Hicorder foi auditado e preparado para publicação como projeto open source. A auditoria cobriu segurança, privacidade, licenciamento, documentação e arquivos de comunidade. O projeto está pronto para ser tornado público após a revisão das decisões de política documentadas abaixo.
+The Hicorder project has been audited and prepared for publication as an open source project. The audit covered security, privacy, licensing, documentation, and community files. The project is ready to be made public after reviewing the policy decisions documented below.
 
-**Status:** ✅ Pronto para revisão e publicação (após decisões de política)
-
----
-
-## O Que é o Hicorder Hoje
-
-Hicorder é um gravador de reuniões desktop multiplataforma (Windows, macOS, Linux) construído com Tauri 2 (Rust + React). O projeto nasceu na Hi Capital (Honey Island VC, Curitiba) como alternativa ao Granola, oferecendo flexibilidade total para escolher modelos de IA, prompts customizáveis e integração nativa com CRMs usados em Venture Capital.
-
-**Funcionalidades implementadas:**
-- Gravação de áudio do microfone e do sistema (vozes dos participantes) em faixas separadas
-- Codificação ao vivo em Opus/Ogg (~32 kbps) para armazenamento leve
-- Anotações manuais durante a gravação
-- Transcrição via IA com múltiplos provedores (Groq, OpenAI, Fireworks, endpoints customizados)
-- Formato de chat com "Você" e "Participantes" identificados
-- Dicionário de terminologia (40 termos de VC pré-carregados, editável)
-- Filtro de alucinações do Whisper
-- Resumo via LLM com múltiplos provedores (OpenAI, Claude, Gemini, MiniMax, NVIDIA NIM)
-- Integração com Claude Code local (sem necessidade de chave de API)
-- Prompt base editável e biblioteca de prompts nomeados
-- Integração com CRMs: Attio e Affinity
-- Calendário ICS com suporte a RRULE (eventos recorrentes)
-- Auto-início de gravação por reunião agendada
-- Lembretes e auto-stop configurável
-- Tema claro/escuro
-- Auto-atualização
-- Logs persistentes com redação de segredos
+**Status:** ✅ Ready for review and publication (after policy decisions)
 
 ---
 
-## Auditoria de Segurança e Privacidade
+## What Hicorder Is Today
 
-### ✅ Segredos e Credenciais
+Hicorder is a cross-platform desktop meeting recorder (Windows, macOS, Linux) built with Tauri 2 (Rust + React). The project was born at Hi Capital (Honey Island VC, Curitiba, Brazil) as an alternative to Granola, offering complete flexibility to choose AI models, customizable prompts, and native integration with CRMs used in Venture Capital.
 
-**Status:** Nenhum segredo real encontrado no código ou histórico do Git.
-
-**Análise:**
-- ❌ Nenhuma chave de API real (sk-, nvapi-, gsk_, etc.) encontrada
-- ❌ Nenhum token ou senha encontrado
-- ✅ Exemplos de chaves nos comentários (gean@hi.capital, exemplo) são placeholders legítimos
-- ✅ Sistema de redação de segredos já implementado em `logs/mod.rs`
-- ✅ Chaves armazenadas no keychain do SO ou arquivo protegido 0600 no macOS
-
-**Locais verificados:**
-- Código-fonte (Rust e TypeScript)
-- Arquivos de configuração (.github, tauri.conf.json)
-- Histórico do Git (147 commits examinados)
-- Variáveis de ambiente (.env não existe, criado .env.example)
-
-### ⚠️ Dados Pessoais e de Clientes
-
-**Status:** Dados de teste encontrados, nenhum dado real de cliente identificado.
-
-**Dados encontrados (legítimos para o projeto):**
-- `gean@hi.capital` - Email do autor (usado em testes unitários e documentação de contato)
-- `financeiro@hi.capital` - Email de contato para segurança (legítimo)
-- Referências a "hi.capital" como autor/copyright (legítimo)
-- Exemplos em testes: `voce@hi.capital`, `outro@hi.capital` (dados de teste, não reais)
-
-**Dados NÃO encontrados:**
-- ❌ Nomes ou emails de clientes reais
-- ❌ Gravações de reuniões reais
-- ❌ Transcrições ou resumos de reuniões reais
-- ❌ URLs de calendário ICS privadas
-- ❌ Dados de CRM (reuniões, contatos, empresas)
-
-**Recomendação:** ✅ Seguro para publicação. Os dados encontrados são apropriados para um projeto open source.
-
-### ✅ Histórico do Git
-
-**Status:** Histórico limpo, sem necessidade de reescrita.
-
-**Análise:**
-- 147 commits analisados
-- Commits de desenvolvimento normais, sem evidência de commit de segredos
-- Mensagens de commit apropriadas
-- Nenhum arquivo .env commitado no histórico
-- Arquivos sensíveis sempre estiveram no .gitignore
-
-**Recomendação:** ✅ Não é necessário reescrever o histórico ou criar um repositório limpo.
-
-### ✅ Arquivos de Configuração
-
-**Status:** Sem credenciais ou dados sensíveis.
-
-**Arquivos analisados:**
-- `.gitignore` - Apropriado (ignora node_modules, target, .env, etc.)
-- `tauri.conf.json` - Sem segredos
-- `package.json` / `Cargo.toml` - Sem segredos
-- `.github/workflows/` - Referência a secrets do GitHub (TAURI_SIGNING_PRIVATE_KEY, SIGNPATH_API_TOKEN) que são gerenciados corretamente pelo GitHub Secrets
-
-**Novo arquivo criado:**
-- `.env.example` - Template documentado com todas as variáveis necessárias
+**Implemented features:**
+- Recording of microphone and system audio (participants' voices) in separate tracks
+- Live encoding to Opus/Ogg (~32 kbps) for lightweight storage
+- Manual notes during recording
+- AI transcription with multiple providers (Groq, OpenAI, Fireworks, custom endpoints)
+- Chat format with "You" and "Participants" identified
+- Terminology dictionary (40 VC terms pre-loaded, editable)
+- Whisper hallucination filtering
+- LLM summary with multiple providers (OpenAI, Claude, Gemini, MiniMax, NVIDIA NIM)
+- Local Claude Code integration (no API key needed)
+- Editable base prompt and library of named prompts
+- CRM integration: Attio and Affinity
+- ICS calendar with RRULE support (recurring events)
+- Auto-start recording for scheduled meetings
+- Reminders and configurable auto-stop
+- Light/dark themes
+- Auto-update
+- Persistent logs with secret redaction
 
 ---
 
-## Auditoria de Dependências e Licenciamento
+## Security and Privacy Audit
 
-### ✅ Licença do Projeto
+### ✅ Secrets and Credentials
 
-**Status:** MIT (Apache 2.0 recomendada como alternativa no relatório de decisões).
+**Status:** No real secrets found in code or Git history.
 
-**Análise atual:**
-- LICENSE já existe e está correto (MIT, copyright hi.capital 2026)
-- NOTICE existe e documenta a reutilização de código do meetily (MIT)
-- Licença MIT é permissiva e compatível com o objetivo de adoção da comunidade
+**Analysis:**
+- ❌ No real API keys found (sk-, nvapi-, gsk_, etc.)
+- ❌ No tokens or passwords found
+- ✅ Key examples in comments (gean@hi.capital, examples) are legitimate placeholders
+- ✅ Secret redaction system already implemented in `logs/mod.rs`
+- ✅ Keys stored in OS keychain or 0600 protected file on macOS
 
-**Recomendações de licença (para decisão do Gean):**
+**Locations verified:**
+- Source code (Rust and TypeScript)
+- Configuration files (.github, tauri.conf.json)
+- Git history (147 commits examined)
+- Environment variables (.env does not exist, .env.example created)
 
-1. **MIT (atual)** ✅ Recomendada para máxima adoção
-   - Mais permissiva
-   - Permite uso comercial sem restrições
-   - Favorece adoção rápida pela comunidade
-   - Permite que empresas criem versões proprietárias fechadas
-   - **Melhor para:** Crescimento rápido, ecossistema amplo
+### ⚠️ Personal and Customer Data
 
-2. **Apache 2.0** ⚠️ Alternativa equilibrada
-   - Permissiva como MIT
-   - Proteção contra patentes explícita
-   - Exige preservação de notices e changelog
-   - Permite uso comercial mas com mais clareza jurídica
-   - **Melhor para:** Projetos com potencial de disputas de patentes
+**Status:** Test data found, no real customer data identified.
 
-3. **AGPL-3.0** ❌ Não recomendada
-   - Copyleft forte: quem usar em SaaS deve abrir o código
-   - Protege contra uso comercial fechado
-   - **Porém:** Reduz drasticamente a adoção da comunidade
-   - Empresas evitam AGPL por receio de "contaminação"
-   - **Evitar** se o objetivo é maximizar contribuições e uso
+**Data found (legitimate for the project):**
+- `gean@hi.capital` - Author's email (used in unit tests and contact documentation)
+- `financeiro@hi.capital` - Security contact email (legitimate)
+- References to "hi.capital" as author/copyright (legitimate)
+- Test examples: `voce@hi.capital`, `outro@hi.capital` (test data, not real)
 
-**Decisão sugerida:** Manter MIT. A missão do projeto é democratizar a gravação de reuniões com IA, e isso é melhor servido por uma licença permissiva que maximiza adoção. Se houver preocupação com SaaS competitivos fechados, essa pode ser endereçada através de marca registrada ("Hicorder") e diferenciação técnica, não através de licença restritiva.
+**Data NOT found:**
+- ❌ Real customer names or emails
+- ❌ Real meeting recordings
+- ❌ Real meeting transcripts or summaries
+- ❌ Private ICS calendar URLs
+- ❌ CRM data (meetings, contacts, companies)
 
-### ✅ Compatibilidade de Dependências
+**Recommendation:** ✅ Safe for publication. The data found is appropriate for an open source project.
 
-**Status:** Todas as dependências são compatíveis com MIT.
+### ✅ Git History
 
-**Principais dependências frontend (npm):**
+**Status:** Clean history, no rewrite needed.
+
+**Analysis:**
+- 147 commits analyzed
+- Normal development commits, no evidence of committed secrets
+- Appropriate commit messages
+- No .env files committed in history
+- Sensitive files have always been in .gitignore
+
+**Recommendation:** ✅ No need to rewrite history or create a clean repository.
+
+### ✅ Configuration Files
+
+**Status:** No credentials or sensitive data.
+
+**Files analyzed:**
+- `.gitignore` - Appropriate (ignores node_modules, target, .env, etc.)
+- `tauri.conf.json` - No secrets
+- `package.json` / `Cargo.toml` - No secrets
+- `.github/workflows/` - References GitHub secrets (TAURI_SIGNING_PRIVATE_KEY, SIGNPATH_API_TOKEN) which are properly managed by GitHub Secrets
+
+**New file created:**
+- `.env.example` - Documented template with all required variables
+
+---
+
+## Dependency and Licensing Audit
+
+### ✅ Project License
+
+**Status:** MIT (Apache 2.0 recommended as alternative in decision report).
+
+**Current analysis:**
+- LICENSE already exists and is correct (MIT, copyright hi.capital 2026)
+- NOTICE exists and documents code reuse from meetily (MIT)
+- MIT license is permissive and compatible with community adoption goal
+
+**License recommendations (for Gean's decision):**
+
+1. **MIT (current)** ✅ Recommended for maximum adoption
+   - Most permissive
+   - Allows commercial use without restrictions
+   - Favors rapid community adoption
+   - Allows companies to create proprietary closed versions
+   - **Best for:** Rapid growth, broad ecosystem
+
+2. **Apache 2.0** ⚠️ Balanced alternative
+   - Permissive like MIT
+   - Explicit patent protection
+   - Requires preserving notices and changelog
+   - Allows commercial use but with more legal clarity
+   - **Best for:** Projects with potential patent disputes
+
+3. **AGPL-3.0** ❌ Not recommended
+   - Strong copyleft: SaaS users must open their code
+   - Protects against closed commercial use
+   - **However:** Drastically reduces community adoption
+   - Companies avoid AGPL due to "contamination" fears
+   - **Avoid** if goal is to maximize contributions and usage
+
+**Suggested decision:** Keep MIT. The project's mission is to democratize AI meeting recording, and this is best served by a permissive license that maximizes adoption. If there's concern about closed competitive SaaS, this can be addressed through trademark ("Hicorder") and technical differentiation, not through restrictive licensing.
+
+### ✅ Dependency Compatibility
+
+**Status:** All dependencies are compatible with MIT.
+
+**Main frontend dependencies (npm):**
 - @tauri-apps/* - MIT/Apache-2.0
 - react, react-dom - MIT
 - vite - MIT
 - typescript - Apache-2.0
 
-**Principais dependências backend (Rust):**
+**Main backend dependencies (Rust):**
 - tauri - MIT/Apache-2.0
 - serde, serde_json - MIT/Apache-2.0
 - anyhow - MIT/Apache-2.0
@@ -161,458 +161,454 @@ Hicorder é um gravador de reuniões desktop multiplataforma (Windows, macOS, Li
 - reqwest - MIT/Apache-2.0
 - chrono - MIT/Apache-2.0
 
-**Reutilização de código:**
-- meetily (MIT) - Audio capture pipeline adaptado, já documentado em NOTICE
+**Code reuse:**
+- meetily (MIT) - Audio capture pipeline adapted, already documented in NOTICE
 
-**Conclusão:** ✅ Todas as licenças são permissivas e compatíveis com MIT ou Apache-2.0.
+**Conclusion:** ✅ All licenses are permissive and compatible with MIT or Apache-2.0.
 
 ---
 
-## Documentação Criada/Atualizada
+## Documentation Created/Updated
 
-### ✅ Arquivos Principais
+### ✅ Main Files
 
-1. **README.md** (novo, inglês)
-   - Descrição completa do projeto
-   - Comparação honesta com Granola
-   - Guia de instalação por plataforma
+1. **README.md** (updated, English)
+   - Complete project description
+   - Honest comparison with Granola
+   - Platform installation guide
    - Quick start
-   - Arquitetura em alto nível
-   - Links para documentação detalhada
+   - High-level architecture
+   - Links to detailed documentation
 
-2. **README.pt-BR.md** (novo)
-   - Tradução completa do README em português do Brasil
+2. **CONTRIBUTING.md** (new)
+   - Complete development setup
+   - Project structure
+   - Code standards (Rust and TypeScript)
+   - PR submission process
+   - Guides for adding new AI providers
+   - Guides for adding new CRM integrations
+   - Testing guidelines
 
-3. **CONTRIBUTING.md** (novo)
-   - Setup de desenvolvimento completo
-   - Estrutura do projeto
-   - Padrões de código (Rust e TypeScript)
-   - Processo de submissão de PRs
-   - Guias para adicionar novos provedores de IA
-   - Guias para adicionar novas integrações de CRM
-   - Guidelines de testes
+3. **.env.example** (new)
+   - Template with all environment variables
+   - Inline documentation of where to get API keys
+   - Security warnings (ICS URL is credential)
 
-4. **.env.example** (novo)
-   - Template com todas as variáveis de ambiente
-   - Documentação inline de onde obter chaves de API
-   - Avisos de segurança (URL ICS é credencial)
+4. **CODE_OF_CONDUCT.md** (new)
+   - Short, objective code of conduct in English
+   - Based on Contributor Covenant 2.1
+   - Contact: gean@hi.capital
 
-5. **CODE_OF_CONDUCT.md** (novo)
-   - Código de conduta curto e objetivo em português
-   - Baseado no Contributor Covenant 2.1
-   - Contato: gean@hi.capital
+5. **GOVERNANCE.md** (new)
+   - Project governance model
+   - Gean Chu as lead maintainer
+   - Decision process
+   - How to become a maintainer
+   - Conflict resolution
 
-6. **GOVERNANCE.md** (novo)
-   - Modelo de governança do projeto
-   - Gean Chu como maintainer principal
-   - Processo de decisão
-   - Como virar maintainer
-   - Resolução de conflitos
+6. **SECURITY.md** (already existed, reviewed)
+   - Vulnerability reporting policy
+   - Security scope
+   - Contact: financeiro@hi.capital
 
-7. **SECURITY.md** (já existia, revisado)
-   - Política de reporte de vulnerabilidades
-   - Escopo de segurança
-   - Contato: financeiro@hi.capital
-
-### ✅ Templates do GitHub
+### ✅ GitHub Templates
 
 1. **.github/ISSUE_TEMPLATE/bug_report.md**
-   - Template estruturado para bug reports
-   - Campos para informações de sistema, logs, screenshots
+   - Structured template for bug reports
+   - Fields for system info, logs, screenshots
 
 2. **.github/ISSUE_TEMPLATE/feature_request.md**
-   - Template para pedidos de funcionalidades
-   - Campos para problema, solução proposta, casos de uso
+   - Template for feature requests
+   - Fields for problem, proposed solution, use cases
 
 3. **.github/ISSUE_TEMPLATE/crm_integration.md**
-   - Template específico para pedidos de integração de CRM
-   - Checklist de capacidades da API
-   - Campos para documentação e disponibilidade de teste
+   - Specific template for CRM integration requests
+   - API capabilities checklist
+   - Fields for documentation and test availability
 
 4. **.github/PULL_REQUEST_TEMPLATE.md**
-   - Checklist completo para PRs
-   - Campos para tipo de mudança, testes, screenshots
-   - Verificações de qualidade
+   - Complete checklist for PRs
+   - Fields for change type, testing, screenshots
+   - Quality checks
 
 5. **.github/CODEOWNERS**
-   - Gean Chu como owner padrão
-   - Ownership específico para docs, CI, arquivos de segurança
+   - Gean Chu as default owner
+   - Specific ownership for docs, CI, security files
 
 6. **.github/dependabot.yml**
-   - Configurado para npm, cargo e github-actions
-   - Updates semanais
-   - Labels automáticas
+   - Configured for npm, cargo, and github-actions
+   - Weekly updates
+   - Automatic labels
 
-### ✅ Documentação Existente (revisada)
+### ✅ Existing Documentation (reviewed)
 
-Arquivos em `docs/` já existiam e estão bem documentados:
-- ARCHITECTURE.md - Desenho do sistema detalhado
-- ROADMAP.md - Histórico de desenvolvimento PR a PR
-- DECISIONS.md - ADRs com justificativas técnicas
-- PROVIDERS.md - Provedores de IA suportados
-- SIGNING.md - Processo de assinatura de código
-- CONTINUATION.md - Estado atual para handoff entre sessões
+Files in `docs/` already existed and are well documented:
+- ARCHITECTURE.md - Detailed system design
+- ROADMAP.md - PR-by-PR development history
+- DECISIONS.md - ADRs with technical justifications
+- PROVIDERS.md - Supported AI providers
+- SIGNING.md - Code signing process
+- CONTINUATION.md - Current state for session handoff
 
-### ⚠️ Metadata do Repositório (para configurar no GitHub)
+### ⚠️ Repository Metadata (to configure on GitHub)
 
-**Descrição curta sugerida (1 linha):**
+**Suggested short description (1 line):**
 ```
 Open-source meeting recorder with AI transcription and CRM integration for Venture Capital
 ```
 
-**Topics sugeridas:**
+**Suggested topics:**
 ```
 meeting-recorder, transcription, ai, crm, venture-capital, tauri, rust, react, 
 typescript, desktop-app, speech-to-text, llm, attio, affinity, whisper, groq
 ```
 
 **Social Preview:**
-- Usar o ícone do projeto (src-tauri/icons/icon.png) com o texto "Hicorder - Open Source Meeting Recorder"
-- Fundo profissional (azul/roxo do tema do app)
+- Use project icon (src-tauri/icons/icon.png) with text "Hicorder - Open Source Meeting Recorder"
+- Professional background (blue/purple from app theme)
 
-**About section no GitHub:**
+**About section on GitHub:**
 - Website: https://hi.capital
-- Topics: (lista acima)
+- Topics: (list above)
 - Check: ✅ Releases
-- Check: ✅ Packages (se publicar no futuro)
+- Check: ✅ Packages (if publishing in future)
 
 ---
 
 ## CI/CD
 
-### ✅ GitHub Actions Existente
+### ✅ Existing GitHub Actions
 
-O projeto já tem CI completo:
+The project already has complete CI:
 
 1. **.github/workflows/ci.yml**
-   - Build e teste em 3 plataformas (ubuntu-22.04, macos-15, windows-latest)
-   - Testes Rust incluídos
-   - Xcode 26 fixado no macOS para dependências
+   - Build and test on 3 platforms (ubuntu-22.04, macos-15, windows-latest)
+   - Rust tests included
+   - Xcode 26 pinned on macOS for dependencies
 
 2. **.github/workflows/release.yml**
-   - Build automático de instaladores em tags v*
-   - Download de ffmpeg com múltiplos mirrors e retry
-   - Assinatura de updates (TAURI_SIGNING_PRIVATE_KEY)
-   - Integração com SignPath Foundation (preparada, aguardando aprovação)
-   - Cria draft release no GitHub
+   - Automatic installer builds on v* tags
+   - ffmpeg download with multiple mirrors and retry
+   - Update signing (TAURI_SIGNING_PRIVATE_KEY)
+   - SignPath Foundation integration (prepared, awaiting approval)
+   - Creates draft release on GitHub
 
-**Status:** ✅ CI funcional, nenhuma mudança necessária para open source.
+**Status:** ✅ Functional CI, no changes needed for open source.
 
-**Secrets necessários (já configurados):**
-- `TAURI_SIGNING_PRIVATE_KEY` - Para assinatura de updates
-- `SIGNPATH_API_TOKEN` - Para assinatura de código (quando aprovado)
+**Required secrets (already configured):**
+- `TAURI_SIGNING_PRIVATE_KEY` - For update signing
+- `SIGNPATH_API_TOKEN` - For code signing (when approved)
 
 ---
 
-## Decisões de Política para o Gean
+## Policy Decisions for Gean
 
-O projeto está tecnicamente pronto, mas algumas decisões de negócio precisam ser tomadas antes do lançamento público:
+The project is technically ready, but some business decisions need to be made before public launch:
 
-### 1. Licença ✅
+### 1. License ✅
 
-**Situação atual:** MIT  
-**Recomendação:** Manter MIT  
-**Alternativas:** Apache 2.0 (se houver preocupação com patentes), AGPL-3.0 (não recomendado)  
-**Decisão necessária:** Confirmar MIT ou mudar para Apache 2.0  
-**Ação:** Se mudar, atualizar LICENSE e headers nos arquivos
+**Current situation:** MIT  
+**Recommendation:** Keep MIT  
+**Alternatives:** Apache 2.0 (if patent concerns), AGPL-3.0 (not recommended)  
+**Decision needed:** Confirm MIT or change to Apache 2.0  
+**Action:** If changing, update LICENSE and file headers
 
-### 2. Marca e Nome "Hicorder" ⚠️
+### 2. Brand and "Hicorder" Name ⚠️
 
-**Decisão necessária:** 
-- O nome "Hicorder" será marca registrada?
-- Terceiros podem criar forks e continuar usando o nome?
-- Deve haver uma política de trademark (ex: "Hicorder® é marca registrada da Hi Capital, forks devem usar nome diferente")?
+**Decision needed:** 
+- Will "Hicorder" be a registered trademark?
+- Can third parties create forks and continue using the name?
+- Should there be a trademark policy (e.g., "Hicorder® is a trademark of Hi Capital, forks must use different name")?
 
-**Recomendação:** Permitir uso do nome para forks não-comerciais, exigir nome diferente para produtos comerciais ou SaaS. Documentar no README se houver restrições.
+**Recommendation:** Allow name usage for non-commercial forks, require different name for commercial products or SaaS. Document in README if there are restrictions.
 
-**Ação:** Se houver política de marca, adicionar seção "Trademark" no README.
+**Action:** If there's a brand policy, add "Trademark" section to README.
 
 ### 3. CLA vs DCO ⚠️
 
-**Decisão necessária:** Exigir Contributor License Agreement (CLA) ou Developer Certificate of Origin (DCO)?
+**Decision needed:** Require Contributor License Agreement (CLA) or Developer Certificate of Origin (DCO)?
 
-**Opções:**
-- **Nenhum (atual):** Mais fácil para contribuidores, MIT já é permissivo
-- **DCO:** Contribuidores atestam que têm direito de contribuir (git commit -s)
-- **CLA:** Contribuidores transferem/licenciam direitos para Hi Capital (mais formal, mais fricção)
+**Options:**
+- **None (current):** Easier for contributors, MIT is already permissive
+- **DCO:** Contributors attest they have right to contribute (git commit -s)
+- **CLA:** Contributors transfer/license rights to Hi Capital (more formal, more friction)
 
-**Recomendação:** Nenhum CLA/DCO inicialmente. MIT já protege suficientemente. Se crescer muito, considerar DCO.
+**Recommendation:** No CLA/DCO initially. MIT already protects sufficiently. If it grows significantly, consider DCO.
 
-**Ação:** Se optar por DCO, configurar bot no GitHub e atualizar CONTRIBUTING.md.
+**Action:** If opting for DCO, configure bot on GitHub and update CONTRIBUTING.md.
 
-### 4. Contribuições de CRMs Proprietários ⚠️
+### 4. Proprietary CRM Contributions ⚠️
 
-**Decisão necessária:** Aceitar integrações com CRMs que não têm API pública ou trial gratuito?
+**Decision needed:** Accept integrations with CRMs that don't have public API or free trial?
 
-**Cenário:** Alguém quer contribuir integração com CRM Enterprise que só funciona com conta paga.
+**Scenario:** Someone wants to contribute integration with Enterprise CRM that only works with paid account.
 
-**Opções:**
-- Aceitar qualquer integração (mais features)
-- Aceitar apenas CRMs com API pública testável (mais qualidade)
-- Aceitar com disclaimer de "não testado pela equipe principal"
+**Options:**
+- Accept any integration (more features)
+- Accept only CRMs with publicly testable API (better quality)
+- Accept with "not tested by core team" disclaimer
 
-**Recomendação:** Aceitar qualquer integração, marcar integrações não testadas no README.
+**Recommendation:** Accept any integration, mark untested integrations in README.
 
-**Ação:** Documentar política em CONTRIBUTING.md.
+**Action:** Document policy in CONTRIBUTING.md.
 
-### 5. Telemetria/Analytics ✅
+### 5. Telemetry/Analytics ✅
 
-**Situação atual:** Nenhuma telemetria  
-**Decisão necessária:** Adicionar telemetria opt-in no futuro?
+**Current situation:** No telemetry  
+**Decision needed:** Add opt-in telemetry in the future?
 
-**Recomendação:** Manter sem telemetria. A privacidade-first é um diferencial do projeto.
+**Recommendation:** Keep without telemetry. Privacy-first is a project differentiator.
 
-**Ação:** Se mudar no futuro, disclosure completo e opt-in explícito, nunca opt-out.
+**Action:** If changing in future, full disclosure and explicit opt-in, never opt-out.
 
-### 6. Versão Hospedada ou Paga 💰
+### 6. Hosted or Paid Version 💰
 
-**Decisão necessária:** Hi Capital planeja oferecer versão hospedada (SaaS) ou suporte pago?
+**Decision needed:** Does Hi Capital plan to offer hosted version (SaaS) or paid support?
 
-**Implicações:**
-- **Se sim:** MIT permite que outros também façam isso (concorrência)
-- **Se sim:** Considerar modelo "open core" (features enterprise fechadas)
-- **Se sim:** Documentar no README as diferenças entre versão community e paga
+**Implications:**
+- **If yes:** MIT allows others to do this too (competition)
+- **If yes:** Consider "open core" model (closed enterprise features)
+- **If yes:** Document in README the differences between community and paid versions
 
-**Recomendação:** Se houver planos de monetização, documentar de forma transparente. Comunidade valoriza honestidade.
+**Recommendation:** If monetization plans exist, document transparently. Community values honesty.
 
-**Ação:** Se houver versão paga futura, adicionar seção "Pricing & Hosting" no README.
+**Action:** If there's a future paid version, add "Pricing & Hosting" section to README.
 
-### 7. Política de Dados e Privacidade 📋
+### 7. Data and Privacy Policy 📋
 
-**Situação atual:** Seção "Privacy" no README documenta que dados são locais  
-**Decisão necessária:** É suficiente ou precisa de Privacy Policy formal?
+**Current situation:** "Privacy" section in README documents that data is local  
+**Decision needed:** Is this sufficient or need formal Privacy Policy?
 
-**Recomendação:** Atual é suficiente (não é SaaS, não coleta dados). Se adicionar telemetria ou versão hospedada, criar privacy policy formal.
+**Recommendation:** Current is sufficient (not SaaS, doesn't collect data). If adding telemetry or hosted version, create formal privacy policy.
 
-**Ação:** Nenhuma agora. Revisitar se escopo mudar.
+**Action:** None now. Revisit if scope changes.
 
-### 8. Política de Segurança e Divulgação 📋
+### 8. Security and Disclosure Policy 📋
 
-**Situação atual:** SECURITY.md com processo de reporte (GitHub Security Advisories ou financeiro@hi.capital)  
-**Decisão necessária:** Definir SLA de resposta?
+**Current situation:** SECURITY.md with reporting process (GitHub Security Advisories or financeiro@hi.capital)  
+**Decision needed:** Define SLA for response?
 
-**Recomendação:** 
-- Confirmar recebimento em 7 dias (já documentado)
-- Fix em 30 dias para vulnerabilidades críticas
-- Fix em 90 dias para não-críticas
-- Disclosure pública após fix + 7 dias de grace period
+**Recommendation:** 
+- Acknowledge receipt in 7 days (already documented)
+- Fix in 30 days for critical vulnerabilities
+- Fix in 90 days for non-critical
+- Public disclosure after fix + 7 days grace period
 
-**Ação:** Documentar SLA no SECURITY.md se concordar.
+**Action:** Document SLA in SECURITY.md if agreeing.
 
-### 9. Revisão de PRs e SLA ⏱️
+### 9. PR Review and SLA ⏱️
 
-**Decisão necessária:** Quanto tempo para revisar PRs? Quem pode fazer merge?
+**Decision needed:** How long to review PRs? Who can merge?
 
-**Situação atual:** Gean é o único maintainer  
-**Recomendação:**
-- Primeira resposta em PRs: 7 dias (confirmar que viu)
-- Review completo: 14 dias
-- Sem SLA garantido (projeto comunitário), mas esforço razoável (reasonable effort)
+**Current situation:** Gean is the only maintainer  
+**Recommendation:**
+- First response on PRs: 7 days (confirm you saw it)
+- Full review: 14 days
+- No guaranteed SLA (community project), but reasonable effort
 
-**Ação:** Documentar expectativas em CONTRIBUTING.md.
+**Action:** Document expectations in CONTRIBUTING.md.
 
-### 10. Credenciais de CRM e Consentimento de Gravação ⚠️
+### 10. CRM Credentials and Recording Consent ⚠️
 
-**Decisão necessária:** Avisar usuários sobre:
-- Gravação pode precisar de consentimento dos participantes (leis variam por jurisdição)
-- Chaves de CRM dão acesso amplo aos dados do CRM
+**Decision needed:** Warn users about:
+- Recording may require participant consent (laws vary by jurisdiction)
+- CRM keys give broad access to CRM data
 
-**Recomendação:** 
-- Adicionar disclaimer no README sobre leis de gravação
-- Adicionar aviso na primeira gravação (modal no app)
-- Documentar escopos mínimos de permissões para cada CRM
+**Recommendation:** 
+- Add disclaimer in README about recording laws
+- Add warning on first recording (modal in app)
+- Document minimum permission scopes for each CRM
 
-**Ação:** 
-- Adicionar seção "Legal Considerations" no README
-- Issue para implementar modal de aviso no app
+**Action:** 
+- Add "Legal Considerations" section to README
+- Issue to implement warning modal in app
 
 ---
 
-## Checklist de Lançamento
+## Launch Checklist
 
-Use esta lista ao preparar o lançamento público:
+Use this list when preparing for public launch:
 
-### Antes de Tornar o Repo Público
+### Before Making Repo Public
 
-- [x] Auditoria de segurança completa
-- [x] README em inglês e português
+- [x] Complete security audit
+- [x] README in English
 - [x] CONTRIBUTING.md
 - [x] CODE_OF_CONDUCT.md
 - [x] GOVERNANCE.md
-- [x] Templates de issue e PR
+- [x] Issue and PR templates
 - [x] CODEOWNERS
-- [x] Dependabot configurado
-- [x] .env.example criado
-- [ ] Revisar e decidir questões de política (seções acima)
-- [ ] Atualizar metadata do repositório (descrição, topics, social preview)
-- [ ] Confirmar que SECURITY.md tem o contato correto
-- [ ] Criar branch `main` protegida (require PR reviews, require status checks)
-- [ ] Testar build em GitHub Actions (tag de teste)
+- [x] Dependabot configured
+- [x] .env.example created
+- [ ] Review and decide policy questions (sections above)
+- [ ] Update repository metadata (description, topics, social preview)
+- [ ] Confirm SECURITY.md has correct contact
+- [ ] Create protected `main` branch (require PR reviews, require status checks)
+- [ ] Test build in GitHub Actions (test tag)
 
-### No Dia do Lançamento
+### On Launch Day
 
-- [ ] Tornar repositório público no GitHub (Settings → Danger Zone → Change visibility)
-- [ ] Criar release v0.3.0 (ou próxima versão) com notas de lançamento
-- [ ] Publicar instaladores na release
-- [ ] Post no LinkedIn/Twitter anunciando (Hi Capital e Gean pessoal)
-- [ ] Criar GitHub Discussion "Welcome / Boas-vindas"
-- [ ] Configurar GitHub Projects para roadmap público (opcional)
-- [ ] Adicionar badge de "open source" no site da Hi Capital (opcional)
+- [ ] Make repository public on GitHub (Settings → Danger Zone → Change visibility)
+- [ ] Create v0.3.0 release (or next version) with release notes
+- [ ] Publish installers in release
+- [ ] Post on LinkedIn/Twitter announcing (Hi Capital and Gean personal)
+- [ ] Create GitHub Discussion "Welcome"
+- [ ] Configure GitHub Projects for public roadmap (optional)
+- [ ] Add "open source" badge on Hi Capital website (optional)
 
-### Primeira Semana
+### First Week
 
-- [ ] Responder issues e PRs prontamente (primeira impressão importa)
-- [ ] Criar labels no GitHub (bug, enhancement, good first issue, help wanted)
-- [ ] Marcar issues simples como "good first issue" para atrair novos contribuidores
-- [ ] Configurar GitHub Sponsors se quiser receber doações (opcional)
-- [ ] Submeter para agregadores (awesome lists, alternativeto.net, etc)
+- [ ] Respond to issues and PRs promptly (first impression matters)
+- [ ] Create labels on GitHub (bug, enhancement, good first issue, help wanted)
+- [ ] Mark simple issues as "good first issue" to attract new contributors
+- [ ] Configure GitHub Sponsors if wanting donations (optional)
+- [ ] Submit to aggregators (awesome lists, alternativeto.net, etc)
 
-### Primeira Mês
+### First Month
 
-- [ ] Revisar e merge primeiros PRs da comunidade
-- [ ] Criar CHANGELOG.md com histórico de versões
-- [ ] Considerar criar Discord/Slack para comunidade (se demanda existir)
-- [ ] Solicitar code signing no SignPath Foundation (se ainda não aprovado)
-- [ ] Avaliar feedback e ajustar roadmap
-
----
-
-## Riscos Identificados e Mitigações
-
-### Risco: Baixa Adoção Inicial
-
-**Probabilidade:** Média  
-**Impacto:** Médio  
-**Mitigação:**
-- Marketing bem feito no lançamento
-- Documentação excelente (✅ feito)
-- Responder rapidamente primeiras issues/PRs
-- Identificar "early adopters" (comunidade de VC, usuários de Granola insatisfeitos)
-
-### Risco: Forks Comerciais Competitivos
-
-**Probabilidade:** Baixa (curto prazo), Média (longo prazo)  
-**Impacto:** Médio  
-**Mitigação:**
-- MIT permite isso (é a natureza da licença)
-- Diferenciar através de qualidade, velocidade de inovação e comunidade
-- Se preocupação for grande, considerar Apache 2.0 ou trademark do nome
-- Versão enterprise da Hi Capital pode ter features exclusivas (open core)
-
-### Risco: Vulnerabilidades de Segurança
-
-**Probabilidade:** Média (todo software tem bugs)  
-**Impacto:** Alto (manipula gravações privadas)  
-**Mitigação:**
-- SECURITY.md com processo claro (✅ feito)
-- Dependabot configurado (✅ feito)
-- Responder vulnerabilidades em ≤30 dias
-- Bug bounty no futuro (se projeto crescer)
-
-### Risco: Contribuições de Baixa Qualidade
-
-**Probabilidade:** Média  
-**Impacto:** Baixo  
-**Mitigação:**
-- CI automático pega erros de build (✅ existe)
-- CONTRIBUTING.md com padrões claros (✅ feito)
-- Code review obrigatório (configurar branch protection)
-- Maintainer tem direito de rejeitar PRs
-
-### Risco: Sobrecarga do Maintainer (Gean)
-
-**Probabilidade:** Alta (se projeto crescer)  
-**Impacto:** Alto (burnout, projeto estagna)  
-**Mitigação:**
-- Convidar co-maintainers quando projeto crescer
-- Documentar tudo para facilitar onboarding (✅ bem documentado)
-- Automatizar o que for possível (CI, dependabot - ✅ feito)
-- Definir expectativas realistas de SLA (não é trabalho em tempo integral)
+- [ ] Review and merge first community PRs
+- [ ] Create CHANGELOG.md with version history
+- [ ] Consider creating Discord/Slack for community (if demand exists)
+- [ ] Request code signing from SignPath Foundation (if not yet approved)
+- [ ] Evaluate feedback and adjust roadmap
 
 ---
 
-## Análise de Qualidade de Código
+## Identified Risks and Mitigations
 
-### ✅ Pontos Fortes
+### Risk: Low Initial Adoption
 
-1. **Arquitetura bem pensada**
-   - Separação clara de responsabilidades (audio/, transcription/, summary/, CRM)
-   - Abstração plugável de provedores
-   - Storage local com SQLite
+**Probability:** Medium  
+**Impact:** Medium  
+**Mitigation:**
+- Well-executed launch marketing
+- Excellent documentation (✅ done)
+- Quick response to first issues/PRs
+- Identify "early adopters" (VC community, dissatisfied Granola users)
 
-2. **Segurança implementada**
-   - Chaves no keychain do SO
-   - Redação de segredos nos logs
-   - Sem telemetria
+### Risk: Competitive Commercial Forks
 
-3. **Documentação técnica excelente**
-   - ADRs documentam decisões com contexto
-   - ARCHITECTURE.md detalha todo o sistema
-   - Comentários inline explicam "por quês"
+**Probability:** Low (short term), Medium (long term)  
+**Impact:** Medium  
+**Mitigation:**
+- MIT allows this (it's the nature of the license)
+- Differentiate through quality, innovation speed, and community
+- If concern is high, consider Apache 2.0 or name trademark
+- Hi Capital enterprise version can have exclusive features (open core)
 
-4. **Testes existentes**
-   - Testes unitários para lógica crítica
-   - Testes de integração para audio (#[ignore])
-   - CI roda testes em 3 plataformas
+### Risk: Security Vulnerabilities
 
-5. **CI/CD robusto**
-   - Build automático em 3 SOs
-   - Download de ffmpeg com retry e fallback
-   - Auto-update funcional
+**Probability:** Medium (all software has bugs)  
+**Impact:** High (handles private recordings)  
+**Mitigation:**
+- SECURITY.md with clear process (✅ done)
+- Dependabot configured (✅ done)
+- Respond to vulnerabilities in ≤30 days
+- Bug bounty in future (if project grows)
 
-### ⚠️ Áreas de Melhoria (para roadmap futuro)
+### Risk: Low-Quality Contributions
 
-1. **Cobertura de testes**
-   - Faltam testes para módulos de CRM
-   - Faltam testes para parser ICS
-   - Considerar coverage tracking
+**Probability:** Medium  
+**Impact:** Low  
+**Mitigation:**
+- Automatic CI catches build errors (✅ exists)
+- CONTRIBUTING.md with clear standards (✅ done)
+- Mandatory code review (configure branch protection)
+- Maintainer has right to reject PRs
 
-2. **Internacionalização**
-   - UI hardcoded em português
-   - Fácil de adicionar i18n (React + JSON)
-   - Comunidade pode contribuir traduções
+### Risk: Maintainer Overload (Gean)
 
-3. **Telemetria de erros (opt-in)**
-   - Considerar Sentry ou similar (opt-in)
-   - Ajudaria a descobrir bugs em produção
-   - Mas: conflita com posicionamento de privacidade
-
-4. **Docs para usuários finais**
-   - README é técnico (para desenvolvedores)
-   - Considerar wiki ou docs/ para guias de usuário
-   - Tutoriais em vídeo
-
----
-
-## Recomendação Final
-
-✅ **O projeto Hicorder está pronto para ser publicado como open source.**
-
-**Próximos passos:**
-
-1. **Gean revisa este relatório** e decide as questões de política (licença, marca, CLA, monetização, etc.)
-2. **Merge deste PR** (cursor/open-source-prep-8994) na branch main
-3. **Configurar metadata** do repositório no GitHub (descrição, topics, social preview)
-4. **Tornar o repositório público**
-5. **Anunciar** o lançamento
-
-O código está limpo, documentado e seguro. A comunidade open source responderá bem a um projeto honesto, bem documentado e com liderança clara.
+**Probability:** High (if project grows)  
+**Impact:** High (burnout, project stagnates)  
+**Mitigation:**
+- Invite co-maintainers when project grows
+- Document everything to ease onboarding (✅ well documented)
+- Automate what's possible (CI, dependabot - ✅ done)
+- Set realistic SLA expectations (not full-time work)
 
 ---
 
-**Arquivos criados/modificados neste PR:**
-- README.md (atualizado)
-- README.pt-BR.md (novo)
-- CONTRIBUTING.md (novo)
-- CODE_OF_CONDUCT.md (novo)
-- GOVERNANCE.md (novo)
-- .env.example (novo)
-- .github/ISSUE_TEMPLATE/bug_report.md (novo)
-- .github/ISSUE_TEMPLATE/feature_request.md (novo)
-- .github/ISSUE_TEMPLATE/crm_integration.md (novo)
-- .github/PULL_REQUEST_TEMPLATE.md (novo)
-- .github/CODEOWNERS (novo)
-- .github/dependabot.yml (novo)
-- OPEN_SOURCE_PREP_REPORT.md (este arquivo)
+## Code Quality Analysis
 
-**Total de commits:** 8 (até este ponto)
+### ✅ Strengths
+
+1. **Well-thought-out architecture**
+   - Clear separation of responsibilities (audio/, transcription/, summary/, CRM)
+   - Pluggable provider abstraction
+   - Local storage with SQLite
+
+2. **Implemented security**
+   - Keys in OS keychain
+   - Secret redaction in logs
+   - No telemetry
+
+3. **Excellent technical documentation**
+   - ADRs document decisions with context
+   - ARCHITECTURE.md details entire system
+   - Inline comments explain "whys"
+
+4. **Existing tests**
+   - Unit tests for critical logic
+   - Integration tests for audio (#[ignore])
+   - CI runs tests on 3 platforms
+
+5. **Robust CI/CD**
+   - Automatic build on 3 OSes
+   - ffmpeg download with retry and fallback
+   - Functional auto-update
+
+### ⚠️ Areas for Improvement (for future roadmap)
+
+1. **Test coverage**
+   - Missing tests for CRM modules
+   - Missing tests for ICS parser
+   - Consider coverage tracking
+
+2. **Internationalization**
+   - UI hardcoded in Portuguese
+   - Easy to add i18n (React + JSON)
+   - Community can contribute translations
+
+3. **Error telemetry (opt-in)**
+   - Consider Sentry or similar (opt-in)
+   - Would help discover production bugs
+   - But: conflicts with privacy positioning
+
+4. **End-user docs**
+   - README is technical (for developers)
+   - Consider wiki or docs/ for user guides
+   - Video tutorials
+
+---
+
+## Final Recommendation
+
+✅ **The Hicorder project is ready to be published as open source.**
+
+**Next steps:**
+
+1. **Gean reviews this report** and decides policy questions (license, brand, CLA, monetization, etc.)
+2. **Merge this PR** (cursor/open-source-prep-8994) into main branch
+3. **Configure repository metadata** on GitHub (description, topics, social preview)
+4. **Make repository public**
+5. **Announce** the launch
+
+The code is clean, documented, and secure. The open source community will respond well to an honest, well-documented project with clear leadership.
+
+---
+
+**Files created/modified in this PR:**
+- README.md (updated)
+- CONTRIBUTING.md (new)
+- CODE_OF_CONDUCT.md (new)
+- GOVERNANCE.md (new)
+- .env.example (new)
+- .github/ISSUE_TEMPLATE/bug_report.md (new)
+- .github/ISSUE_TEMPLATE/feature_request.md (new)
+- .github/ISSUE_TEMPLATE/crm_integration.md (new)
+- .github/PULL_REQUEST_TEMPLATE.md (new)
+- .github/CODEOWNERS (new)
+- .github/dependabot.yml (new)
+- OPEN_SOURCE_PREP_REPORT.md (this file)
+
+**Total commits:** 14 (up to this point)
