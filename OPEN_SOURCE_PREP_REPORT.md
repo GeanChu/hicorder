@@ -140,7 +140,7 @@ Hicorder is a cross-platform desktop meeting recorder (Windows, macOS, Linux) bu
    - Companies avoid AGPL due to "contamination" fears
    - **Avoid** if goal is to maximize contributions and usage
 
-**Suggested decision:** Keep MIT. The project's mission is to democratize AI meeting recording, and this is best served by a permissive license that maximizes adoption. If there's concern about closed competitive SaaS, this can be addressed through trademark ("Hicorder") and technical differentiation, not through restrictive licensing.
+**Suggested decision:** Keep MIT. The project's mission is to democratize AI meeting recording, and this is best served by a permissive license that maximizes adoption. Since Hi Capital has no commercial plans for Hicorder, there is no concern about competitive SaaS—in fact, commercial forks are welcome as they extend the project's reach.
 
 ### ✅ Dependency Compatibility
 
@@ -320,9 +320,9 @@ The project is technically ready, but some business decisions need to be made be
 - Can third parties create forks and continue using the name?
 - Should there be a trademark policy (e.g., "Hicorder® is a trademark of Hi Capital, forks must use different name")?
 
-**Recommendation:** Allow name usage for non-commercial forks, require different name for commercial products or SaaS. Document in README if there are restrictions.
+**Recommendation:** Allow name usage freely. Since Hi Capital has no commercial plans for Hicorder, there's no need to restrict third-party commercial use of the name.
 
-**Action:** If there's a brand policy, add "Trademark" section to README.
+**Action:** No trademark restrictions needed.
 
 ### 3. CLA vs DCO ⚠️
 
@@ -363,25 +363,25 @@ The project is technically ready, but some business decisions need to be made be
 
 ### 6. Hosted or Paid Version 💰
 
-**Decision needed:** Does Hi Capital plan to offer hosted version (SaaS) or paid support?
+**Decision:** Honey Island (Hi Capital) does **NOT** plan to monetize Hicorder.
 
-**Implications:**
-- **If yes:** MIT allows others to do this too (competition)
-- **If yes:** Consider "open core" model (closed enterprise features)
-- **If yes:** Document in README the differences between community and paid versions
+**Policy:**
+- No SaaS or hosted version will be offered by Hi Capital
+- No "open core" model (all features remain open source)
+- No paid/enterprise version or commercial support
+- The project is maintained by the community without commercial intent
+- MIT license allows third parties to offer commercial services, but Hi Capital will not
 
-**Recommendation:** If monetization plans exist, document transparently. Community values honesty.
-
-**Action:** If there's a future paid version, add "Pricing & Hosting" section to README.
+**Action:** Document this policy in README and GOVERNANCE for transparency.
 
 ### 7. Data and Privacy Policy 📋
 
 **Current situation:** "Privacy" section in README documents that data is local  
 **Decision needed:** Is this sufficient or need formal Privacy Policy?
 
-**Recommendation:** Current is sufficient (not SaaS, doesn't collect data). If adding telemetry or hosted version, create formal privacy policy.
+**Recommendation:** Current is sufficient. Hicorder is a desktop application with local data storage only—no SaaS, no telemetry, no data collection by Hi Capital.
 
-**Action:** None now. Revisit if scope changes.
+**Action:** None needed.
 
 ### 8. Security and Disclosure Policy 📋
 
@@ -402,7 +402,7 @@ The project is technically ready, but some business decisions need to be made be
 
 **Current situation:** Gean is the only maintainer  
 **Recommendation:**
-- First response on PRs: 7 days (confirm you saw it)
+- First response on PRs: 14 days (confirm you saw it)
 - Full review: 14 days
 - No guaranteed SLA (community project), but reasonable effort
 
@@ -489,12 +489,12 @@ Use this list when preparing for public launch:
 ### Risk: Competitive Commercial Forks
 
 **Probability:** Low (short term), Medium (long term)  
-**Impact:** Medium  
+**Impact:** Low (Hi Capital has no commercial plans)  
 **Mitigation:**
 - MIT allows this (it's the nature of the license)
-- Differentiate through quality, innovation speed, and community
-- If concern is high, consider Apache 2.0 or name trademark
-- Hi Capital enterprise version can have exclusive features (open core)
+- Since Hi Capital does not plan to monetize Hicorder, commercial forks are welcome
+- Community benefits from any improvements contributed back
+- The project remains purely community-driven
 
 ### Risk: Security Vulnerabilities
 
@@ -587,7 +587,7 @@ Use this list when preparing for public launch:
 
 **Next steps:**
 
-1. **Gean reviews this report** and decides policy questions (license, brand, CLA, monetization, etc.)
+1. **Gean reviews this report** and confirms remaining policy questions (CLA, etc.)
 2. **Merge this PR** (cursor/open-source-prep-8994) into main branch
 3. **Configure repository metadata** on GitHub (description, topics, social preview)
 4. **Make repository public**

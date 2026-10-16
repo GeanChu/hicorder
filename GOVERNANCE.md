@@ -4,6 +4,8 @@
 
 Hicorder is an open source project primarily maintained by [Hi Capital](https://hi.capital) and the community. This document describes how decisions are made.
 
+**Non-Commercial Project:** Hicorder is maintained by the community without commercial intent. Hi Capital (Honey Island) does not plan to monetize the project through SaaS, paid versions, or commercial support. The project remains fully open source under the MIT license.
+
 ## Lead Maintainer
 
 **Gean Chu** ([@GeanChu](https://github.com/GeanChu)) is the lead maintainer and has final authority over:

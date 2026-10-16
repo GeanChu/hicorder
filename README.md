@@ -32,6 +32,8 @@ Hicorder is a desktop meeting recorder built for teams that need flexible, priva
 
 Born as an alternative to Granola, Hicorder gives you complete control over your AI providers, prompts, and data. Originally created at [Hi Capital](https://hi.capital) (Honey Island VC, Curitiba, Brazil) by Gean Chu, it's now open source for the community.
 
+**Non-Commercial Project:** Hicorder is community-driven without commercial intent. Hi Capital does not plan to offer paid versions, SaaS, or enterprise features. The project remains fully open source (MIT license) and is maintained by the community.
+
 **What makes Hicorder different:**
 - **Choose your AI**: Works with Groq, OpenAI, Claude, Gemini, MiniMax, NVIDIA NIM, or your own endpoints
 - **Customizable prompts**: Edit the base prompt and create a library of named prompts for different meeting types
