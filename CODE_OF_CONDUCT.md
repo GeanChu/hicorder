@@ -1,25 +1,25 @@
-# Código de Conduta
+# Code of Conduct
 
-## Nosso Compromisso
+## Our Commitment
 
-O Hicorder se compromete a proporcionar uma comunidade acolhedora e livre de assédio para todos, independentemente de idade, etnia, identidade de gênero, nível de experiência, nacionalidade, aparência, raça, religião ou orientação sexual.
+The Hicorder project is committed to providing a welcoming and harassment-free community for everyone, regardless of age, ethnicity, gender identity, level of experience, nationality, appearance, race, religion, or sexual orientation.
 
-## Comportamentos Esperados
+## Expected Behavior
 
-- Respeito e empatia com outros participantes
-- Aceitação de críticas construtivas
-- Foco no que é melhor para a comunidade
-- Linguagem e comportamento profissional
+- Respect and empathy toward other participants
+- Acceptance of constructive criticism
+- Focus on what is best for the community
+- Professional language and conduct
 
-## Comportamentos Inaceitáveis
+## Unacceptable Behavior
 
-- Assédio, intimidação ou discriminação de qualquer tipo
-- Ataques pessoais ou políticos
-- Publicação de informações privadas de terceiros sem permissão
-- Conduta inadequada em contexto profissional
+- Harassment, intimidation, or discrimination of any kind
+- Personal or political attacks
+- Publishing others' private information without permission
+- Other conduct inappropriate in a professional setting
 
-## Aplicação
+## Enforcement
 
-Violações podem ser reportadas para **gean@hi.capital**. Todas as denúncias serão analisadas e investigadas de forma confidencial. A equipe do projeto tem o direito de remover contribuições ou banir participantes que violem este código.
+Violations can be reported to **gean@hi.capital**. All reports will be reviewed and investigated confidentially. The project team has the right to remove contributions or ban participants who violate this code.
 
-Este código de conduta é adaptado do [Contributor Covenant versão 2.1](https://www.contributor-covenant.org/version/2/1/code_of_conduct/).
+This Code of Conduct is adapted from the [Contributor Covenant version 2.1](https://www.contributor-covenant.org/version/2/1/code_of_conduct/).
