@@ -1,84 +1,98 @@
-# Decisões de Arquitetura (ADR resumido)
+# Architecture Decisions (ADR summary)
 
-## ADR-001 — Tauri 2 (não Electron)
-**Decisão**: Tauri 2 (Rust + UI web).
-**Por quê**: executável pequeno e nativo, melhor acesso de baixo nível ao áudio do sistema, e é a mesma base do meetily — permite reaproveitar a captura de áudio cross-platform (MIT), que é a parte mais difícil. Electron seria todo-JS e mais fácil de evoluir por devs JS, mas gera binário pesado (~150 MB) e captura de áudio do sistema mais limitada, principalmente no macOS.
-**Custo**: exige Rust no projeto.
+## ADR-001 — Tauri 2 (not Electron)
+
+**Decision**: Tauri 2 (Rust + web UI).  
+**Why**: small native executable, better low-level access to system audio, and it's the same base as meetily — allows reusing the cross-platform audio capture (MIT), which is the hardest part. Electron would be all-JS and easier to evolve for JS devs, but generates heavy binary (~150 MB) and more limited system audio capture, especially on macOS.  
+**Cost**: requires Rust in project.
 
 ## ADR-002 — macOS via ScreenCaptureKit
-**Decisão**: capturar áudio do sistema no macOS com ScreenCaptureKit (13+). macOS <13 grava só microfone.
-**Por quê**: macOS não tem loopback nativo nas versões antigas. ScreenCaptureKit é a API oficial, não exige instalar driver virtual (BlackHole), evitando fricção para time não técnico. Driver virtual foi descartado por exigir instalação/configuração manual.
-**Custo**: pede permissão de gravação de tela; macOS <13 fica sem áudio do sistema.
 
-## ADR-003 — Transcrição plugável, Groq por padrão
-**Decisão**: trait `Transcriber` + provedor `OpenAiCompatible`; endpoint/modelo/chave configuráveis na UI; default = **Groq Whisper**.
-**Por quê**: descoberto (sondando endpoints) que **MiniMax NÃO tem STT** — só chat (MiniMax-M3) e TSS. Logo o default aponta pra Groq Whisper (OpenAI-compat, free tier, ótimo pt-BR). O mesmo provedor serve OpenAI/qualquer endpoint compatível. A abstração plugável foi o que salvou: trocar provedor é só config, sem refatorar. Idioma por chamada (padrão pt). MiniMax-M3 fica reservado p/ a feature futura de resumo. Ver [PROVIDERS.md](PROVIDERS.md).
+**Decision**: capture system audio on macOS with ScreenCaptureKit (13+). macOS <13 records mic only.  
+**Why**: macOS doesn't have native loopback on older versions. ScreenCaptureKit is the official API, doesn't require installing virtual driver (BlackHole), avoiding friction for non-technical team. Virtual driver was discarded for requiring manual installation/configuration.  
+**Cost**: asks for screen recording permission; macOS <13 is without system audio.
 
-## ADR-004 — Assinatura de código via SignPath Foundation (não certificado pago)
-**Decisão**: v1 distribui instaladores não assinados; a assinatura Windows virá **gratuita** via SignPath Foundation (programa para OSS), integrada ao CI. Ver [SIGNING.md](SIGNING.md).
-**Por quê**: certificado OV/EV pago foi descartado pelo usuário. SignPath Foundation assina projetos open source qualificados (licença OSI + repo público + build em CI), que é o caso.
-**Custo**: até a aprovação, avisos de SmartScreen/antivírus na primeira execução (mitigados com metadados de bundle e reporte de falso positivo). Notarização do macOS fica para depois (exige Apple Developer pago).
+## ADR-003 — Pluggable transcription, Groq by default
 
-## ADR-005 — Formato Opus em `.webm` ~32 kbps
-**Decisão**: armazenar em Opus mono ~32 kbps, 16 kHz, container **`.webm`**.
-**Por quê**: usuário pediu formato leve. Opus tem a melhor qualidade de fala por bit (~7–15 MB/hora). Container `.webm` (não `.ogg`) porque a MiniMax aceita mp3/mp4/m4a/wav/mpga/**webm**, mas **não** `.ogg`/opus puro. Opus-em-webm é leve E aceito (é o que o navegador/Open WebUI mandam pro endpoint). Meetily usa AAC/MP4 192 kbps (mais pesado).
-**Custo**: nenhum relevante; webm/opus é amplamente suportado.
+**Decision**: trait `Transcriber` + `OpenAiCompatible` provider; endpoint/model/key configurable in UI; default = **Groq Whisper**.  
+**Why**: discovered (probing endpoints) that **MiniMax has NO STT** — only chat (MiniMax-M3) and TTS. So default points to Groq Whisper (OpenAI-compat, free tier, excellent). Same provider serves OpenAI/any compatible endpoint. Pluggable abstraction saved us: switching provider is just config, no refactoring. Language per call (default pt). MiniMax-M3 reserved for future summary feature. See [PROVIDERS.md](PROVIDERS.md).
 
-## ADR-006 — ffmpeg empacotado como resource
-**Decisão**: empacotar o binário do ffmpeg por plataforma como **resource** do bundle Tauri (baixado no CI de release). Em dev usa o ffmpeg do PATH ou `CALLREC_FFMPEG`.
-**Por quê**: usuário final não pode precisar instalar ffmpeg manualmente ("executável fácil").
-**Custo**: aumenta o tamanho do instalador; precisa de binários por plataforma.
+## ADR-004 — Code signing via SignPath Foundation (not paid certificate)
 
-## ADR-007 — Attio: busca de reunião por janela de tempo (não por participants)
-**Decisão**: buscar meetings no Attio por `ends_from`/`starts_before`/`timezone` e casar emails **no cliente** sobre `participants[].email_address`.
-**Por quê**: o parâmetro `participants` do `GET /v2/meetings` (endpoint beta) existe no schema OpenAPI mas **trava o servidor** em runtime — a mesma chamada autenticada responde 200 em ~0,5s sem o parâmetro e dá timeout com ele (validado com self-test dentro do app). O filtro por tempo funciona e casa com o fluxo do produto (match por horário + confirmação do usuário).
-**Custo**: baixa mais reuniões que o necessário (limit 50 na janela); filtro fino é client-side.
+**Decision**: v1 distributes unsigned installers; Windows signing will come **free** via SignPath Foundation (OSS program), integrated into CI. See [SIGNING.md](SIGNING.md).  
+**Why**: paid OV/EV certificate was discarded by user. SignPath Foundation signs qualifying open source projects (OSI license + public repo + CI build), which this is.  
+**Cost**: until approval, SmartScreen/antivirus warnings on first run (mitigated with bundle metadata and false positive reporting). macOS notarization later (requires paid Apple Developer).
 
-## ADR-008 — HTTP com resolver DNS IPv4-only
-**Decisão**: o client HTTP compartilhado (`net.rs`) usa um resolver custom que filtra os resultados do getaddrinfo para IPv4, além de TLS nativo do SO e proxy do sistema desabilitado.
-**Por quê**: em redes com IPv6 anunciado mas sem rota (caso real do usuário), o reqwest tentava o endereço AAAA e pendurava até o timeout; `local_address(0.0.0.0)` não resolveu. TLS nativo convive com inspeção HTTPS de antivírus (Kaspersky); o proxy do sistema injetado pelo antivírus quebrava conexões.
-**Custo**: sem suporte a redes IPv6-only (aceitável para o público-alvo hoje).
+## ADR-005 — Opus format in `.webm` ~32 kbps
 
-## ADR-009 — Rename para Hicorder com migração não destrutiva
-**Decisão**: produto/identifier renomeados para Hicorder / `com.hicapital.hicorder` (v0.2.0). Migração única: copia a pasta de dados antiga, corrige paths absolutos no DB copiado e replica as chaves do keychain do serviço antigo na primeira leitura. Nada é apagado do lado antigo.
-**Por quê**: novo nome de produto; cópia (não move) permite rollback trivial.
-**Custo**: dados duplicados em disco até o usuário apagar a pasta antiga manualmente.
+**Decision**: store in Opus mono ~32 kbps, 16 kHz, **`.webm`** container.  
+**Why**: user requested lightweight format. Opus has best speech quality per bit (~7–15 MB/hour). `.webm` container (not `.ogg`) because MiniMax accepts mp3/mp4/m4a/wav/mpga/**webm**, but **not** pure `.ogg`/opus. Opus-in-webm is lightweight AND accepted (it's what browser/Open WebUI send to endpoint). Meetily uses AAC/MP4 192 kbps (heavier).  
+**Cost**: none relevant; webm/opus is widely supported.
 
-## ADR-010 — Chaves de API por escopo (provedor), sem fallback
-**Decisão**: cada chave é guardada sob `"<tipo>:<host>"` (tipo = `stt` | `summary`). Trocar de provedor não apaga a chave anterior; escopo sem valor significa **sem chave**, sem cair em nenhuma chave antiga.
-**Por quê**: com uma chave única por etapa, trocar de provedor sobrescrevia a anterior. O fallback que existia na primeira versão do escopo era pior: mandava a credencial de um provedor para outro (chave MiniMax indo ao endpoint da NVIDIA) e ainda fazia a UI mostrar "chave salva" em provedor nunca configurado.
-**Custo**: quem tinha a chave única precisa informá-la uma vez no provedor certo. Não migramos automaticamente porque não há registro de a qual provedor ela pertencia.
+## ADR-006 — ffmpeg packaged as resource
 
-## ADR-011 — Suporte a dois CRMs com modelos de nota diferentes
-**Decisão**: Attio e Affinity coexistem; o usuário escolhe nas Configurações e cada um guarda a própria chave. A UI de envio é a mesma, mas o backend despacha para o módulo do CRM ativo.
-**Por quê**: o modelo de dados difere. No **Attio** uma nota tem um único pai, então é criada uma nota por pessoa e por empresa, ligada à meeting. No **Affinity** uma nota aceita `person_ids` e `organization_ids`, então **uma nota só** cobre todos os vínculos. Além disso o Affinity não tem endpoint de meetings — a etapa "escolha a reunião" usa a agenda local (ICS) apenas para sugerir participantes.
-**Custo**: a mensagem de resultado e o passo 1 do fluxo variam por CRM; dois caminhos de código para manter.
+**Decision**: package ffmpeg binary per platform as Tauri bundle **resource** (downloaded in release CI). In dev uses ffmpeg from PATH or `CALLREC_FFMPEG`.  
+**Why**: end user can't be required to install ffmpeg manually ("easy executable").  
+**Cost**: increases installer size; needs binaries per platform.
 
-## ADR-014 — Deduplicação de meetings no Attio passa a ser nossa
-**Contexto**: em 08/2026 o Attio comunicou que tira Meetings/Call Recordings do alpha e **deprecia o `external_ref`** — cada `POST /v2/meetings` passa a criar uma meeting nova, mesmo com o mesmo `external_ref`. Antes, esse campo é que garantia o reaproveitamento.
+## ADR-007 — Attio: meeting search by time window (not by participants)
 
-**Decisão**: antes de criar, consultar `GET /v2/meetings` na janela do horário da reunião e reusar a que tiver o mesmo título (`find_existing_meeting`). **E continuar enviando `external_ref`.**
+**Decision**: search meetings in Attio by `ends_from`/`starts_before`/`timezone` and match emails **on client** over `participants[].email_address`.  
+**Why**: the `participants` parameter of `GET /v2/meetings` (beta endpoint) exists in OpenAPI schema but **crashes the server** at runtime — same authenticated call responds 200 in ~0.5s without parameter and times out with it (validated with self-test inside app). Time filter works and matches product flow (match by time + user confirmation).  
+**Cost**: fetches more meetings than necessary (limit 50 in window); fine filter is client-side.
 
-**Por que continuar enviando um campo deprecado**: a versão da API em produção ainda o exige como obrigatório. Removê-lo agora quebraria as chamadas; mantê-lo é inofensivo depois da migração, porque campo obsoleto é ignorado e não rejeitado. O mesmo binário funciona nos dois lados da mudança — e o app é distribuído, então não dá para sincronizar o deploy com a data do Attio.
+## ADR-008 — HTTP with IPv4-only DNS resolver
 
-**Custo**: uma requisição a mais por upload que cria reunião. Falha na busca não bloqueia: cria assim mesmo, porque subir a nota importa mais que o risco de uma duplicata.
+**Decision**: shared HTTP client (`net.rs`) uses custom resolver that filters getaddrinfo results to IPv4, plus OS native TLS and system proxy disabled.  
+**Why**: on networks with IPv6 advertised but no route (user's real case), reqwest tried AAAA address and hung until timeout; `local_address(0.0.0.0)` didn't solve it. Native TLS coexists with antivirus HTTPS inspection (Kaspersky); system proxy injected by antivirus broke connections.  
+**Cost**: no IPv6-only network support (acceptable for today's target audience).
 
-**Sem impacto**: os outros dois itens do comunicado (call recordings passam a exigir transcript em 14/10/2026; transcript volta junto do call recording) tocam endpoints que este app nunca chamou.
+## ADR-009 — Rename to Hicorder with non-destructive migration
 
-## ADR-013 — Resumo pelo Claude Code local (processo, não HTTP)
-**Decisão**: adicionar "Claude Code (instalado nesta máquina)" como provedor de resumo. O endpoint é o sentinela `claude-code://local`; o backend detecta e executa o CLI `claude --print` com a transcrição pelo **stdin**, em vez de fazer POST.
-**Por quê**: é o único provedor que **dispensa cadastrar chave de API** — autentica pela assinatura Claude que o usuário já tem. Para quem já usa Claude Code, é o caminho de menor fricção.
-**Custo e limites** (medidos no CLI 2.1.220):
-- **Não é offline.** O Claude Code fala com a API da Anthropic; não há ganho de privacidade sobre os outros provedores.
-- ~14k tokens de contexto por chamada só de scaffolding do CLI (27k sem `--exclude-dynamic-system-prompt-sections`). Consome cota da assinatura.
-- Exige instalação **e autenticação** por máquina — barreira real para o público não técnico do produto. Por isso é opção avançada, nunca default.
-- Depende de flags de um CLI de terceiros, que não têm estabilidade de API. O teste valida a versão a cada uso.
+**Decision**: product/identifier renamed to Hicorder / `com.hicapital.hicorder` (v0.2.0). One-time migration: copies old data folder, fixes absolute paths in copied DB, and replicates old service keychain keys on first read. Nothing is deleted from old side.  
+**Why**: new product name; copy (not move) allows trivial rollback.  
+**Cost**: duplicated data on disk until user manually deletes old folder.
 
-**Por que não usar o Claude Desktop no lugar**: são programas diferentes com o **mesmo nome de executável**. O Desktop (Electron, ~232 MB em `AnthropicClaude/`) não embute o CLI — ele spawna um `claude` externo via `node-pty` e não expõe `--print`. Instalar o Desktop não dá o CLI. Ler o token OAuth do Desktop para autenticar o Hicorder foi **descartado**: é uso indevido de credencial de outro app e quebraria no primeiro refresh.
+## ADR-010 — API keys per scope (provider), no fallback
 
-**Contenção**: `--max-turns 1` + `--disallowed-tools` (Bash/Read/Write/Edit/Glob/Grep/WebFetch/WebSearch/Task/NotebookEdit) impedem o CLI de virar agente com acesso ao disco; execução numa pasta temporária, não no diretório do usuário; transcrição por stdin porque reunião de 1h estoura o limite de ~32k caracteres da linha de comando no Windows.
+**Decision**: each key is stored under `"<type>:<host>"` (type = `stt` | `summary`). Switching provider doesn't delete previous key; empty scope means **no key**, without falling back to any old key.  
+**Why**: with single key per stage, switching provider overwrote the previous one. The fallback that existed in scope's first version was worse: sent one provider's credential to another (MiniMax key going to NVIDIA endpoint) and still made UI show "saved key" on never-configured provider.  
+**Cost**: who had single key needs to enter it once on right provider. We don't auto-migrate because there's no record of which provider it belonged to.
 
-## ADR-012 — Dicionário do Whisper limitado a 65 palavras
-**Decisão**: o campo `prompt` do Whisper recebe um dicionário editável, com 40 termos de fábrica e teto de 65 palavras na UI.
-**Por quê**: o `prompt` melhora nomes próprios, siglas e jargão, mas a API corta em **224 tokens** e descarta o excedente **em silêncio**. 40 termos ocupam ~133 tokens, deixando ~91 para os 25 que o usuário pode acrescentar — o limite de 65 é o que cabe de fato. A UI estima os tokens e avisa antes do corte.
-**Custo**: estimativa de tokens é aproximada (~4 chars/token); o aviso pode disparar um pouco antes ou depois do limite real.
+## ADR-011 — Support for two CRMs with different note models
+
+**Decision**: Attio and Affinity coexist; user chooses in Settings and each stores its own key. Upload UI is the same, but backend dispatches to active CRM module.  
+**Why**: data models differ. In **Attio** a note has single parent, so one note per person and per company is created, linked to meeting. In **Affinity** a note accepts `person_ids` and `organization_ids`, so **one note** covers all links. Also Affinity has no meetings endpoint — the "choose meeting" step uses local calendar (ICS) only to suggest participants.  
+**Cost**: result message and flow step 1 vary by CRM; two code paths to maintain.
+
+## ADR-014 — Attio meeting deduplication became ours
+
+**Context**: in 08/2026 Attio announced taking Meetings/Call Recordings out of alpha and **deprecating `external_ref`** — each `POST /v2/meetings` now creates a new meeting, even with same `external_ref`. Before, that field guaranteed reuse.
+
+**Decision**: before creating, query `GET /v2/meetings` in meeting time window and reuse one with same title (`find_existing_meeting`). **And keep sending `external_ref`.**
+
+**Why keep sending deprecated field**: production API version still requires it as mandatory. Removing it now would break calls; keeping it is harmless after migration, because obsolete field is ignored, not rejected. Same binary works on both sides of the change — and app is distributed, so can't sync deploy with Attio's date.
+
+**Cost**: one extra request per upload that creates meeting. Search failure doesn't block: creates anyway, because uploading note matters more than duplicate risk.
+
+**No impact**: the other two announcement items (call recordings now require transcript on 14/10/2026; transcript comes back with call recording) touch endpoints this app never called.
+
+## ADR-013 — Summary via local Claude Code (process, not HTTP)
+
+**Decision**: add "Claude Code (installed on this machine)" as summary provider. Endpoint is sentinel `claude-code://local`; backend detects and executes `claude --print` CLI with transcription via **stdin**, instead of making POST.  
+**Why**: it's the only provider that **dispenses registering API key** — authenticates via Claude subscription user already has. For those already using Claude Code, it's the lowest-friction path.  
+**Cost and limits** (measured on CLI 2.1.220):
+- **Not offline.** Claude Code talks to Anthropic's API; no privacy gain over other providers.
+- ~14k context tokens per call just from CLI scaffolding (27k without `--exclude-dynamic-system-prompt-sections`). Consumes subscription quota.
+- Requires installation **and authentication** per machine — real barrier for product's non-technical audience. That's why it's advanced option, never default.
+- Depends on third-party CLI flags, which have no API stability. Test validates version on each use.
+
+**Why not use Claude Desktop instead**: they're different programs with the **same executable name**. Desktop (Electron, ~232 MB in `AnthropicClaude/`) doesn't embed CLI — it spawns external `claude` via `node-pty` and doesn't expose `--print`. Installing Desktop doesn't give you CLI. Reading Desktop's OAuth token to authenticate Hicorder was **discarded**: it's credential misuse from another app and would break on first refresh.
+
+**Containment**: `--max-turns 1` + `--disallowed-tools` (Bash/Read/Write/Edit/Glob/Grep/WebFetch/WebSearch/Task/NotebookEdit) prevent CLI from becoming agent with disk access; execution in temp folder, not user directory; transcription via stdin because 1h meeting bursts ~32k command-line character limit on Windows.
+
+## ADR-012 — Whisper dictionary limited to 65 words
+
+**Decision**: Whisper's `prompt` field receives editable dictionary, with 40 factory terms and 65-word ceiling in UI.  
+**Why**: `prompt` improves proper names, acronyms and jargon, but API cuts at **224 tokens** and silently discards excess. 40 terms occupy ~133 tokens, leaving ~91 for 25 user can add — the 65 limit is what actually fits. UI estimates tokens and warns before cutoff.  
+**Cost**: token estimate is approximate (~4 chars/token); warning may fire slightly before or after real limit.
