@@ -1,46 +1,46 @@
-# Governança do Projeto
+# Project Governance
 
-## Visão Geral
+## Overview
 
-O Hicorder é um projeto open source mantido primariamente pela [Hi Capital](https://hi.capital) e pela comunidade. Este documento descreve como as decisões são tomadas.
+Hicorder is an open source project primarily maintained by [Hi Capital](https://hi.capital) and the community. This document describes how decisions are made.
 
-## Maintainer Principal
+## Lead Maintainer
 
-**Gean Chu** ([@GeanChu](https://github.com/GeanChu)) é o maintainer principal e tem autoridade final sobre:
+**Gean Chu** ([@GeanChu](https://github.com/GeanChu)) is the lead maintainer and has final authority over:
 
-- Decisões de arquitetura e roadmap
-- Aceitação de pull requests
-- Políticas de segurança e privacidade
-- Adição de novos maintainers
+- Architecture and roadmap decisions
+- Pull request acceptance
+- Security and privacy policies
+- Adding new maintainers
 
-## Como Virar Maintainer
+## Becoming a Maintainer
 
-Contribuidores consistentes e de alta qualidade podem ser convidados para se tornar maintainers. Critérios:
+Consistent, high-quality contributors may be invited to become maintainers. Criteria:
 
-- Histórico de contribuições substanciais (código, documentação, revisão)
-- Entendimento profundo da arquitetura do projeto
-- Alinhamento com os valores e visão do projeto
-- Disponibilidade para revisar PRs e responder issues
+- History of substantial contributions (code, documentation, reviews)
+- Deep understanding of the project architecture
+- Alignment with project values and vision
+- Availability to review PRs and respond to issues
 
-Convites são feitos pelo maintainer principal ou por consenso dos maintainers existentes.
+Invitations are extended by the lead maintainer or by consensus of existing maintainers.
 
-## Processo de Decisão
+## Decision Process
 
-- **Mudanças pequenas** (bug fixes, docs, refactoring): qualquer maintainer pode aprovar e fazer merge.
-- **Features novas**: discussão em issue primeiro, aprovação do maintainer principal ou de 2+ maintainers.
-- **Mudanças breaking**: discussão pública, aprovação do maintainer principal.
-- **Políticas de segurança/privacidade**: decisão do maintainer principal.
+- **Small changes** (bug fixes, docs, refactoring): any maintainer can approve and merge
+- **New features**: issue discussion first, approval from lead maintainer or 2+ maintainers
+- **Breaking changes**: public discussion, approval from lead maintainer
+- **Security/privacy policies**: lead maintainer decision
 
-## Comunicação
+## Communication
 
-- **Issues e PRs**: discussões técnicas acontecem no GitHub.
-- **Discussions**: perguntas gerais e propostas vão no GitHub Discussions.
-- **Chat em tempo real**: planejado (Discord/Slack TBD).
+- **Issues and PRs**: technical discussions happen on GitHub
+- **Discussions**: general questions and proposals go to GitHub Discussions
+- **Real-time chat**: planned (Discord/Slack TBD)
 
-## Resolução de Conflitos
+## Conflict Resolution
 
-Em caso de desacordo entre maintainers, o maintainer principal tem a palavra final. Decisões podem ser revisitadas se surgirem novos argumentos ou contexto.
+In case of disagreement between maintainers, the lead maintainer has the final say. Decisions can be revisited if new arguments or context emerge.
 
-## Mudanças na Governança
+## Changes to Governance
 
-Este documento pode ser atualizado via PR. Mudanças substanciais requerem discussão pública e aprovação do maintainer principal.
+This document can be updated via PR. Substantial changes require public discussion and lead maintainer approval.
