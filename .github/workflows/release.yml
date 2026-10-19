@@ -151,7 +151,7 @@ jobs:
             src-tauri/resources/ffmpeg -hide_banner -encoders | grep -q "$c" || { echo "ffmpeg sem encoder $c"; exit 1; }; \
           done
 
-      - uses: tauri-apps/tauri-action@v0
+      - uses: tauri-apps/tauri-action@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # Assinatura das atualizações (updater) — separada do SignPath.
