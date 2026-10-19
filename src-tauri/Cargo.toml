@@ -53,7 +53,7 @@ keyring = { version = "4.1.2", default-features = false, features = ["v1", "wind
 # apple-metal compila Swift contra SDK beta e quebra a CI do GitHub sempre que o
 # Xcode default do runner muda. Fica atrás da feature `macos-system-audio` (off
 # por padrão) para não derrubar o build do macOS.
-screencapturekit = { version = "8.0.0", features = ["macos_13_0"], optional = true }
+screencapturekit = { version = "11.0.0", features = ["macos_13_0"], optional = true }
 
 [target.'cfg(target_os = "linux")'.dependencies]
 keyring = { version = "4.1.2", default-features = false, features = ["v1", "zbus-secret-service-keyring-store"] }
