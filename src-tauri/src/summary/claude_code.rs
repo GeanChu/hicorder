@@ -496,9 +496,9 @@ mod tests {
         let resumo = summarize(
             None,
             TEST_MODEL,
-            "Você resume reuniões em português do Brasil. Responda só com tópicos curtos.",
-            "[00:01] Você: fechamos o term sheet na sexta.\n\
-             [00:04] Participantes: mando o cap table atualizado amanhã.",
+            "You summarize meetings. Respond only with short bullet points.",
+            "[00:01] You: we closed the term sheet on Friday.\n\
+             [00:04] Participants: I'll send the updated cap table tomorrow.",
         )
         .expect("resumo falhou");
         println!("resumo:\n{resumo}");

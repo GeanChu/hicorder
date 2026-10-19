@@ -1,83 +1,92 @@
-# Provedores de IA e CRM
+# AI and CRM Providers
 
-O Hicorder fala dois protocolos de IA, ambos estilo OpenAI. Qualquer endpoint compatível funciona (opção "Personalizado" nas Configurações).
+Hicorder speaks two AI protocols, both OpenAI-style. Any compatible endpoint works ("Custom" option in Settings).
 
-## Transcrição (speech-to-text)
-Protocolo: `POST <endpoint>` multipart (`file`, `model`, `language`, `response_format=verbose_json`, `prompt`), `Authorization: Bearer <chave>`. O app transcreve as faixas mic/sistema separadamente e intercala com rótulos "Você"/"Participantes".
+## Transcription (speech-to-text)
 
-| Provedor | Endpoint | Modelos no select | Chave |
+Protocol: `POST <endpoint>` multipart (`file`, `model`, `language`, `response_format=verbose_json`, `prompt`), `Authorization: Bearer <key>`. The app transcribes mic/system tracks separately and interleaves with "You"/"Participants" labels.
+
+| Provider | Endpoint | Models in dropdown | Key |
 |---|---|---|---|
 | **Groq** (default, free tier) | `https://api.groq.com/openai/v1/audio/transcriptions` | `whisper-large-v3` (default), `whisper-large-v3-turbo` | console.groq.com/keys |
 | OpenAI | `https://api.openai.com/v1/audio/transcriptions` | `whisper-1`, `gpt-4o-transcribe`, `gpt-4o-mini-transcribe` | platform.openai.com/api-keys |
 | Fireworks AI | `https://api.fireworks.ai/inference/v1/audio/transcriptions` | `whisper-v3`, `whisper-v3-turbo` | fireworks.ai → API Keys |
 
-O áudio enviado é Opus em `.ogg`.
+The audio sent is Opus in `.ogg` format.
 
-**Por que large-v3 e não o turbo**: o turbo alucina mais em trechos de silêncio — e numa reunião cada faixa fica muda enquanto o outro lado fala.
+**Why large-v3 and not turbo**: turbo hallucinates more in silence stretches — and in a meeting each track is mute while the other side speaks.
 
-**`distil-whisper-large-v3-en` foi removido**: a Groq descomissionou o modelo (erro `model_decommissioned`).
+**`distil-whisper-large-v3-en` was removed**: Groq decommissioned the model (`model_decommissioned` error).
 
-### Dicionário (campo `prompt`)
-Termos que ajudam o modelo com nomes próprios, siglas e jargão. Configurações → Sistema → Dicionário.
+### Dictionary (`prompt` field)
 
-- Limite da API: **224 tokens**. Acima disso o provedor **descarta o excedente em silêncio** (mantendo o final), por isso a UI estima os tokens e avisa.
-- Limite do app: 65 palavras. O dicionário de fábrica traz 40 termos de VC/investimentos/fintech (~133 tokens), deixando folga para os termos do usuário.
-- O maior ganho vem de nomes de fundos, empresas e pessoas recorrentes — palavra comum do português o modelo já acerta.
+Terms that help the model with proper names, acronyms, and jargon. Settings → System → Dictionary.
 
-## Resumo (LLM)
-Protocolo: `POST <endpoint>` JSON chat completions (`model`, `messages`), `Authorization: Bearer <chave>`. O prompt base é editável (Configurações → Sistema) e há biblioteca de prompts nomeados com override por resumo.
+- API limit: **224 tokens**. Above that the provider **silently discards the excess** (keeping the end), so the UI estimates tokens and warns.
+- App limit: 65 words. Factory dictionary has 40 VC/investment/fintech terms (~133 tokens), leaving room for user terms.
+- Biggest gain comes from recurring fund names, companies, and people — common words the model already gets right.
 
-| Provedor | Endpoint | Modelos no select | Chave |
+## Summary (LLM)
+
+Protocol: `POST <endpoint>` JSON chat completions (`model`, `messages`), `Authorization: Bearer <key>`. Base prompt is editable (Settings → System) and there's a library of named prompts with per-summary override.
+
+| Provider | Endpoint | Models in dropdown | Key |
 |---|---|---|---|
 | OpenAI | `https://api.openai.com/v1/chat/completions` | `gpt-4o-mini`, `gpt-4o`, `gpt-4.1`, ... | platform.openai.com/api-keys |
-| Claude (Anthropic) | `https://api.anthropic.com/v1/chat/completions` (camada compat OpenAI) | `claude-3-5-sonnet-latest`, ... | console.anthropic.com/settings/keys |
+| Claude (Anthropic) | `https://api.anthropic.com/v1/chat/completions` (OpenAI compat layer) | `claude-3-5-sonnet-latest`, ... | console.anthropic.com/settings/keys |
 | Google Gemini | `https://generativelanguage.googleapis.com/v1beta/openai/chat/completions` | `gemini-2.0-flash`, ... | aistudio.google.com/apikey |
-| MiniMax (Subscription sk-cp) | `https://api.minimax.io/v1/chat/completions` | `MiniMax-M3`, `MiniMax-Text-01` | Subscription Key da conta |
-| MiniMax (API) | idem | idem | platform.minimax.io → API Keys |
+| MiniMax (Subscription sk-cp) | `https://api.minimax.io/v1/chat/completions` | `MiniMax-M3`, `MiniMax-Text-01` | Account Subscription Key |
+| MiniMax (API) | same | same | platform.minimax.io → API Keys |
 | **NVIDIA NIM** | `https://integrate.api.nvidia.com/v1/chat/completions` | `minimaxai/minimax-m3`, `deepseek-ai/deepseek-v4-pro`, `meta/llama-3.3-70b-instruct`, `deepseek-ai/deepseek-r1` | build.nvidia.com → API key (`nvapi-`) |
-| **Claude Code (local)** | `claude-code://local` (sentinela — processo, não HTTP) | `claude-sonnet-5`, `claude-opus-5`, `claude-haiku-4-5` | **nenhuma** (usa a assinatura Claude da máquina) |
+| **Claude Code (local)** | `claude-code://local` (sentinel — process, not HTTP) | `claude-sonnet-5`, `claude-opus-5`, `claude-haiku-4-5` | **none** (uses machine's Claude subscription) |
 
-Notas da NVIDIA:
-- A `nvapi-` é **chave de conta**, não de modelo: vale para todo o catálogo. O botão "Get API Key" na página de um modelo entrega/rotaciona a mesma chave — gerar por lá invalida a anterior.
-- O NIM tem `max_tokens` padrão baixo, então o app envia um teto explícito **só nesse endpoint** (8192 no minimax-m3, 16384 nos demais).
-- Modelos de raciocínio devolvem `<think>`; o app remove antes de salvar.
+NVIDIA notes:
+- `nvapi-` is **account key**, not per-model: valid for entire catalog. The "Get API Key" button on a model's page delivers/rotates the same key — generating there invalidates the previous one.
+- NIM has low default `max_tokens`, so the app sends an explicit ceiling **only on this endpoint** (8192 for minimax-m3, 16384 for others).
+- Reasoning models return `<think>`; the app removes it before saving.
 
 ### Claude Code (local)
-Único provedor que **não é HTTP**: o app executa o CLI `claude` instalado na máquina (`--print`, transcrição via **stdin**) e a autenticação é a assinatura Claude do usuário — não há chave de API para cadastrar.
 
-- **Não é offline.** O Claude Code fala com a API da Anthropic como qualquer outro provedor. O ganho é não precisar de mais uma chave, não privacidade extra.
-- **Custo/cota**: cada chamada carrega ~14k tokens de contexto do próprio Claude Code (já com `--exclude-dynamic-system-prompt-sections`; sem a flag são ~27k). Em assinatura Pro/Max sai da cota.
-- **Exige instalação por máquina.** Claude Code e **Claude Desktop são programas diferentes com o mesmo nome de executável** (`claude.exe`): o Desktop não embute o CLI — ele o spawna via `node-pty`. Instalar o Desktop **não** dá o CLI.
-- **Busca do binário**: caminho informado nas Configurações → `PATH` → locais conhecidos (`~/.local/bin`, `~/.claude/local`, `%APPDATA%\npm`, `/usr/local/bin`, `/opt/homebrew/bin`). O PATH sozinho não basta: aberto pela bandeja/autostart o app herda um PATH mais pobre. Caminhos sob `AnthropicClaude/` são descartados (é o Desktop).
-- **Contenção**: `--max-turns 1` e `--disallowed-tools` impedem o CLI de virar agente e ler arquivos da máquina; roda numa pasta temporária, não no diretório do usuário.
-- Shims `.cmd`/`.bat` do npm são executados via `cmd.exe /C` (o CreateProcess do Windows não roda `.cmd` direto).
+Only provider that **is not HTTP**: the app executes the `claude` CLI installed on the machine (`--print`, transcription via **stdin**) and authentication is the user's Claude subscription — no API key to register.
+
+- **Not offline.** Claude Code talks to Anthropic's API like any other provider. The gain is not needing another key, not extra privacy.
+- **Cost/quota**: each call carries ~14k context tokens from Claude Code itself (already with `--exclude-dynamic-system-prompt-sections`; without the flag it's ~27k). On Pro/Max subscription it comes from quota.
+- **Requires per-machine installation.** Claude Code and **Claude Desktop are different programs with the same executable name** (`claude.exe`): Desktop doesn't embed the CLI — it spawns it via `node-pty`. Installing Desktop **does not** give you the CLI.
+- **Binary search**: path informed in Settings → `PATH` → known locations (`~/.local/bin`, `~/.claude/local`, `%APPDATA%\npm`, `/usr/local/bin`, `/opt/homebrew/bin`). PATH alone isn't enough: opened from tray/autostart the app inherits a poorer PATH. Paths under `AnthropicClaude/` are discarded (that's Desktop).
+- **Containment**: `--max-turns 1` and `--disallowed-tools` prevent the CLI from becoming an agent and reading machine files; runs in temp folder, not user directory.
+- npm `.cmd`/`.bat` shims are executed via `cmd.exe /C` (Windows CreateProcess doesn't run `.cmd` directly).
 
 ## CRM
-Escolhido em Configurações → Conexões → CRM. Cada CRM guarda a própria chave; trocar não apaga a do outro.
 
-| CRM | API | Auth | Modelo de nota |
+Chosen in Settings → Connections → CRM. Each CRM stores its own key; switching doesn't delete the other's.
+
+| CRM | API | Auth | Note model |
 |---|---|---|---|
-| **Attio** | v2 (`api.attio.com`) | Bearer | Uma nota **por pessoa e por empresa**, ligada à meeting (a API aceita um único pai por nota) |
-| **Affinity** | v1 (`api.affinity.co`) | Basic (usuário vazio, chave como senha) | **Uma nota só**, vinculada a várias pessoas e empresas |
+| **Attio** | v2 (`api.attio.com`) | Bearer | One note **per person and per company**, linked to meeting (API accepts single parent per note) |
+| **Affinity** | v1 (`api.affinity.co`) | Basic (empty username, key as password) | **One note**, linked to multiple persons and companies |
 
-No Affinity não há endpoint de meetings, então a etapa "escolha a reunião" usa a agenda local (ICS) apenas para sugerir os participantes.
+Affinity has no meetings endpoint, so the "choose meeting" step uses the local calendar (ICS) only to suggest participants.
 
-## Chaves: uma por provedor
-As chaves são guardadas por escopo `(tipo, host)` — a mesma chave da Groq serve todos os modelos Whisper, a da MiniMax todos os dela. Transcrição e resumo nunca compartilham chave, mesmo no mesmo host (ex.: OpenAI Whisper vs GPT). Ao trocar de provedor na tela, o campo limpa e o placeholder indica se já existe chave salva para aquele escopo.
+## Keys: one per provider
 
-## Teste de chave
-Botão "Testar" ao lado de cada chave nas Configurações:
-- Transcrição: `GET <base>/models` (valida sem enviar áudio).
-- Resumo: chat completions mínimo com `max_tokens: 16` — 1 token quebrava modelos de raciocínio, que gastam tokens pensando antes de responder.
-- Resumo via **Claude Code local** ("Testar instalação"): acha o binário → `claude --version` (a resposta precisa conter "Claude Code", o que descarta o app Desktop homônimo) → chamada real mínima. Só a versão não bastaria: o caso mais provável na máquina de um usuário novo é CLI instalado e **não autenticado**.
+Keys are stored by scope `(type, host)` — the same Groq key serves all Whisper models, MiniMax's serves all of theirs. Transcription and summary never share keys, even on the same host (e.g.: OpenAI Whisper vs GPT). When switching providers on screen, the field clears and placeholder indicates if a key already exists for that scope.
+
+## Key testing
+
+"Test" button next to each key in Settings:
+- Transcription: `GET <base>/models` (validates without sending audio).
+- Summary: minimal chat completions with `max_tokens: 16` — 1 token broke reasoning models, which spend tokens thinking before responding.
+- Summary via **local Claude Code** ("Test installation"): finds binary → `claude --version` (response must contain "Claude Code", which discards the homonymous Desktop app) → minimal real call. Version alone wouldn't suffice: most likely case on a new user's machine is CLI installed and **not authenticated**.
 - Attio: `GET /v2/meetings?limit=1`. Affinity: `GET /auth/whoami`.
 
-Erros aparecem em linguagem simples; o erro cru fica no log persistente (Configurações → Sistema → Ver logs).
+Errors appear in plain language; raw error stays in persistent log (Settings → System → View logs).
 
-## Nota histórica: MiniMax não tem STT
-Verificado em 2026-06-30 sondando endpoints: a MiniMax oferece chat (`/v1/chat/completions`, MiniMax-M3) e TTS (`/v1/t2a_v2`), mas **nenhum** endpoint de transcrição (14 variações testadas, todas 404). Por isso o default de transcrição é Groq e a MiniMax aparece só como provedor de resumo.
+## Historical note: MiniMax has no STT
 
-## Segurança
-- Chaves no keychain do SO (arquivo 0600 no macOS); nunca em texto puro, nunca em logs.
-- A UI nunca recebe o valor de uma chave — só a informação de que existe.
-- A transcrição/resumo envia áudio/texto apenas ao provedor configurado.
+Verified on 2026-06-30 by probing endpoints: MiniMax offers chat (`/v1/chat/completions`, MiniMax-M3) and TTS (`/v1/t2a_v2`), but **no** transcription endpoint (14 variations tested, all 404). That's why transcription default is Groq and MiniMax appears only as summary provider.
+
+## Security
+
+- Keys in OS keychain (file on macOS); never in plain text, never in logs.
+- UI never receives a key's value — only the information that it exists.
+- Transcription/summary sends audio/text only to the configured provider.

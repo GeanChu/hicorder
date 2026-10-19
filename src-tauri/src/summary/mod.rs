@@ -23,12 +23,12 @@ impl Default for SummaryConfig {
     }
 }
 
-pub const DEFAULT_SUMMARY_PROMPT: &str = "Você resume reuniões em português do Brasil. A transcrição vem \
-rotulada com \"Você\" (quem gravou) e \"Participantes\". Gere um resumo claro e conciso com: \
-contexto, pontos principais, decisões tomadas e itens de ação (com responsável quando houver). \
-Use tópicos curtos. Quando houver \"Anotações manuais\" de quem gravou, use-as para enriquecer, \
-corrigir e dar mais clareza ao resumo — elas têm prioridade sobre a transcrição em caso de \
-conflito, pois foram escritas por uma pessoa presente na reunião.";
+pub const DEFAULT_SUMMARY_PROMPT: &str = "You summarize meetings. The transcription is \
+labeled with \"You\" (the recorder) and \"Participants\". Generate a clear, concise summary with: \
+context, key points, decisions made, and action items (with responsible party when available). \
+Use short bullet points. When there are \"Manual notes\" from the recorder, use them to enrich, \
+correct, and add clarity to the summary — they take priority over the transcription in case of \
+conflict, as they were written by someone present at the meeting.";
 
 /// Prompt base de fábrica (para a UI oferecer "restaurar padrão").
 pub fn default_prompt() -> &'static str {
@@ -75,7 +75,7 @@ pub fn summarize(
     };
     let user_content = match notes.map(str::trim).filter(|n| !n.is_empty()) {
         Some(n) => format!(
-            "Transcrição da reunião:\n{transcript}\n\n---\nAnotações manuais de quem gravou:\n{n}"
+            "Meeting transcription:\n{transcript}\n\n---\nManual notes from the recorder:\n{n}"
         ),
         None => transcript.to_string(),
     };

@@ -1,211 +1,237 @@
-# Roadmap — PR a PR
+# Roadmap — PR by PR
 
-Cada PR é uma unidade lógica, testável e mergeável. Marque os checkboxes ao concluir. Branch por PR: `pr1-scaffold`, `pr2-audio-core`, etc.
-
----
-
-## PR0 — Repo + planejamento + docs ✅ (esta sessão)
-**Objetivo**: estrutura do repo e documentação de handoff.
-- [x] `git init`, identidade local, `.gitignore`, LICENSE, NOTICE.
-- [x] README, ARCHITECTURE, ROADMAP, DECISIONS, PROVIDERS, CONTINUATION.
-- [x] Commit inicial.
+Each PR is a logical, testable, mergeable unit. Check boxes as completed. Branch per PR: `pr1-scaffold`, `pr2-audio-core`, etc.
 
 ---
 
-## PR1 — Scaffold Tauri 2 ✅
-**Objetivo**: app abre uma janela vazia, builda nos 3 SOs.
-- [x] Rust stable (MSVC) + VS Build Tools (C++ + Win11 SDK) instalados nesta máquina. ffmpeg adiado para PR4 (só sidecar em prod).
-- [x] `create-tauri-app` (Tauri 2, Vite + React + TS) mergeado na raiz do repo.
-- [x] Estrutura de pastas do backend (`audio/`, `encode/`, `transcription/`, `storage/`, `settings/`, `commands/`) com stubs.
-- [x] Layout base das 4 telas (Gravar, Gravações, Transcrição, Configurações), vazias.
-- [x] `cargo build` compila limpo (3m48s, sem warnings); frontend builda (tsc + vite). Falta só rodar `npm run tauri dev` para ver a janela.
-- [ ] CI mínima (lint + build) opcional — não feito.
+## PR0 — Repo + planning + docs ✅ (this session)
 
-**Aceite**: `npm run tauri dev` abre o app. Compilação validada no Windows; validar build no Mac/Linux quando houver acesso.
+**Goal**: repo structure and handoff documentation.
+- [x] `git init`, local identity, `.gitignore`, LICENSE, NOTICE
+- [x] README, ARCHITECTURE, ROADMAP, DECISIONS, PROVIDERS, CONTINUATION
+- [x] Initial commit
 
 ---
 
-## PR2 — Captura de áudio core
-> Nota: meetily NÃO implementa loopback Win/Linux (só macOS); o resto bail!. Então
-> construímos o loopback nós mesmos. Dividido em 2a/2b/2c.
+## PR1 — Tauri 2 scaffold ✅
 
-### PR2a — Microfone (cross-platform) ✅
-- [x] Captura do microfone via `cpal` (0.15.3) → WAV (`hound`).
-- [x] Enumeração de dispositivos de entrada (`list_input_devices`).
-- [x] Nível (pico) por polling (`recording_level`); medidor na UI.
-- [x] `Recorder` (sessão start/stop) + comandos `start_recording`/`stop_recording`/`is_recording`.
-- [x] Tela Gravar funcional (botão, timer, medidor) + lista básica em Gravações.
-- [x] `cargo build` limpo; frontend builda. Grava em `app_data/recordings/<id>/mic.wav`.
+**Goal**: app opens empty window, builds on 3 OSes.
+- [x] Rust stable (MSVC) + VS Build Tools (C++ + Win11 SDK) installed on this machine. ffmpeg postponed to PR4 (sidecar only in prod).
+- [x] `create-tauri-app` (Tauri 2, Vite + React + TS) merged into repo root
+- [x] Backend folder structure (`audio/`, `encode/`, `transcription/`, `storage/`, `settings/`, `commands/`) with stubs
+- [x] Base layout of 4 screens (Record, Recordings, Transcription, Settings), empty
+- [x] `cargo build` compiles clean (3m48s, no warnings); frontend builds (tsc + vite). Just need to run `npm run tauri dev` to see window.
+- [ ] Minimal CI (lint + build) optional — not done
 
-**Aceite 2a**: `npm run tauri dev`, gravar, parar → existe `mic.wav` audível.
-
-### PR2b — Áudio do sistema no Windows (loopback) ✅ (código; falta teste em chamada real)
-- [x] WASAPI loopback via crate `wasapi` (0.23) → segunda faixa `system.wav` (`audio/system.rs`).
-- [x] Mic + sistema em paralelo na mesma sessão; `system_path` no resultado; medidor usa o maior pico.
-- [x] Falha do loopback degrada para só-mic (não perde a gravação). Compila limpo.
-- [ ] **Aceite (você)**: tocar áudio / fazer uma chamada, gravar, conferir que `system.wav` tem a voz dos outros.
-
-### PR2c — Áudio do sistema no Linux (monitor source)
-- [ ] Capturar o `.monitor` do sink padrão via `cpal` (aparece como device de entrada).
-- [ ] **Aceite**: idem em Linux.
+**Acceptance**: `npm run tauri dev` opens app. Compilation validated on Windows; validate Mac/Linux build when access available.
 
 ---
 
-## PR3 — Áudio macOS
-**Objetivo**: paridade no Mac.
-- [ ] Ponte ScreenCaptureKit (áudio do sistema, macOS 13+).
-- [ ] Mic via CoreAudio/`cpal`.
-- [ ] Detecção de versão: <13 → só microfone, avisar na UI.
-- [ ] Fluxo de permissão de gravação de tela (primeira execução).
+## PR2 — Core audio capture
 
-**Aceite**: no macOS 13+, WAV com as duas vozes; em <13, só mic sem crash.
+> Note: meetily does NOT implement Win/Linux loopback (macOS only); the rest bail!. So
+> we built loopback ourselves. Split into 2a/2b/2c.
 
----
+### PR2a — Microphone (cross-platform) ✅
 
-## PR4 — Encode + storage + UI de gravações ✅ (código; falta teste runtime)
-**Objetivo**: gravações leves e listadas.
-- [x] Mix mic+sistema (`amix`) → encode **Opus `.ogg`** mono ~32 kbps, 16 kHz (`encode/mod.rs` chama ffmpeg). WAVs brutos apagados após encode.
-- [x] SQLite (rusqlite bundled): tabela `recordings`; `storage/mod.rs` (open/insert/list).
-- [x] Comandos `stop_recording` (encoda+persiste) e `list_recordings`; UI lista data/duração/tamanho e persiste entre execuções.
-- [x] ffmpeg instalado para dev (winget Gyan.FFmpeg). Compila limpo.
-- [ ] **ffmpeg sidecar empacotado** (download no build) → movido para o PR7 (packaging), pra prod sem instalar nada.
-- [ ] Tocar/abrir o arquivo na UI → PR6.
-- [ ] **Aceite (você)**: gravar→parar gera `.ogg` pequeno, aparece na lista, e continua lá após reabrir o app.
+- [x] Mic capture via `cpal` (0.15.3) → WAV (`hound`)
+- [x] Input device enumeration (`list_input_devices`)
+- [x] Level (peak) by polling (`recording_level`); meter in UI
+- [x] `Recorder` (start/stop session) + `start_recording`/`stop_recording`/`is_recording` commands
+- [x] Functional Record screen (button, timer, meter) + basic list in Recordings
+- [x] `cargo build` clean; frontend builds. Records to `app_data/recordings/<id>/mic.wav`
 
----
+**Acceptance 2a**: `npm run tauri dev`, record, stop → `mic.wav` exists and is audible.
 
-## PR5 — Transcrição + idioma ✅ (código; falta endpoint MiniMax p/ teste real)
-**Objetivo**: transcrever e copiar.
-- [x] Trait `Transcriber` + provedor `OpenAiCompatible` (multipart, Bearer) — `transcription/mod.rs`. Endpoint + modelo configuráveis na UI.
-- [x] Seletor de idioma (padrão **pt**) na aba Transcrição e idioma padrão em Configurações.
-- [x] Chave da API no **keychain** (crate `keyring`, per-OS); campo password em Configurações (nunca exibida).
-- [x] Tabela `transcripts`; exibir texto; botão **Copiar** (clipboard).
-- [x] Estados em progresso/erro; comando `transcribe` é async + `spawn_blocking` (não trava a UI). Compila limpo.
-- [ ] **Aceite (você)**: configurar endpoint/modelo/chave da MiniMax → transcrever uma gravação → texto pt-BR → Copiar.
+### PR2b — Windows system audio (loopback) ✅ (code; missing real call test)
 
-**Dependência**: confirmar endpoint/modelo de ASR da MiniMax (a chave é a Subscription Key `sk-cp`, enviada como Bearer) — ver [PROVIDERS.md](PROVIDERS.md). Default de fábrica aponta p/ OpenAI Whisper como caminho que funciona.
+- [x] WASAPI loopback via `wasapi` crate (0.23) → second track `system.wav` (`audio/system.rs`)
+- [x] Mic + system in parallel in same session; `system_path` in result; meter uses max peak
+- [x] Loopback failure degrades to mic-only (doesn't lose recording). Compiles clean.
+- [ ] **Acceptance (you)**: play audio / make a call, record, check that `system.wav` has others' voices
+
+### PR2c — Linux system audio (monitor source)
+
+- [ ] Capture default sink's `.monitor` via `cpal` (appears as input device)
+- [ ] **Acceptance**: same on Linux
 
 ---
 
-## PR6 — Transcrição rotulada por faixa (Você/Participantes) ✅ (código verificado por `cargo check`)
-**Objetivo**: diarização de 2 lados grátis, usando as faixas mic/system separadas.
-- [x] Parar de mixar: grava `mic.webm` (Você) + `system.webm` (Participantes) separados.
-- [x] `recordings.system_path` (migração defensiva ALTER TABLE); RecordingRow ganha system_path.
-- [x] Provedor retorna **segmentos com timestamp** (`verbose_json`); transcribe chama mic+system, intercala por tempo, rotula. Falha do system degrada pra só-mic.
-- [x] `cargo check` limpo (build do .exe bloqueado localmente pelo Kaspersky; ver CONTINUATION).
-- [ ] **Aceite (você)**: transcrever uma call → texto tipo `[mm:ss] Você: ...` / `[mm:ss] Participantes: ...`.
+## PR3 — macOS audio
 
-## PR6.5 — Apagar gravação ✅ (código verificado por `cargo check`)
-- [x] `delete_recording(id)`: apaga a pasta da gravação (mic.webm + system.webm) + linha em recordings + transcript.
-- [x] Botão **Apagar** por item na aba Gravações, com confirmação; lista atualiza.
-- [ ] **Aceite (você)**: apagar remove da lista e do disco.
-- (Tela de Configurações já existe desde o PR5.) Toggle "gravar todos" = fase 2.
+**Goal**: Mac parity.
+- [ ] ScreenCaptureKit bridge (system audio, macOS 13+)
+- [ ] Mic via CoreAudio/`cpal`
+- [ ] Version detection: <13 → mic only, warn in UI
+- [ ] Screen recording permission flow (first run)
+
+**Acceptance**: on macOS 13+, WAV with both voices; on <13, mic only without crash.
 
 ---
 
-## PR7 — Empacotamento e distribuição
-Repo público: github.com/GeanChu/hicorder. Estratégia de assinatura grátis: **SignPath Foundation** (OSS) + reportar FP ao Kaspersky.
+## PR4 — Encode + storage + recordings UI ✅ (code; missing runtime test)
 
-### PR7a — CI/Release (GitHub Actions) ✅ (código; falta rodar na nuvem)
-- [x] `.github/workflows/ci.yml`: builda no push (ubuntu/macos/windows) — **1ª compilação no Mac/Linux**, acha bugs de plataforma.
-- [x] `.github/workflows/release.yml`: `tauri-action` builda instaladores (.msi/NSIS, .dmg universal, .deb/.AppImage) em tag `v*` → Release em rascunho. Build na nuvem = sem Kaspersky.
-- [ ] **Aceite**: dar push → CI verde nos 3 SOs; criar tag `v0.1.0` → instaladores no Release.
-
-### PR7b — ffmpeg empacotado (app self-contained) ✅ (código; empacotamento valida no release)
-- [x] ffmpeg como **resource** do Tauri (`tauri.conf` `resources: ["resources/*"]`); `encode::mix_to_opus` recebe o caminho; `resolve_ffmpeg` usa o resource (prod) com fallback PATH/`CALLREC_FFMPEG` (dev).
-- [x] `release.yml` baixa o ffmpeg estático por plataforma (gyan/johnvansickle/evermeet) → `src-tauri/resources/` antes do bundle. Binário gitignorado; `.gitkeep` mantém a pasta.
-- [ ] **Aceite**: cortar tag `v0.1.0` → instaladores com ffmpeg embutido → instalar num PC sem ffmpeg e gravar/transcrever funciona.
-
-### PR7c — Assinatura (SignPath Foundation, grátis p/ OSS)
-- [ ] Aplicar em signpath.io/foundation (projeto OSS aprovado) → configurar step de assinatura no release.yml.
-- [ ] Alternativa/complemento: reportar o instalador ao Kaspersky (opentip.kaspersky.com) + política de exclusão no Kaspersky do time.
-- [ ] Instruções de liberação (Gatekeeper/SmartScreen) no README.
-
-**Aceite final**: time instala e roda do zero, sem aviso de AV/segurança.
+**Goal**: lightweight listed recordings.
+- [x] Mix mic+system (`amix`) → encode **Opus `.ogg`** mono ~32 kbps, 16 kHz (`encode/mod.rs` calls ffmpeg). Raw WAVs deleted after encode.
+- [x] SQLite (rusqlite bundled): `recordings` table; `storage/mod.rs` (open/insert/list)
+- [x] `stop_recording` (encode+persist) and `list_recordings` commands; UI lists date/duration/size and persists across runs
+- [x] ffmpeg installed for dev (winget Gyan.FFmpeg). Compiles clean.
+- [ ] **Packaged ffmpeg sidecar** (download on build) → moved to PR7 (packaging), for prod without installing anything
+- [ ] Play/open file in UI → PR6
+- [ ] **Acceptance (you)**: record→stop generates small `.ogg`, appears in list, and stays there after reopening app
 
 ---
 
-# Features pós-núcleo (pedidas após o núcleo)
+## PR5 — Transcription + language ✅ (code; missing MiniMax endpoint for real test)
 
-## PR8 — Botão Play ✅ (código verificado por `cargo check`)
-- [x] `stop_recording` também gera `recording.webm` mixado (só para reprodução), além das faixas separadas.
-- [x] Asset protocol habilitado (`tauri.conf` scope `$APPDATA/recordings/**`, feature `protocol-asset`); player in-app `<audio>` via `convertFileSrc`.
-- [x] Botão Play/Fechar por gravação na aba Gravações.
-- [ ] **Aceite (você)**: Play toca os dois lados. (Webm/opus toca no WebView2/Win; validar no Mac depois.)
+**Goal**: transcribe and copy.
+- [x] `Transcriber` trait + `OpenAiCompatible` provider (multipart, Bearer) — `transcription/mod.rs`. Endpoint + model configurable in UI.
+- [x] Language selector (default **pt**) in Transcription tab and default language in Settings
+- [x] API key in **keychain** (crate `keyring`, per-OS); password field in Settings (never displayed)
+- [x] `transcripts` table; display text; **Copy** button (clipboard)
+- [x] In-progress/error states; `transcribe` command is async + `spawn_blocking` (doesn't freeze UI). Compiles clean.
+- [ ] **Acceptance (you)**: configure MiniMax endpoint/model/key → transcribe a recording → pt-BR text → Copy
 
-## PR9 — Resumo via MiniMax-M3 (opcional) ✅ (código verificado por `cargo check`)
-- [x] `summary/mod.rs`: chat-completions OpenAI-compat (`generate_summary`, async+spawn_blocking) → default `https://api.minimax.io/v1/chat/completions`, `MiniMax-M3`, Bearer sk-cp. Prompt de resumo em pt-BR.
-- [x] Configurações separadas e rotuladas: seção **Transcrição (Groq)** vs **Resumo (MiniMax-M3)** — endpoint/modelo/chave próprios; **2 chaves no keychain** (transcription_api_key + summary_api_key).
-- [x] Tabela `summaries`; botão "Gerar resumo" na aba Transcrição (só habilita com chave configurada) + copiar; delete apaga o resumo junto.
-- [ ] **Aceite (você)**: com a sk-cp configurada em Resumo → transcrever → Gerar resumo → texto do M3.
-
-## PR10 — Banho de design ✅ (frontend compila; verificado no preview)
-- [x] Design system em CSS variables (cores/espaço/tipografia/raios/sombra), light + dark mode.
-- [x] Sidebar com ícones SVG inline + brand; nav com estado ativo; cards nas gravações; botão de gravar em pílula com indicador; medidor com gradiente; forms e seções refinados; estados vazios com ícone.
-- [x] Sem framework (CSS puro). tsc verde; renderiza no preview vite (screenshot travou no ambiente, mas inspects confirmam estilos).
-
-## PR11 — Calendário (era fase 2). Provider = **ICS URL** (sem OAuth).
-
-### PR11a — ICS: listar reuniões + habilitar manual ✅ (código verificado por `cargo check`)
-- [x] `meetings/mod.rs`: busca a URL ICS (reqwest), parseia VEVENTs (`ical`), datas com timezone (`chrono`/`chrono-tz`: Z/TZID/naive). RRULE não expandida (v1).
-- [x] storage: tabela `meetings` (upsert preserva `record_enabled`); commands `refresh_meetings`/`list_meetings`/`set_meeting_record`.
-- [x] Config: campo **URL do calendário (ICS)** + toggle **"Gravar todas"**. Aba **Agenda** lista as próximas reuniões com checkbox "Gravar" por reunião.
-- [ ] **Aceite (você)**: colar a URL ICS → Atualizar → ver reuniões → marcar quais gravar.
-
-### PR11b — Tray + start/stop manual ✅ (código verificado por `cargo check`)
-- [x] Ícone na bandeja (`tray.rs`, feature `tray-icon`) com menu: iniciar/parar gravação, abrir, sair; tooltip indica "GRAVANDO".
-- [x] Fechar a janela **minimiza pro tray** (app segue rodando p/ auto-gravar); left-click no tray reabre.
-- [x] start/stop refatorados em `*_core` (chamáveis por command/tray/scheduler); evento `recording-changed` sincroniza UI (tray + telas).
-- [x] plugin `tauri-plugin-notification` inicializado (usado no PR11c).
-- [ ] **Aceite (você)**: ícone no tray; iniciar/parar por ele; fechar janela = fica no tray; tooltip muda.
-
-### PR11c — Auto-gravar + alertas ✅ (código verificado por `cargo check`)
-- [x] `scheduler.rs`: thread que a cada 30s auto-**inicia** gravação de reunião habilitada em andamento (uma vez por reunião, via `triggered` set).
-- [x] Recorder guarda `meeting_end_ms`; `should_alert_end` (dispara 1x no fim) e `should_auto_stop` (fim+1h).
-- [x] Notificações (`tauri-plugin-notification`): "reunião começou", "reunião terminou — recomendado parar", "gravação encerrada (fim+1h)". Parada continua **manual**.
-- [ ] **Aceite (você)**: marcar uma reunião próxima em Agenda → app inicia sozinho na hora; notifica no fim; para sozinho em fim+1h. (Toast do Windows pode exigir app instalado; a lógica de start/stop roda de qualquer forma.)
+**Dependency**: confirm MiniMax ASR endpoint/model (key is Subscription Key `sk-cp`, sent as Bearer) — see [PROVIDERS.md](PROVIDERS.md). Factory default points to OpenAI Whisper as working path.
 
 ---
 
-## PR12 — Upload ao Attio (CRM) ✅ (testado pelo usuário)
-- [x] `attio/mod.rs`: cliente HTTP — `list_meetings` por **janela de tempo** (`ends_from`/`starts_before`/`timezone`; o filtro `participants` do endpoint beta trava o servidor — ADR-007), `find_or_create_meeting`, `find_person_by_email`, `create_note` (nota por participante com `meeting_id`).
-- [x] Chave do Attio no keychain; comandos `attio_find_meetings` + `attio_upload` (async+spawn_blocking).
-- [x] UI (aba Transcrição): "Subir transcrição/resumo" → busca reuniões pelo **horário da gravação** → escolher candidata ou criar nova → participantes sugeridos como checkboxes (usuário vem desmarcado) + emails manuais → "Confirmar e subir nota".
-- [x] Filtro pelas reuniões do usuário (campo "Seu email no Attio" nas Configurações).
-- [x] **Aceite**: busca e upload funcionando (validado pelo usuário).
+## PR6 — Track-labeled transcription (You/Participants) ✅ (code verified by `cargo check`)
 
-## PR13 — Qualidade de vida + rebrand ✅ (esta sessão)
-- [x] Selects de provedor e modelo por etapa (STT: Groq/OpenAI/Fireworks; Resumo: OpenAI/Claude/Gemini/MiniMax; + Personalizado), com ajuda de onde obter cada chave.
-- [x] Botão **Testar** por chave (STT via GET /models; resumo via completions de 1 token; Attio via GET /v2/meetings).
-- [x] Mensagens de erro amigáveis (`logs::humanize`) + **log persistente** (`callrec.log`, rotação 1MB) com Ver/Limpar nas Configurações.
-- [x] `net.rs` com resolver DNS IPv4-only (ADR-008) — corrige timeout em rede com IPv6 sem rota.
-- [x] **Rename para Hicorder** (v0.2.0): identifier `com.hicapital.hicorder`, migração não destrutiva de dados + keychain, logo novo (waveform) e icon set completo, metadados de bundle (AV), docs revisados.
-- [x] Preparação SignPath Foundation: [SIGNING.md](SIGNING.md), SECURITY.md.
+**Goal**: free 2-sided diarization using separate mic/system tracks.
+- [x] Stop mixing: records `mic.webm` (You) + `system.webm` (Participants) separately
+- [x] `recordings.system_path` (defensive ALTER TABLE migration); RecordingRow gains system_path
+- [x] Provider returns **timestamped segments** (`verbose_json`); transcribe calls mic+system, interleaves by time, labels. System failure degrades to mic-only.
+- [x] `cargo check` clean (exe build blocked locally by Kaspersky; see CONTINUATION)
+- [ ] **Acceptance (you)**: transcribe a call → text like `[mm:ss] You: ...` / `[mm:ss] Participants: ...`
 
-## PR14 — Home, exportar, autostart e releases ✅ (esta sessão)
-- [x] **Home** = agenda como tela principal (botão gravar fixo no topo); Configurações vira engrenagem no rodapé da sidebar; aba Transcrição funde-se em **Gravações** (play/renomear/apagar + exportar).
-- [x] Agenda: participantes/local/**link** (botão "Entrar na call"), destaque da reunião **atual**, botão **Iniciar Gravação** por reunião, checkbox "Agendar Gravação", refresh periódico do ICS no scheduler.
-- [x] Gravações com **título** (nome da reunião ou "Gravação manual") + renomear; **exportar áudio** MP3/WAV/OGG (`tauri-plugin-dialog` + ffmpeg; ogg via libopus).
-- [x] **Tema** claro/escuro/automático; transcrição em **chat**; resumo remove `<think>` de modelos reasoning.
-- [x] **Autoinicialização** com o SO (`tauri-plugin-autostart`, ligada por padrão, `--minimized` p/ tray) + toggle.
-- [x] Toast de reunião criado na **main thread** (0x80070057); notificações/permissão no macOS via `run_on_main_thread`.
-- [x] **Releases**: instaladores v0.2.0→v0.2.3 nos 3 SOs (CI verifica libopus/libmp3lame); README com download por SO + atribuição SignPath.
-- [x] Fixes de build instalado: ffmpeg `resources/` + `+x` no unix; SQLite WAL + busy_timeout; **log** cobrindo gravação/agenda/player/UI (`logged()` + `log_client`).
+## PR6.5 — Delete recording ✅ (code verified by `cargo check`)
+
+- [x] `delete_recording(id)`: deletes recording folder (mic.webm + system.webm) + row in recordings + transcript
+- [x] **Delete** button per item in Recordings tab, with confirmation; list updates
+- [ ] **Acceptance (you)**: delete removes from list and disk
+- (Settings screen already exists since PR5.) "Record all" toggle = phase 2
 
 ---
 
-## Backlog / Fase 2 — Agenda + auto-gravar
-**Objetivo**: gravar reuniões automaticamente.
-- [ ] Conectores de agenda (Google/Outlook/ICS-CalDAV).
-- [ ] Tabela `meetings`; listar próximas reuniões.
-- [ ] **Checkbox por reunião** para habilitar gravação.
-- [ ] Auto-iniciar gravação quando uma reunião habilitada começa.
-- [ ] Configuração **"gravar todas" como padrão**.
-- [ ] (Opcional) detecção de app de reunião ativo (Zoom/Meet/Teams) para gatilho mais preciso.
+## PR7 — Packaging and distribution
+
+Public repo: github.com/GeanChu/hicorder. Free signing strategy: **SignPath Foundation** (OSS) + report FP to Kaspersky.
+
+### PR7a — CI/Release (GitHub Actions) ✅ (code; missing cloud run)
+
+- [x] `.github/workflows/ci.yml`: builds on push (ubuntu/macos/windows) — **1st Mac/Linux compilation**, finds platform bugs
+- [x] `.github/workflows/release.yml`: `tauri-action` builds installers (.msi/NSIS, .dmg universal, .deb/.AppImage) on tag `v*` → draft Release. Cloud build = no Kaspersky.
+- [ ] **Acceptance**: push → green CI on 3 OSes; create tag `v0.1.0` → installers in Release
+
+### PR7b — Packaged ffmpeg (self-contained app) ✅ (code; packaging validates in release)
+
+- [x] ffmpeg as Tauri **resource** (`tauri.conf` `resources: ["resources/*"]`); `encode::mix_to_opus` receives path; `resolve_ffmpeg` uses resource (prod) with PATH/`CALLREC_FFMPEG` fallback (dev)
+- [x] `release.yml` downloads static ffmpeg per platform (gyan/johnvansickle/evermeet) → `src-tauri/resources/` before bundle. Binary gitignored; `.gitkeep` keeps folder.
+- [ ] **Acceptance**: cut tag `v0.1.0` → installers with embedded ffmpeg → install on PC without ffmpeg and record/transcribe works
+
+### PR7c — Signing (SignPath Foundation, free for OSS)
+
+- [ ] Apply at signpath.io/foundation (OSS project approved) → configure signing step in release.yml
+- [ ] Alternative/complement: report installer to Kaspersky (opentip.kaspersky.com) + team Kaspersky exclusion policy
+- [ ] Release instructions (Gatekeeper/SmartScreen) in README
+
+**Final acceptance**: team installs and runs from scratch, no AV/security warning.
 
 ---
 
-## Convenções
-- Commits: `feat|fix|refactor|chore|docs|test: <resumo imperativo em inglês>` (corpo em PT se útil).
-- Versão fixada em dependências; lockfiles versionados; nunca deletar lockfile.
-- Atualizar [CONTINUATION.md](CONTINUATION.md) ao fim de cada sessão.
+# Post-core features (requested after core)
+
+## PR8 — Play button ✅ (code verified by `cargo check`)
+
+- [x] `stop_recording` also generates mixed `recording.webm` (for playback only), plus separate tracks
+- [x] Asset protocol enabled (`tauri.conf` scope `$APPDATA/recordings/**`, feature `protocol-asset`); in-app `<audio>` player via `convertFileSrc`
+- [x] Play/Close button per recording in Recordings tab
+- [ ] **Acceptance (you)**: Play plays both sides. (Webm/opus plays in WebView2/Win; validate on Mac later.)
+
+## PR9 — Summary via MiniMax-M3 (optional) ✅ (code verified by `cargo check`)
+
+- [x] `summary/mod.rs`: OpenAI-compat chat-completions (`generate_summary`, async+spawn_blocking) → default `https://api.minimax.io/v1/chat/completions`, `MiniMax-M3`, Bearer sk-cp. Summary prompt in pt-BR.
+- [x] Separate labeled settings: **Transcription (Groq)** vs **Summary (MiniMax-M3)** section — own endpoint/model/key; **2 keys in keychain** (transcription_api_key + summary_api_key)
+- [x] `summaries` table; "Generate summary" button in Transcription tab (only enabled with configured key) + copy; delete deletes summary too
+- [ ] **Acceptance (you)**: with sk-cp configured in Summary → transcribe → Generate summary → M3 text
+
+## PR10 — Design pass ✅ (frontend compiles; verified in preview)
+
+- [x] Design system in CSS variables (color/space/typography/radius/shadow), light + dark mode
+- [x] Sidebar with inline SVG icons + brand; nav with active state; cards in recordings; record button in pill with indicator; meter with gradient; refined forms and sections; empty states with icon
+- [x] No framework (pure CSS). tsc green; renders in vite preview (screenshot hung in environment, but inspects confirm styles)
+
+## PR11 — Calendar (was phase 2). Provider = **ICS URL** (no OAuth).
+
+### PR11a — ICS: list meetings + manual enable ✅ (code verified by `cargo check`)
+
+- [x] `meetings/mod.rs`: fetches ICS URL (reqwest), parses VEVENTs (`ical`), dates with timezone (`chrono`/`chrono-tz`: Z/TZID/naive). RRULE not expanded (v1).
+- [x] storage: `meetings` table (upsert preserves `record_enabled`); commands `refresh_meetings`/`list_meetings`/`set_meeting_record`
+- [x] Config: **Calendar URL (ICS)** field + **"Record all"** toggle. **Calendar** tab lists upcoming meetings with "Record" checkbox per meeting
+- [ ] **Acceptance (you)**: paste ICS URL → Refresh → see meetings → mark which to record
+
+### PR11b — Tray + manual start/stop ✅ (code verified by `cargo check`)
+
+- [x] Tray icon (`tray.rs`, feature `tray-icon`) with menu: start/stop recording, open, quit; tooltip indicates "RECORDING"
+- [x] Closing window **minimizes to tray** (app keeps running for auto-record); left-click on tray reopens
+- [x] start/stop refactored to `*_core` (callable by command/tray/scheduler); `recording-changed` event syncs UI (tray + screens)
+- [x] `tauri-plugin-notification` initialized (used in PR11c)
+- [ ] **Acceptance (you)**: icon in tray; start/stop from it; close window = stays in tray; tooltip changes
+
+### PR11c — Auto-record + alerts ✅ (code verified by `cargo check`)
+
+- [x] `scheduler.rs`: thread that every 30s auto-**starts** recording for enabled in-progress meeting (once per meeting, via `triggered` set)
+- [x] Recorder stores `meeting_end_ms`; `should_alert_end` (fires 1x at end) and `should_auto_stop` (end+1h)
+- [x] Notifications (`tauri-plugin-notification`): "meeting started", "meeting ended — stop recommended", "recording stopped (end+1h)". Stopping remains **manual**.
+- [ ] **Acceptance (you)**: mark upcoming meeting in Calendar → app starts on its own at time; notifies at end; stops on its own at end+1h. (Windows toast may require installed app; start/stop logic runs either way.)
+
+---
+
+## PR12 — Upload to Attio (CRM) ✅ (tested by user)
+
+- [x] `attio/mod.rs`: HTTP client — `list_meetings` by **time window** (`ends_from`/`starts_before`/`timezone`; `participants` filter on beta endpoint crashes server — ADR-007), `find_or_create_meeting`, `find_person_by_email`, `create_note` (note per participant with `meeting_id`)
+- [x] Attio key in keychain; `attio_find_meetings` + `attio_upload` commands (async+spawn_blocking)
+- [x] UI (Transcription tab): "Upload transcript/summary" → searches meetings by **recording time** → choose candidate or create new → suggested participants as checkboxes (user comes unchecked) + manual emails → "Confirm and upload note"
+- [x] Filter by user meetings (field "Your email on Attio" in Settings)
+- [x] **Acceptance**: search and upload working (validated by user)
+
+## PR13 — Quality of life + rebrand ✅ (this session)
+
+- [x] Provider and model selects per stage (STT: Groq/OpenAI/Fireworks; Summary: OpenAI/Claude/Gemini/MiniMax; + Custom), with help on where to get each key
+- [x] **Test** button per key (STT via GET /models; summary via 1-token completions; Attio via GET /v2/meetings)
+- [x] Friendly error messages (`logs::humanize`) + **persistent log** (`callrec.log`, 1MB rotation) with View/Clear in Settings
+- [x] `net.rs` with IPv4-only DNS resolver (ADR-008) — fixes timeout on network with IPv6 without route
+- [x] **Rename to Hicorder** (v0.2.0): identifier `com.hicapital.hicorder`, non-destructive data + keychain migration, new logo (waveform) and complete icon set, bundle metadata (AV), docs revised
+- [x] SignPath Foundation prep: [SIGNING.md](SIGNING.md), SECURITY.md
+
+## PR14 — Home, export, autostart and releases ✅ (this session)
+
+- [x] **Home** = calendar as main screen (fixed record button at top); Settings becomes gear in sidebar footer; Transcription tab merged into **Recordings** (play/rename/delete + export)
+- [x] Calendar: participants/location/**link** ("Join call" button), **current** meeting highlight, **Start Recording** button per meeting, "Schedule Recording" checkbox, periodic ICS refresh in scheduler
+- [x] Recordings with **title** (meeting name or "Manual recording") + rename; **export audio** MP3/WAV/OGG (`tauri-plugin-dialog` + ffmpeg; ogg via libopus)
+- [x] **Theme** light/dark/automatic; transcription in **chat**; summary removes `<think>` from reasoning models
+- [x] **Auto-launch** with OS (`tauri-plugin-autostart`, on by default, `--minimized` for tray) + toggle
+- [x] Meeting toast created in **main thread** (0x80070057); notifications/permission on macOS via `run_on_main_thread`
+- [x] **Releases**: installers v0.2.0→v0.2.3 on 3 OSes (CI checks libopus/libmp3lame); README with download per OS + SignPath attribution
+- [x] Installed build fixes: ffmpeg `resources/` + `+x` on unix; SQLite WAL + busy_timeout; **log** covering recording/calendar/player/UI (`logged()` + `log_client`)
+
+---
+
+## Backlog / Phase 2 — Calendar + auto-record
+
+**Goal**: record meetings automatically.
+- [ ] Calendar connectors (Google/Outlook/ICS-CalDAV)
+- [ ] `meetings` table; list upcoming meetings
+- [ ] **Checkbox per meeting** to enable recording
+- [ ] Auto-start recording when enabled meeting begins
+- [ ] **"Record all" default** configuration
+- [ ] (Optional) active meeting app detection (Zoom/Meet/Teams) for more precise trigger
+
+---
+
+## Conventions
+
+- Commits: `feat|fix|refactor|chore|docs|test: <imperative summary in English>` (body in PT if useful)
+- Pinned versions in dependencies; lockfiles versioned; never delete lockfile
+- Update [CONTINUATION.md](CONTINUATION.md) at end of each session

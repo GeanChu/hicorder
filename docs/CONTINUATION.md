@@ -1,82 +1,82 @@
-# Continuação / Handoff
+# Continuation / Handoff
 
-Documento para a próxima sessão saber exatamente onde paramos e como seguir.
+Document so the next session knows exactly where we left off and how to proceed.
 
-## Estado atual (2026-08-11, v0.2.51)
+## Current State (2026-08-11, v0.2.51)
 
-**Mudou o fluxo de trabalho.** O **Smart App Control** do Windows 11 ligou nesta máquina (é irreversível uma vez desligado, então ficou ligado) e bloqueia qualquer executável recém-compilado sem assinatura — `cargo build`, `cargo test` e `tauri dev` não rodam mais localmente (`os error 4551`). O ciclo agora é: branch → push → PR → a **CI compila e testa** nos 3 SOs → merge. O `npm run build` do frontend continua funcionando local (é TypeScript, não gera executável), então UI ainda dá para inspecionar no navegador.
+**Workflow changed.** Windows 11 **Smart App Control** turned on on this machine (it's irreversible once disabled, so it stayed on) and blocks any freshly-compiled unsigned executable — `cargo build`, `cargo test` and `tauri dev` no longer run locally (`os error 4551`). The cycle is now: branch → push → PR → **CI compiles and tests** on 3 OSes → merge. Frontend `npm run build` still works locally (it's TypeScript, doesn't generate executable), so UI can still be inspected in browser.
 
-**v0.2.52 — entrega de atualizações estava quebrada para todo o time:**
-- A verificação de nova versão era `catch { }` silencioso, com re-tentativa só em **24h**. Como o app tem autoinicialização e sobe junto com o login do Windows, a rede quase nunca está pronta nesse instante — então a checagem falhava no boot de qualquer máquina, sem rastro no log, e a pessoa ficava um dia inteiro sem receber. Comprovado no log: app iniciou 22:17:49, release estava no ar desde 22:15:50, ICS falhando 22:18:24. Agora re-tenta em 30/60/90/120s e registra as falhas.
-- ICS: timeout 30s → 120s (no reqwest ele cobre a **leitura do corpo**, não só a conexão — agenda cheia estourava no meio e o erro `error decoding response body` parecia corrupção), 3 tentativas, e passa a usar `net::describe()` para mostrar a causa raiz.
-- Attio: criar reunião exige participante. A guarda da UI aceitava "pessoa **ou** empresa", então só-empresa passava e quebrava com 400 "No participants were provided".
+**v0.2.52 — update delivery was broken for the whole team:**
+- New version check was silent `catch { }`, with retry only in **24h**. Since the app has auto-launch and starts with Windows login, the network is almost never ready at that instant — so the check failed on boot of any machine, without trace in log, and the person went a whole day without receiving. Proven in log: app started 22:17:49, release was live since 22:15:50, ICS failing 22:18:24. Now retries at 30/60/90/120s and logs failures.
+- ICS: timeout 30s → 120s (in reqwest it covers **body reading**, not just connection — full calendar burst in the middle and `error decoding response body` error looked like corruption), 3 retries, and now uses `net::describe()` to show root cause.
+- Attio: creating meeting requires participant. UI guard accepted "person **or** company", so company-only passed and broke with 400 "No participants were provided".
 
 **v0.2.51:**
-- **`cargo test` na CI** — antes ela só compilava. Na primeira execução já achou um bug publicado: o filtro que separa o Claude Desktop do Claude Code só funcionava no Windows (`path.components()` não reconhece `\` fora dele, e no macOS o Desktop mora em `Claude.app`). Estava nas v0.2.48–0.2.50.
-- **Áudio longo é dividido em partes** — reunião acima de ~1h45 dava `413 Payload Too Large` (Opus 32 kbps ≈ 14,4 MB/h contra o teto de 25 MB dos provedores). Divide preventivamente acima de 20 MB e reativamente em qualquer 413; timestamps deslocados para a linha do tempo da reunião; parte que falha vira marcador visível em vez de derrubar tudo.
-- **Attio: deduplicação passou a ser nossa** (ADR-014) — o `external_ref` foi deprecado e o POST passou a criar sempre uma meeting nova. Os outros dois itens do comunicado (call recordings) não nos tocam.
+- **`cargo test` on CI** — before it only compiled. On first run it found a published bug: the filter that separates Claude Desktop from Claude Code only worked on Windows (`path.components()` doesn't recognize `\` outside it, and on macOS Desktop lives in `Claude.app`). Was in v0.2.48–0.2.50.
+- **Long audio is split into parts** — meeting above ~1h45 gave `413 Payload Too Large` (Opus 32 kbps ≈ 14.4 MB/h against 25 MB ceiling of providers). Splits preventively above 20 MB and reactively on any 413; timestamps shifted to meeting timeline; failing part becomes visible marker instead of bringing everything down.
+- **Attio: deduplication became ours** (ADR-014) — `external_ref` was deprecated and POST now always creates a new meeting. The other two items in the announcement (call recordings) don't touch us.
 
-**Novo na sessão anterior (v0.2.48–0.2.50):**
-- **Alerta em um canal só** (v0.2.49): a notificação nativa foi removida (plugin inclusive) e todo aviso virou janela-toast, que é a que tem botão. Cinco tipos, novo botão "Entrar na call", e um × para dispensar — a janela não tem decoração nem barra de tarefas, então sem o × um toast sem ação ficaria preso na tela.
-- **Agenda deixa de mostrar reunião fantasma** (v0.2.50): reunião apagada no Google continuava listada, e se estivesse marcada para gravar o scheduler iniciava a gravação de uma reunião inexistente. Duas causas: a sincronização era só aditiva (a única remoção era por tempo) e `STATUS:CANCELLED` era ignorado. Agora o ICS é autoritativo — com as travas de não apagar em falha de fetch nem em feed vazio — e eventos cancelados/recusados-por-mim são descartados no parser.
+**New in previous session (v0.2.48–0.2.50):**
+- **Alert on single channel** (v0.2.49): native notification was removed (plugin included) and every alert became toast window, which is the one with button. Five types, new "Join call" button, and an × to dismiss — window has no decoration or taskbar, so without × a buttonless toast would get stuck on screen.
+- **Calendar stops showing phantom meeting** (v0.2.50): meeting deleted in Google kept showing, and if marked for recording the scheduler started recording a nonexistent meeting. Two causes: sync was only additive (only removal was by time) and `STATUS:CANCELLED` was ignored. Now ICS is authoritative — with safeguards not to delete on fetch failure or empty feed — and canceled/declined-by-me events are discarded in parser.
 
-**Da sessão anterior (v0.2.48):**
-- **Resumo pelo Claude Code local** (ADR-013): provedor que executa o CLI `claude --print` da máquina em vez de HTTP; único sem chave de API. Botão "Testar instalação" valida binário + versão + chamada real. Testado pelo usuário no app compilado.
-- **Fix de segurança**: a URL do ICS (que é credencial — quem tem o link lê a agenda) caía crua no `callrec.log`. `redact()` agora mascara trechos de caminho de URL com 16+ caracteres, com teste travando os 7 endpoints legítimos.
-- **Ambiente de dev reinstalado do zero** nesta máquina: Node 24.18.1, Rust stable-MSVC, VS Build Tools 17.14 (MSVC 14.44 + Windows SDK 10.0.26100), ffmpeg 8.1.2, gh 2.97.
+**From previous session (v0.2.48):**
+- **Summary via local Claude Code** (ADR-013): provider that executes machine's `claude --print` CLI instead of HTTP; only one without API key. "Test installation" button validates binary + version + real call. Tested by user in compiled app.
+- **Security fix**: ICS URL (which is credential — whoever has the link reads the whole calendar) fell raw into `callrec.log`. `redact()` now masks URL path segments with 16+ characters, with test locking the 7 legitimate endpoints.
+- **Dev environment reinstalled from scratch** on this machine: Node 24.18.1, Rust stable-MSVC, VS Build Tools 17.14 (MSVC 14.44 + Windows SDK 10.0.26100), ffmpeg 8.1.2, gh 2.97.
 
-**Armadilhas descobertas nesta sessão (não repetir):**
-- `cargo build --release` **não embute o frontend** — quem decide dev vs. produção é o CLI do Tauri. O binário sai apontando para `localhost:1420` e a janela mostra `ERR_CONNECTION_REFUSED`. Para gerar executável testável: `npm run tauri build -- --no-bundle`.
-- **Claude Desktop ≠ Claude Code**, e os dois executáveis se chamam `claude.exe`. O Desktop (Electron, em `AnthropicClaude/`) não embute o CLI — spawna um externo via `node-pty`. A busca do binário descarta caminhos sob `AnthropicClaude/` e exige que `--version` contenha "Claude Code".
-- Rodar o app de dev **compartilha banco, gravações e keychain** com o instalado (mesmo `identifier`). Fechar o da bandeja antes, e fazer backup do `callrec.db`.
+**Traps discovered this session (don't repeat):**
+- `cargo build --release` **doesn't embed frontend** — who decides dev vs. production is Tauri CLI. Binary comes out pointing to `localhost:1420` and window shows `ERR_CONNECTION_REFUSED`. To generate testable executable: `npm run tauri build -- --no-bundle`.
+- **Claude Desktop ≠ Claude Code**, and both executables are called `claude.exe`. Desktop (Electron, in `AnthropicClaude/`) doesn't embed CLI — spawns external via `node-pty`. Binary search discards paths under `AnthropicClaude/` and requires `--version` to contain "Claude Code".
+- Running dev app **shares database, recordings and keychain** with installed one (same `identifier`). Close tray one first, and backup `callrec.db`.
 
-**Pendências abertas do usuário**: limpar os logs antigos e **rotacionar a URL privada do ICS** no Google Calendar — o link vazado continua nos logs já gravados e no histórico do Dropbox.
+**Open user pendencies**: clean old logs and **rotate private ICS URL** in Google Calendar — leaked link remains in already-saved logs and Dropbox history.
 
-## Estado anterior (2026-07-27, v0.2.44 publicada)
+## Previous State (2026-07-27, v0.2.44 published)
 
-**Funcional em produção (Windows e macOS testados pelo usuário):** gravação mic + sistema em faixas separadas, **codificadas ao vivo** em Opus/Ogg; player (MP3, por causa do WebKit no macOS); exportar áudio; **anotações manuais ao vivo** na Home; transcrição em duas faixas intercaladas em formato chat, com **dicionário** e **filtro de alucinação**; resumo com **prompt base editável + biblioteca de prompts** e override por reunião; **busca** em transcrição e resumo; agenda ICS com RRULE; auto-start por reunião, **lembrete horário** e **auto-stop configurável** (padrão 2h); upload ao **Attio ou Affinity** (pessoas + empresas); autoinicialização; tray; tema; auto-update; log persistente.
+**Functional in production (Windows and macOS tested by user):** recording mic + system in separate tracks, **live-encoded** to Opus/Ogg; player (MP3, because of WebKit on macOS); export audio; **live manual notes** on Home; transcription in two interleaved tracks in chat format, with **dictionary** and **hallucination filter**; summary with **editable base prompt + prompt library** and per-summary override; **search** in transcription and summary; ICS calendar with RRULE; auto-start per meeting, **hourly reminder** and **configurable auto-stop** (default 2h); upload to **Attio or Affinity** (people + companies); auto-launch; tray; theme; auto-update; persistent log.
 
-**Repo** `GeanChu/hicorder` (público). Releases via CI (draft → publicar com `gh release edit --draft=false --latest`). Só as 3 releases mais recentes ficam no GitHub (limpeza feita em 2026-07-08); as tags antigas continuam.
+**Repo** `GeanChu/hicorder` (public). Releases via CI (draft → publish with `gh release edit --draft=false --latest`). Only the 3 most recent releases stay on GitHub (cleanup done 2026-07-08); old tags remain.
 
-### O que quebrou e como foi resolvido (não regredir)
+### What broke and how it was resolved (don't regress)
 
-- **Áudio da call vazio no Windows** — `initialize_client` do loopback recebia o período mínimo do device em `buffer_duration_hns`; em drivers C-Media isso dá stream vivo porém mudo (0 eventos). Fix: **0** (default do device). Bug latente desde a v0.2.6, dependente do estado do driver.
-- **Player mudo no macOS** — WebKit não decodifica Ogg/Opus. O player agora recebe `playback.mp3` gerado sob demanda.
-- **CI macOS quebrando toda release** — `apple-metal` (dep transitiva do ScreenCaptureKit) compila Swift contra o SDK do macOS 26. Fix: runner `macos-15` + passo que seleciona o Xcode 26. A captura fica atrás da feature `macos-system-audio`, ligada só no macOS.
-- **Auto-update morto em Windows/Linux** — o download do ffmpeg de host único falhava e a release saía só com macOS, então o `latest.json` não tinha essas plataformas. Fix: mirror do GitHub (BtbN, release n7.1) com retry e fallback. **Sempre conferir os 3 jobs antes de publicar** (`gh run view --json jobs`); `gh run watch --exit-status` retorna 0 mesmo com job da matriz falhando.
-- **Chave de um provedor indo para outro** — havia fallback para a chave única antiga quando o escopo estava vazio. Removido: escopo vazio = sem chave.
-- **Teste de chave falhando em modelo de raciocínio** — `max_tokens: 1` não deixa o modelo produzir nada. Agora 16.
-- **Toast preso na tela** — janela sem decoração/taskbar não podia ser fechada se o webview travasse. Agora: `destroy()`, auto-dispensa em 60s e destruição de segurança no backend em 90s.
+- **Empty call audio on Windows** — loopback's `initialize_client` received device's minimum period in `buffer_duration_hns`; on C-Media drivers this gives live but mute stream (0 events). Fix: **0** (device default). Latent bug since v0.2.6, driver-state dependent.
+- **Mute player on macOS** — WebKit doesn't decode Ogg/Opus. Player now receives on-demand generated `playback.mp3`.
+- **macOS CI breaking every release** — `apple-metal` (ScreenCaptureKit's transitive dep) compiles Swift against macOS 26 SDK. Fix: runner `macos-15` + step that selects Xcode 26. Capture stays behind `macos-system-audio` feature, enabled only on macOS.
+- **Dead auto-update on Windows/Linux** — ffmpeg download from single host failed and release came out with macOS only, so `latest.json` didn't have these platforms. Fix: GitHub mirror (BtbN, release n7.1) with retry and fallback. **Always check all 3 jobs before publishing** (`gh run view --json jobs`); `gh run watch --exit-status` returns 0 even with matrix job failing.
+- **One provider's key going to another** — there was fallback to old single key when scope was empty. Removed: empty scope = no key.
+- **Key test failing on reasoning model** — `max_tokens: 1` doesn't let model produce anything. Now 16.
+- **Toast stuck on screen** — window without decoration/taskbar couldn't be closed if webview froze. Now: `destroy()`, auto-dismiss in 60s and backend safety destruction in 90s.
 
-## Pendências (em ordem sugerida)
+## Pendencies (in suggested order)
 
-1. **Revisar o dicionário padrão** — o usuário pediu para trocar termos dos 40 atuais (lista enviada no chat); aguardando a lista nova.
-2. **Affinity em uso real** — implementado e compilando, mas ainda **não testado contra a API de verdade**. Validar: `GET /auth/whoami`, busca de pessoa por email, `POST /notes` com múltiplos vínculos.
-3. **SignPath Foundation** — usuário precisa submeter manualmente (form embed cross-origin + reCAPTCHA). Depois integrar no `release.yml` ([SIGNING.md](SIGNING.md)).
-4. **Linux system audio** (monitor source via cpal) — hoje Linux grava só o mic.
-5. **Notarização macOS** — usuário **decidiu não pagar** o Apple Developer (US$ 99/ano) por ora. Consequência aceita: a permissão de Gravação de Tela solta a cada atualização (assinatura ad-hoc muda). Recurso: `tccutil reset ScreenCapture com.hicapital.hicorder` + reabrir.
-6. Reportar falso positivo do instalador ao Kaspersky/Microsoft — melhor depois de assinar (o hash muda).
+1. **Review default dictionary** — user asked to swap terms from current 40 (list sent in chat); awaiting new list.
+2. **Affinity in real use** — implemented and compiling, but still **not tested against real API**. Validate: `GET /auth/whoami`, person search by email, `POST /notes` with multiple links.
+3. **SignPath Foundation** — user needs to submit manually (embed form cross-origin + reCAPTCHA). Then integrate into `release.yml` ([SIGNING.md](SIGNING.md)).
+4. **Linux system audio** (monitor source via cpal) — today Linux records mic only.
+5. **macOS notarization** — user **decided not to pay** for Apple Developer (US$ 99/year) for now. Accepted consequence: Screen Recording permission drops each update (ad-hoc signature changes). Recourse: `tccutil reset ScreenCapture com.hicapital.hicorder` + reopen.
+6. Report installer false positive to Kaspersky/Microsoft — better after signing (hash changes).
 
-## Gotchas de ambiente (máquina do usuário, Windows)
+## Environment gotchas (user's machine, Windows)
 
-- **Kaspersky** dá falso positivo em `cargo.exe`/`rustc.exe` e pode segurar o acesso ao áudio (o prompt atrasa o início da captura). Exclusões configuradas; vale adicionar o Hicorder e o `ffmpeg.exe` como confiáveis.
-- **Dropbox** trava `target/`. `.cargo/config.toml` local (não commitado) move o target para `%LOCALAPPDATA%\callrec-target`.
-- **Rede do usuário tem IPv6 sem rota** — `net.rs` força IPv4 (ADR-008). Não remover sem testar.
-- **Attio**: filtro `participants` do GET /v2/meetings trava o servidor (ADR-007). Não voltar a usá-lo.
+- **Kaspersky** gives false positive on `cargo.exe`/`rustc.exe` and can hold audio access (prompt delays capture start). Exclusions configured; worth adding Hicorder and `ffmpeg.exe` as trusted.
+- **Dropbox** locks `target/`. Local `.cargo/config.toml` (not committed) moves target to `%LOCALAPPDATA%\callrec-target`.
+- **User network has IPv6 without route** — `net.rs` forces IPv4 (ADR-008). Don't remove without testing.
+- **Attio**: `participants` filter on GET /v2/meetings crashes server (ADR-007). Don't use it again.
 
-## Testes locais úteis
+## Useful local tests
 
 ```bash
-# Pipeline real de gravação, sem instalador (Windows):
-cargo test --lib rec_smoke -- --ignored --nocapture     # mic + sistema + níveis + tamanho das faixas
-cargo test --lib system_probe -- --ignored --nocapture  # loopback WASAPI: eventos/bytes por etapa
-cargo test --lib mic_probe -- --ignored --nocapture     # cpal isolado
+# Real recording pipeline, without installer (Windows):
+cargo test --lib rec_smoke -- --ignored --nocapture     # mic + system + levels + track sizes
+cargo test --lib system_probe -- --ignored --nocapture  # WASAPI loopback: events/bytes per step
+cargo test --lib mic_probe -- --ignored --nocapture     # isolated cpal
 ```
 
-## Regras do projeto
+## Project rules
 
-- Versões fixadas; lockfiles versionados e intocáveis.
-- Antes de instalar pacote novo: checar data de publicação (>7 dias) e alertas (socket.dev/osv.dev).
-- Commits frequentes e documentados. Nunca commitar `.env`, chaves, ou código quebrado.
-- Chaves de API só no keychain/arquivo protegido; nunca em logs (nem no `callrec.log`); nunca devolvidas para a UI.
-- Atualizar este arquivo ao fim de cada sessão.
+- Pinned versions; lockfiles versioned and untouchable.
+- Before installing new package: check publish date (>7 days) and alerts (socket.dev/osv.dev).
+- Frequent documented commits. Never commit `.env`, keys, or broken code.
+- API keys only in keychain/protected file; never in logs (not even in `callrec.log`); never returned to UI.
+- Update this file at end of each session.

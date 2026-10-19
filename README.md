@@ -4,58 +4,132 @@
   <img src="src-tauri/icons/128x128.png" alt="Hicorder" width="96" height="96" />
 </p>
 
-Gravador de reuniões para times. Grava o áudio do **microfone** e do **sistema** (a voz dos outros participantes), transcreve com IA, gera resumo e envia notas para o CRM (**Attio** ou **Affinity**). Foco em UX simples para usuários não técnicos. Desktop **Windows, macOS e Linux** (Tauri 2).
+<p align="center">
+  <strong>Open-source meeting recorder with AI transcription and CRM integration</strong>
+</p>
 
-> *Hicorder is a meeting recorder for teams: it captures mic + system audio, transcribes with AI, summarizes, and pushes notes to your CRM (Attio or Affinity). Open source (MIT), built with Tauri 2 (Rust + React).*
+<p align="center">
+  <a href="https://github.com/GeanChu/hicorder/releases/latest">
+    <img alt="GitHub release" src="https://img.shields.io/github/v/release/GeanChu/hicorder">
+  </a>
+  <a href="https://github.com/GeanChu/hicorder/blob/main/LICENSE">
+    <img alt="License" src="https://img.shields.io/github/license/GeanChu/hicorder">
+  </a>
+  <a href="https://github.com/GeanChu/hicorder/actions">
+    <img alt="CI" src="https://img.shields.io/github/actions/workflow/status/GeanChu/hicorder/ci.yml">
+  </a>
+</p>
 
-## O que faz
+<p align="center">
+  <a href="#documentation">Documentation</a> · <a href="CONTRIBUTING.md">Contributing</a> · <a href="#quick-start">Quick Start</a>
+</p>
 
-- **Gravar reuniões** (mic + áudio do sistema) com um botão, medidor de nível e player embutido.
-- **Áudio leve**: Opus ~32 kbps em `.ogg` (~7–15 MB/hora), codificado **durante** a reunião — travamento não perde a gravação e parar é instantâneo.
-- **Anotações manuais ao vivo**: painel lateral na tela principal durante a gravação, salvo sozinho e usado depois para enriquecer o resumo.
-- **Transcrever via IA** com provedor selecionável (Groq Whisper por padrão; OpenAI, Fireworks ou endpoint próprio), idioma por transcrição (padrão pt-BR). As faixas viram um **chat**: "Você" à direita, "Participantes" à esquerda. Inclui **dicionário de termos** (nomes, siglas, jargão) e filtro das alucinações que o Whisper produz em silêncio.
-- **Resumo da reunião** (opcional) com provedor selecionável (OpenAI, Claude, Gemini, MiniMax, NVIDIA NIM, **Claude Code instalado na máquina** — sem chave de API — ou endpoint próprio), **prompt base editável** e **biblioteca de prompts** nomeados — dá para escolher o prompt por reunião.
-- **Busca** dentro da transcrição e do resumo.
-- **Exportar áudio** em MP3, WAV ou OGG. Também dá para **enviar um áudio** já existente e transcrevê-lo.
-- **Agenda (ICS)** na tela principal: próximas reuniões (inclusive **recorrentes**) com participantes, local e **link da call**; destaque da reunião que está acontecendo; **Iniciar Gravação** por reunião ou **Agendar Gravação** (auto-start no horário, alerta no fim) ou "gravar todas".
-- **Gravação esquecida ligada**: lembrete de hora em hora com botão Parar e **auto-stop configurável** (padrão 2h).
-- **Autoinicialização** com o sistema (ligada por padrão; abre minimizada na bandeja para gravar sozinha) e **ícone na bandeja** com start/stop e bolinha vermelha.
-- **CRM (Attio ou Affinity)**: encontra a reunião pelo horário da gravação, sugere os participantes e as empresas deles, e sobe transcrição, resumo ou anotações como nota.
-- **Atualização automática** (verifica no boot e a cada 24h) e botão "Buscar atualização".
-- **Tema** claro, escuro ou automático (segue o sistema).
-- **Teste de chave** por provedor, mensagens de erro em linguagem simples e **log persistente** (Configurações → Sistema → Ver logs) para troubleshooting.
-- Renomear, apagar e copiar transcrição/resumo.
+---
 
-## Download e instalação
+## What is Hicorder?
 
-Baixe sempre a versão mais recente na página de **[Releases](https://github.com/GeanChu/hicorder/releases/latest)** e escolha o arquivo do seu sistema.
+Hicorder is a desktop meeting recorder built for teams that need flexible, private, and powerful meeting notes. It captures microphone and system audio, transcribes with AI, generates summaries, and pushes notes directly to your CRM.
+
+Born as an alternative to Granola, Hicorder gives you complete control over your AI providers, prompts, and data. Originally created at [Hi Capital](https://hi.capital) (Honey Island VC, Curitiba, Brazil) by Gean Chu, it's now open source for the community.
+
+**Non-Commercial Project:** Hicorder is community-driven without commercial intent. Hi Capital does not plan to offer paid versions, SaaS, or enterprise features. The project remains fully open source (MIT license) and is maintained by the community.
+
+**What makes Hicorder different:**
+- **Choose your AI**: Works with Groq, OpenAI, Claude, Gemini, MiniMax, NVIDIA NIM, or your own endpoints
+- **Customizable prompts**: Edit the base prompt and create a library of named prompts for different meeting types
+- **Native CRM integration**: Push transcripts and summaries to Attio or Affinity with participant matching
+- **Privacy-first**: All data stays local; only chosen AI providers see your audio/transcripts
+- **Venture Capital focused**: Built-in terminology dictionary for VC/investment meetings, easily extensible
+
+## Key Features
+
+### Recording & Audio
+- **One-click recording** with live audio level meter and built-in player
+- **Dual-track capture**: Records microphone and system audio (participants' voices) separately
+- **Lightweight storage**: Opus encoding at ~32 kbps (~7-15 MB/hour), encoded during recording so crashes don't lose data
+- **Live note-taking**: Side panel during recording for manual annotations that enrich the summary later
+- **Export audio**: MP3, WAV, or OGG formats
+- **Upload audio**: Transcribe existing recordings
+
+### AI Transcription
+- **Provider flexibility**: Choose Groq Whisper (default, free tier), OpenAI, Fireworks AI, or custom endpoints
+- **Language per transcription**: Defaults to Portuguese (Brazil), configurable per recording
+- **Chat format**: Microphone appears as "You" (right side), system audio as "Participants" (left side)
+- **Terminology dictionary**: Pre-loaded with 40 VC/investment terms; add your own names, acronyms, jargon
+- **Hallucination filtering**: Removes Whisper's silence-filling artifacts automatically
+- **Search**: Full-text search within transcripts
+
+### AI Summary
+- **Multi-provider support**: OpenAI, Claude, Gemini, MiniMax, NVIDIA NIM, or your own endpoints
+- **Claude Code integration**: Use Claude installed locally without an API key (uses your Claude subscription)
+- **Editable base prompt**: Customize the default summarization instructions
+- **Prompt library**: Create named prompts for different meeting types (investor updates, 1-on-1s, etc.)
+- **Manual notes integration**: Your live annotations are included in the summary prompt
+- **Search**: Full-text search within summaries
+
+### Calendar & Automation
+- **ICS calendar integration**: See upcoming meetings with participants, location, and call links
+- **Current meeting highlight**: Visual indicator for meetings happening now
+- **One-click start**: "Start Recording" button per meeting, or "Schedule Recording" for auto-start
+- **Forgotten recording reminder**: Hourly reminder with Stop button
+- **Auto-stop**: Configurable auto-stop (default 2 hours) prevents runaway recordings
+- **System tray**: Always-on tray icon with recording indicator
+
+### CRM Integration
+- **Attio & Affinity support**: Push transcripts, summaries, or notes as CRM notes
+- **Time-based meeting matching**: Finds the CRM meeting by recording timestamp
+- **Participant suggestions**: Auto-suggests participants and their companies based on meeting data
+- **Flexible note creation**: Choose what to upload and to which participants/companies
+
+### Quality of Life
+- **Auto-update**: Checks for updates on launch and every 24 hours
+- **Auto-start with OS**: Launches minimized to tray (enabled by default)
+- **Themes**: Light, dark, or automatic (follows system)
+- **Persistent logs**: Troubleshooting logs accessible from Settings
+- **Test your keys**: Built-in test button for each API provider
+- **Friendly error messages**: Plain-language errors with troubleshooting hints
+
+## Platform Support
+
+| Platform | Microphone | System Audio | Notes |
+|----------|-----------|--------------|-------|
+| **Windows** | ✅ | ✅ | WASAPI loopback |
+| **macOS** | ✅ | ✅ | ScreenCaptureKit (macOS 13+, requires Screen Recording permission) |
+| **Linux** | ✅ | ⏳ | System audio coming soon (PulseAudio monitor) |
+
+## Installation
+
+Download the latest release for your operating system from the [Releases page](https://github.com/GeanChu/hicorder/releases/latest).
 
 ### Windows
-[**Baixar para Windows**](https://github.com/GeanChu/hicorder/releases/latest) — arquivo `Hicorder_x.y.z_x64-setup.exe` (instalador) ou `Hicorder_x.y.z_x64_en-US.msi`.
 
-1. Execute o instalador e siga o assistente.
-2. Se o **SmartScreen** avisar ("Windows protegeu seu PC"): clique em **Mais informações** → **Executar assim mesmo**.
-3. Se o antivírus bloquear, veja [Aviso do antivírus](#aviso-do-antivírus--smartscreen) abaixo.
+Download `Hicorder_x.y.z_x64-setup.exe` (NSIS installer) or `Hicorder_x.y.z_x64_en-US.msi`.
 
-### macOS (Intel e Apple Silicon)
-[**Baixar para macOS**](https://github.com/GeanChu/hicorder/releases/latest) — arquivo `Hicorder_x.y.z_universal.dmg` (universal).
+1. Run the installer and follow the wizard.
+2. If **Windows SmartScreen** warns ("Windows protected your PC"): click **More info** → **Run anyway**.
+3. If your antivirus blocks it, see [Antivirus Warnings](#antivirus-warnings) below.
 
-1. Abra o `.dmg` e arraste o **Hicorder** para a pasta Aplicativos.
-2. Na primeira vez (app ainda não notarizado): clique com o **botão direito** no Hicorder → **Abrir** → **Abrir**. Ou **Ajustes do Sistema → Privacidade e Segurança → Abrir mesmo assim**.
-3. Se o macOS bloquear ("não é possível verificar" ou "está danificado"), rode no **Terminal** e abra de novo:
+### macOS (Intel & Apple Silicon)
+
+Download `Hicorder_x.y.z_universal.dmg` (universal binary).
+
+1. Open the `.dmg` and drag **Hicorder** to your Applications folder.
+2. On first launch (app not yet notarized): **right-click** Hicorder → **Open** → **Open**. Or go to **System Settings → Privacy & Security → Open Anyway**.
+3. If macOS blocks it ("cannot be verified" or "is damaged"), run in **Terminal** and open again:
    ```bash
    xattr -dr com.apple.quarantine /Applications/Hicorder.app
-   # se ainda disser "danificado" (Apple Silicon):
+   # If still says "damaged" (Apple Silicon):
    codesign --force --deep -s - /Applications/Hicorder.app
    ```
-4. Autorize a permissão de **microfone** quando pedida.
-5. Para gravar o **áudio da call** (voz dos outros), o macOS exige **Gravação de Tela**: ao gravar pela primeira vez, vá em **Ajustes do Sistema → Privacidade e Segurança → Gravação de Tela**, ative o **Hicorder** e **reinicie o app**. Sem isso, grava só o microfone.
+4. Grant **Microphone** permission when prompted.
+5. To record **call audio** (participants' voices), macOS requires **Screen Recording** permission: when you first record, go to **System Settings → Privacy & Security → Screen Recording**, enable **Hicorder**, and **restart the app**. Without this, it records microphone only.
 
 ### Linux
-[**Baixar para Linux**](https://github.com/GeanChu/hicorder/releases/latest) — `AppImage` (portátil), `.deb` (Debian/Ubuntu) ou `.rpm` (Fedora/RHEL).
+
+Download `AppImage` (portable), `.deb` (Debian/Ubuntu), or `.rpm` (Fedora/RHEL).
 
 ```bash
-# AppImage (portátil, não instala nada)
+# AppImage (portable, no installation)
 chmod +x Hicorder_*_amd64.AppImage && ./Hicorder_*_amd64.AppImage
 
 # Debian / Ubuntu
@@ -65,69 +139,163 @@ sudo apt install ./Hicorder_*_amd64.deb
 sudo dnf install ./Hicorder-*.x86_64.rpm
 ```
 
-> Áudio do sistema (a voz dos outros participantes) funciona no **Windows** (WASAPI loopback) e no **macOS** (ScreenCaptureKit, exige permissão de Gravação de Tela). No **Linux** a versão atual grava apenas o **microfone** — as demais funções (agenda, transcrição, resumo, CRM) funcionam normalmente.
+> **Note:** Linux currently records microphone only. System audio (PulseAudio monitor) is on the roadmap. All other features (calendar, transcription, summary, CRM) work normally.
 
-### Aviso do antivírus / SmartScreen
+### Antivirus Warnings
 
-Os instaladores ainda **não são assinados digitalmente** (assinatura via [SignPath Foundation](https://signpath.org/) está em andamento — ver [docs/SIGNING.md](docs/SIGNING.md)). Por isso o Windows SmartScreen ou o antivírus podem exibir um aviso na primeira execução. O que fazemos para minimizar isso:
+The installers are **not yet digitally signed** (code signing via [SignPath Foundation](https://signpath.org/) is in progress — see [docs/SIGNING.md](docs/SIGNING.md)). Windows SmartScreen or antivirus software may show a warning on first run. Here's what we do to minimize this:
 
-- Código 100% aberto neste repositório; os binários são gerados por CI público (GitHub Actions) a partir deste código.
-- Metadados completos no executável e instalador (editora, versão, descrição, site).
-- Falsos positivos são reportados aos fornecedores (Kaspersky via opentip.kaspersky.com, Microsoft via portal de submissão).
+- 100% open source code in this repository; binaries are built by public CI (GitHub Actions) from this code.
+- Full metadata embedded in executables and installers (publisher, version, description, website).
+- False positives are reported to vendors (Kaspersky via opentip.kaspersky.com, Microsoft via submission portal).
 
-Se o seu antivírus bloquear: adicione o Hicorder como aplicativo confiável ou baixe novamente após a assinatura digital estar ativa. No SmartScreen: "Mais informações" → "Executar assim mesmo".
+If your antivirus blocks it: add Hicorder as a trusted application or download again after code signing is active. For SmartScreen: "More info" → "Run anyway".
 
-A assinatura de código dos executáveis Windows é feita pelo **[SignPath Foundation](https://signpath.org/)** (programa gratuito de assinatura para projetos open source). *Free code signing provided by [SignPath.io](https://signpath.io), certificate by [SignPath Foundation](https://signpath.org/).*
+Code signing for Windows executables is provided by **[SignPath Foundation](https://signpath.org/)** (free signing program for open source projects). *Free code signing provided by [SignPath.io](https://signpath.io), certificate by [SignPath Foundation](https://signpath.org/).*
 
-## Chaves de API
+## Quick Start
 
-Cada etapa de IA usa um provedor à sua escolha (Configurações → selects de provedor, com instrução de onde obter cada chave):
+1. **Install Hicorder** and launch it.
+2. **Configure your AI providers** in Settings:
+   - **Transcription**: Get an API key from [Groq](https://console.groq.com/keys) (free tier available), [OpenAI](https://platform.openai.com/api-keys), or [Fireworks AI](https://fireworks.ai).
+   - **Summary**: Get an API key from your preferred LLM provider (OpenAI, Claude, Gemini, etc.) or use [Claude Code](https://www.anthropic.com/claude/download) locally (no key needed).
+   - Test each key with the "Test" button.
+3. **(Optional) Connect your calendar**: Paste your private ICS URL in Settings → Connections → Calendar. [How to get your ICS URL](https://support.google.com/calendar/answer/37648).
+4. **(Optional) Connect your CRM**: Add your Attio or Affinity API key in Settings → Connections → CRM.
+5. **Start recording**: Click the big red button on the Home tab, or click "Start Recording" next to an upcoming meeting.
+6. **Transcribe**: After stopping, go to the Recordings tab, select your recording, and click "Transcribe".
+7. **Summarize**: After transcription completes, click "Generate Summary".
+8. **(Optional) Push to CRM**: Click "Upload to CRM", select the meeting, choose participants, and confirm.
 
-| Etapa | Provedores | Custo típico |
-|---|---|---|
-| Transcrição | Groq (padrão), OpenAI, Fireworks, personalizado | Groq tem free tier |
-| Resumo | OpenAI, Claude, Gemini, MiniMax, NVIDIA NIM, personalizado | conforme o plano |
-| Resumo (alternativa) | **Claude Code instalado na máquina** — sem chave, usa sua assinatura Claude | cota da assinatura |
-| CRM | Attio (Settings → Developers → API tokens) ou Affinity (Settings → API) | — |
+## Comparison with Granola
 
-Cada provedor guarda a **própria** chave: trocar de provedor não apaga a anterior. As chaves ficam no **keychain do sistema operacional** (arquivo protegido no macOS), nunca em texto puro, e nunca são exibidas de volta na tela.
+Hicorder was created as an alternative to Granola. Here's how they compare:
 
-## Como rodar (dev)
+| Feature | Hicorder | Granola |
+|---------|----------|---------|
+| **Open Source** | ✅ Yes (MIT) | ❌ No |
+| **Pricing** | Free (you provide API keys) | Freemium (capped free tier, paid plans) |
+| **AI Provider Choice** | Any OpenAI-compatible endpoint | Granola-managed |
+| **Custom Prompts** | ✅ Editable base + prompt library | Limited customization |
+| **CRM Integrations** | Attio, Affinity (extendable) | Multiple (proprietary) |
+| **Data Privacy** | 100% local, you choose providers | Cloud-first |
+| **Venture Capital Focus** | Yes (built-in VC dictionary) | General business |
+| **Platform** | Desktop (Windows, macOS, Linux) | Desktop + mobile |
+| **System Audio** | Native (Windows/macOS) | Native |
+| **Meeting Detection** | ICS calendar | Calendar + app detection |
 
-Pré-requisitos: Node 20+, Rust stable, dependências do Tauri 2 e `ffmpeg` no PATH (só em dev; no app final o ffmpeg vai embutido).
+**When to choose Hicorder:**
+- You want control over your AI providers and costs
+- You need customizable prompts for specific meeting types
+- You prefer local-first data storage
+- You're in Venture Capital or want extensible CRM integrations
+
+**When to choose Granola:**
+- You prefer a managed service with no setup
+- You want mobile apps
+- You need integrations Hicorder doesn't support yet
+
+## Architecture
+
+Hicorder is built with [Tauri 2](https://tauri.app) (Rust backend + React frontend):
+
+- **Audio capture**: `cpal` for microphone, WASAPI loopback (Windows), ScreenCaptureKit (macOS)
+- **Audio encoding**: Embedded `ffmpeg` for Opus/Ogg encoding during recording (~32 kbps, 16 kHz)
+- **Storage**: SQLite for recordings, transcripts, summaries, notes, prompts, meetings
+- **Security**: API keys stored in OS keychain (Windows/Linux) or protected file (macOS)
+- **Networking**: Reqwest with native TLS, IPv4-only DNS resolver, explicit timeouts
+
+See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for details.
+
+## Documentation
+
+- [ARCHITECTURE.md](docs/ARCHITECTURE.md) — System design and module breakdown
+- [ROADMAP.md](docs/ROADMAP.md) — What's done and what's coming
+- [DECISIONS.md](docs/DECISIONS.md) — Architecture Decision Records (ADRs)
+- [PROVIDERS.md](docs/PROVIDERS.md) — Supported AI providers and configuration
+- [SIGNING.md](docs/SIGNING.md) — Code signing setup (SignPath Foundation)
+- [CONTINUATION.md](docs/CONTINUATION.md) — Current development state and handoff notes
+
+## Development Setup
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed development instructions.
+
+**Quick start:**
+
+Prerequisites:
+- Node.js 20+
+- Rust stable (with MSVC on Windows: Visual Studio Build Tools with C++ and Windows SDK)
+- Tauri 2 system dependencies: [Installation guide](https://v2.tauri.app/start/prerequisites/)
+- `ffmpeg` in PATH (dev only; production embeds it)
 
 ```bash
+git clone https://github.com/GeanChu/hicorder.git
+cd hicorder
 npm install
 npm run tauri dev
 ```
 
-Verificação sem gerar binário (útil com antivírus agressivo): `cargo check` em `src-tauri/`.
+Build without bundling (for testing):
+```bash
+npm run tauri build -- --no-bundle
+```
 
-## Stack
+Run tests:
+```bash
+cd src-tauri
+cargo test
+```
 
-- **Tauri 2** (backend Rust) + **Vite + React + TypeScript** (UI)
-- **cpal** (mic), **WASAPI loopback** (Windows) e **ScreenCaptureKit** (macOS) para o áudio do sistema; Linux no roadmap
-- **ffmpeg** embutido como resource (mix/encode Opus)
-- **SQLite** (gravações, transcrições, resumos, anotações, prompts, agenda) · **keyring** (chaves no keychain)
-- Captura de áudio referenciada do projeto **meetily** (MIT) — veja [NOTICE](NOTICE)
+## Privacy
 
-## Documentação
+- **Local-first**: Audio, transcripts, and summaries are stored locally on your computer (SQLite + files).
+- **AI providers**: Transcription and summary send audio/text **only** to the AI provider you configure. We recommend reading each provider's privacy policy.
+- **CRM upload**: Happens only when you explicitly confirm the upload.
+- **No telemetry**: Hicorder does not collect usage data, analytics, or crash reports.
+- **Calendar URL**: Your ICS URL is a credential (anyone with it can read your calendar). It's stored locally and never sent anywhere except to fetch the calendar data.
 
-- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — módulos e desenho do sistema.
-- [docs/ROADMAP.md](docs/ROADMAP.md) — o que está pronto e o que falta.
-- [docs/DECISIONS.md](docs/DECISIONS.md) — decisões de arquitetura (ADRs).
-- [docs/PROVIDERS.md](docs/PROVIDERS.md) — provedores de IA suportados e como configurar.
-- [docs/SIGNING.md](docs/SIGNING.md) — assinatura de código (SignPath Foundation).
-- [docs/CONTINUATION.md](docs/CONTINUATION.md) — estado atual e handoff de desenvolvimento.
+## Security
 
-## Privacidade
+We take security seriously. If you discover a vulnerability, please report it responsibly:
 
-Áudio, transcrições e resumos ficam **locais** no computador do usuário (SQLite + arquivos). A transcrição/resumo envia o áudio/texto **apenas** para o provedor de IA que você configurar. O upload ao CRM só acontece quando você confirma. Nenhuma telemetria.
+- **Preferred**: Submit a private vulnerability report via [GitHub Security Advisories](https://github.com/GeanChu/hicorder/security/advisories/new)
+- **Alternative**: Email **financeiro@hi.capital**
+- **Do not** open public issues for security reports
 
-## Segurança
+See [SECURITY.md](SECURITY.md) for details.
 
-Vulnerabilidades: veja [SECURITY.md](SECURITY.md).
+## Roadmap & Contributing
 
-## Licença
+See [ROADMAP.md](docs/ROADMAP.md) for planned features and [CONTRIBUTING.md](CONTRIBUTING.md) for how to contribute.
 
-MIT. Veja [LICENSE](LICENSE) e [NOTICE](NOTICE).
+**Areas where the community can help:**
+- **Linux system audio** (PulseAudio monitor source)
+- **New CRM integrations** (see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the integration interface)
+- **New AI providers** (OpenAI-compatible endpoints are drop-in)
+- **macOS notarization** (requires Apple Developer account)
+- **Documentation improvements**
+- **Bug reports and feature requests**
+
+## License
+
+MIT License. See [LICENSE](LICENSE) and [NOTICE](NOTICE).
+
+This project reuses and adapts code from [meetily](https://github.com/Zackriya-Solutions/meetily) (MIT), specifically the cross-platform audio capture pipeline.
+
+## Acknowledgments
+
+- Built with [Tauri](https://tauri.app), [React](https://react.dev), and [Rust](https://www.rust-lang.org)
+- Audio capture inspired by [meetily](https://github.com/Zackriya-Solutions/meetily)
+- Free code signing by [SignPath Foundation](https://signpath.org/)
+
+## Links
+
+- [Website](https://hi.capital)
+- [GitHub](https://github.com/GeanChu/hicorder)
+- [Issues](https://github.com/GeanChu/hicorder/issues)
+- [Releases](https://github.com/GeanChu/hicorder/releases)
+- [Discussion](https://github.com/GeanChu/hicorder/discussions)
+
+---
+
+Made with ❤️ by [Gean Chu](https://github.com/GeanChu) and [Hi Capital](https://hi.capital) • Open source for the community

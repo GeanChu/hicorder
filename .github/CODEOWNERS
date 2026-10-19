@@ -1,0 +1,21 @@
+# Code owners for Hicorder
+# These owners will be requested for review when someone opens a pull request.
+
+# Default owner for everything
+* @GeanChu
+
+# Documentation
+*.md @GeanChu
+docs/ @GeanChu
+
+# CI/CD and workflows
+.github/ @GeanChu
+
+# Security-sensitive files
+SECURITY.md @GeanChu
+src-tauri/src/settings/ @GeanChu
+src-tauri/src/logs/ @GeanChu
+
+# CRM integrations
+src-tauri/src/attio/ @GeanChu
+src-tauri/src/affinity/ @GeanChu
