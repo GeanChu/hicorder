@@ -3057,8 +3057,15 @@ function ClaudeCodeHelp() {
           </button>
         </li>
         <li>
-          Abra o terminal, rode <code>claude</code> uma vez e faça login. Sem isso o Claude Code
-          fica instalado porém sem autenticação, e o resumo falha.
+          Autentique com <code>claude auth login</code>. Abrir o <code>claude</code> e ver o prompt{" "}
+          <strong>não</strong> autentica — ele carrega a credencial do disco mesmo com o token
+          vencido. Confira com <code>claude auth status</code>: precisa dizer{" "}
+          <code>loggedIn: true</code>.
+        </li>
+        <li>
+          Opcional, mas recomendado: <code>claude setup-token</code>. A sessão normal expira de
+          tempos em tempos e o resumo volta a falhar; esse comando troca por uma credencial de
+          longa duração. Nada muda no Hicorder — ele já usa o que estiver configurado no CLI.
         </li>
         <li>
           Volte aqui e clique em <strong>Testar instalação</strong>.

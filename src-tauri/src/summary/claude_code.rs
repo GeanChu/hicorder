@@ -157,8 +157,8 @@ pub fn resolve(explicit: Option<&str>) -> Result<PathBuf> {
     }
     bail!(
         "Claude Code não encontrado nesta máquina. Instale seguindo \
-         docs.claude.com/en/docs/claude-code/setup e rode `claude` uma vez no terminal para \
-         autenticar (ter o app Claude Desktop instalado não basta — é outro programa). \
+         docs.claude.com/en/docs/claude-code/setup e rode `claude auth login` no terminal \
+         para autenticar (ter o app Claude Desktop instalado não basta — é outro programa). \
          Se já estiver instalado, informe o caminho do executável nas Configurações."
     )
 }
@@ -252,6 +252,35 @@ fn reader<R: Read + Send + 'static>(src: Option<R>) -> Option<thread::JoinHandle
     })
 }
 
+/// Motivo real de uma execução que falhou.
+///
+/// O CLI, em `--output-format json`, escreve o erro **no stdout** e deixa o
+/// stderr vazio — sessão expirada sai como
+/// `{"is_error":true,"terminal_reason":"api_error","result":"Failed to
+/// authenticate: OAuth session expired..."}` com stderr em branco. Olhar só o
+/// stderr transformava isso em "sem detalhes" e escondia a única informação
+/// que dizia ao usuário o que fazer.
+fn motivo_da_falha(stdout: &str, stderr: &str) -> String {
+    if let Ok(j) = serde_json::from_str::<serde_json::Value>(stdout.trim()) {
+        let texto = j.get("result").and_then(|v| v.as_str()).unwrap_or("").trim();
+        if !texto.is_empty() {
+            let causa = j
+                .get("api_error_status")
+                .and_then(|v| v.as_str())
+                .or_else(|| j.get("terminal_reason").and_then(|v| v.as_str()));
+            return match causa {
+                Some(c) => format!("{texto} ({c})"),
+                None => texto.to_string(),
+            };
+        }
+    }
+    let err = first_line(stderr);
+    if err != "sem detalhes" {
+        return err;
+    }
+    first_line(stdout)
+}
+
 /// Primeira linha não vazia do stderr — o resto costuma ser ruído de stack.
 fn first_line(s: &str) -> String {
     s.lines()
@@ -322,7 +351,7 @@ pub fn summarize(
     let args = args_for(model, system_prompt);
     let (stdout, stderr, ok) = run_raw(&bin, &args, input, SUMMARY_TIMEOUT_SECS)?;
     if !ok {
-        bail!("Claude Code terminou com erro: {}", first_line(&stderr));
+        bail!("Claude Code falhou: {}", motivo_da_falha(&stdout, &stderr));
     }
     text_from_json(&stdout)
 }
@@ -360,15 +389,15 @@ pub fn test(explicit_path: Option<&str>) -> Result<String> {
     if !ok {
         bail!(
             "Claude Code {ver} encontrado em {}, mas a chamada falhou: {}. \
-             Rode `claude` no terminal uma vez para autenticar.",
+             Rode `claude auth login` no terminal (abrir o `claude` e ver o prompt NAO significa estar autenticado — confira com `claude auth status`). Para não repetir quando a sessão expirar, use `claude setup-token`.",
             bin.display(),
-            first_line(&stderr)
+            motivo_da_falha(&stdout, &stderr)
         );
     }
     text_from_json(&stdout).map_err(|e| {
         anyhow!(
             "Claude Code {ver} encontrado em {}, mas não respondeu: {e}. \
-             Rode `claude` no terminal uma vez para autenticar.",
+             Rode `claude auth login` no terminal (abrir o `claude` e ver o prompt NAO significa estar autenticado — confira com `claude auth status`). Para não repetir quando a sessão expirar, use `claude setup-token`.",
             bin.display()
         )
     })?;
@@ -473,6 +502,36 @@ mod tests {
     fn json_sem_texto_vira_erro() {
         let j = r#"{"is_error":false,"result":"   "}"#;
         assert!(text_from_json(j).is_err());
+    }
+
+    #[test]
+    fn sessao_expirada_aparece_na_mensagem() {
+        // Payload real capturado do CLI 2.1.220: exit code 1, stderr VAZIO, e a
+        // causa só no stdout. Antes isso virava "sem detalhes".
+        let stdout = r#"{"is_error":true,"terminal_reason":"api_error","api_error_status":null,
+            "result":"Failed to authenticate: OAuth session expired and could not be refreshed"}"#;
+        let m = motivo_da_falha(stdout, "");
+        assert!(m.contains("OAuth session expired"), "perdeu a causa: {m}");
+        assert!(m.contains("api_error"), "perdeu o terminal_reason: {m}");
+        assert_ne!(m, "sem detalhes");
+    }
+
+    #[test]
+    fn usa_o_stderr_quando_o_stdout_nao_ajuda() {
+        assert_eq!(motivo_da_falha("", "boom: falhou feio"), "boom: falhou feio");
+        // JSON sem `result` também cai no stderr.
+        assert_eq!(motivo_da_falha(r#"{"is_error":true}"#, "erro do shell"), "erro do shell");
+    }
+
+    #[test]
+    fn sem_stdout_nem_stderr_admite_que_nao_sabe() {
+        assert_eq!(motivo_da_falha("", ""), "sem detalhes");
+    }
+
+    #[test]
+    fn saida_nao_json_no_stdout_ainda_e_aproveitada() {
+        // Ex.: shim quebrado que imprime no stdout e nada no stderr.
+        assert_eq!(motivo_da_falha("command not found", ""), "command not found");
     }
 
     #[test]
