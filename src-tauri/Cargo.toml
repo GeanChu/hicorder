@@ -44,7 +44,7 @@ chrono-tz = "0.10.4"
 rrule = "0.14.0"
 
 [target.'cfg(windows)'.dependencies]
-wasapi = "0.23.0"
+wasapi = "0.26.0"
 keyring = { version = "4.1.2", default-features = false, features = ["v1", "windows-native-keyring-store"] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
