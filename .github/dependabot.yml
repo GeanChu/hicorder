@@ -9,6 +9,25 @@ updates:
     labels:
       - "dependencies"
       - "frontend"
+    groups:
+      # `tauri build` aborts when an npm Tauri package and its Rust crate are on
+      # different major/minor versions. Keep all @tauri-apps/* in one PR and
+      # merge it together with the "tauri" group of the cargo entry below.
+      tauri:
+        patterns:
+          - "@tauri-apps/*"
+      # React 19 refuses to start if react and react-dom differ by even a patch.
+      react:
+        patterns:
+          - "react"
+          - "react-dom"
+          - "@types/react"
+          - "@types/react-dom"
+      # @vitejs/plugin-react pins a peer range of vite majors; bump them together.
+      vite:
+        patterns:
+          - "vite"
+          - "@vitejs/*"
 
   # Enable version updates for cargo (Rust backend)
   - package-ecosystem: "cargo"
@@ -19,6 +38,12 @@ updates:
     labels:
       - "dependencies"
       - "backend"
+    groups:
+      # Pairs with the npm "tauri" group above (see the note there).
+      tauri:
+        patterns:
+          - "tauri"
+          - "tauri-*"
 
   # GitHub Actions
   - package-ecosystem: "github-actions"
