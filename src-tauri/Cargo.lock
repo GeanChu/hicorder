@@ -867,7 +867,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d045de693cb712d0b22c6a64be5b953f67b3ce00ab5ad3dd5d8b441886ab8e1a"
 dependencies = [
  "quote",
- "syn 2.0.118",
+ "syn 3.0.9",
 ]
 
 [[package]]
@@ -5438,9 +5438,9 @@ dependencies = [
 
 [[package]]
 name = "wasapi"
-version = "0.23.0"
+version = "0.26.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "80c3aa5d6b0e7acc3ea10cb19c334df0c8d825060f14a30d9e3b03385e6e5175"
+checksum = "1b5f8804a710cf7a18b07610225abb127e562f3249a1f3ed88a6f045c5444910"
 dependencies = [
  "log",
  "num-integer",
